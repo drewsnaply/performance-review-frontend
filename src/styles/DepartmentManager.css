@@ -1,0 +1,269 @@
+/* Department Manager Styles - Updated to match dashboard colors */
+.department-container {
+    padding: 20px 30px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  .page-title {
+    font-size: 26px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 24px;
+  }
+  
+  /* Form Card Styles */
+  .department-form-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    padding: 24px;
+    margin-bottom: 30px;
+  }
+  
+  .section-title {
+    font-size: 20px;
+    font-weight: 500;
+    color: #333;
+    margin-top: 0;
+    margin-bottom: 20px;
+  }
+  
+  .department-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .form-row {
+    display: flex;
+    gap: 20px;
+  }
+  
+  .form-group {
+    flex: 1;
+    margin-bottom: 0;
+  }
+  
+  .form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #444;
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #d9dee3;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.15s ease;
+  }
+  
+  .form-control:focus {
+    border-color: #6366F1; /* Purple color matching your buttons */
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+  
+  textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+  }
+  
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  
+  /* Department List Section */
+  .department-list-section {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    padding: 24px;
+  }
+  
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  /* Table Styles */
+  .table-responsive {
+    overflow-x: auto;
+  }
+  
+  .department-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  
+  .department-table th {
+    background-color: #f8f9fa;
+    padding: 14px 16px;
+    text-align: left;
+    font-weight: 600;
+    color: #444;
+    border-bottom: 1px solid #e4e6eb;
+  }
+  
+  .department-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #e4e6eb;
+    vertical-align: middle;
+  }
+  
+  .department-table tbody tr:hover {
+    background-color: #f8f9fa;
+  }
+  
+  .department-name {
+    font-weight: 500;
+    color: #333;
+  }
+  
+  .description-cell {
+    max-width: 300px;
+    /* Show ellipsis for long descriptions */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .actions-column {
+    width: 150px;
+    text-align: center;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+  
+  /* Button Styles - Matched to your dashboard */
+  .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+  }
+  
+  .btn-primary {
+    background-color: #6366F1; /* Purple from your View buttons */
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background-color: #5258e9;
+  }
+  
+  .btn-cancel {
+    background-color: #f0f0f0;
+    color: #555;
+  }
+  
+  .btn-cancel:hover {
+    background-color: #e0e0e0;
+  }
+  
+  .btn-add {
+    background-color: #6366F1; /* Match your primary purple */
+    color: white;
+    display: flex;
+    align-items: center;
+  }
+  
+  .btn-add:hover {
+    background-color: #5258e9;
+  }
+  
+  .btn-edit {
+    background-color: #EEF2FF; /* Light purple background */
+    color: #6366F1; /* Purple text */
+  }
+  
+  .btn-edit:hover {
+    background-color: #E0E7FF;
+  }
+  
+  .btn-delete {
+    background-color: #FEF2F2; /* Light red background */
+    color: #EF4444; /* Red text */
+  }
+  
+  .btn-delete:hover {
+    background-color: #FEE2E2;
+  }
+  
+  /* Status badges to match your dashboard */
+  .status-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  
+  .status-badge.completed {
+    background-color: #ECFDF5; /* Light green background */
+    color: #10B981; /* Green text */
+  }
+  
+  .status-badge.pending {
+    background-color: #FEF3C7; /* Light orange background */
+    color: #F59E0B; /* Orange text */
+  }
+  
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+    background-color: #f9f9f9;
+    border-radius: 6px;
+    margin-top: 20px;
+  }
+  
+  /* Value Display (like your dashboard number blocks) */
+  .value-display {
+    font-size: 32px;
+    font-weight: 600;
+    color: #6366F1; /* Purple color */
+    margin: 10px 0;
+  }
+  
+  .positive-indicator {
+    color: #10B981; /* Green text for positive status */
+  }
+  
+  /* Responsive Adjustments */
+  @media (max-width: 768px) {
+    .form-row {
+      flex-direction: column;
+      gap: 15px;
+    }
+    
+    .action-buttons {
+      flex-direction: column;
+      gap: 5px;
+    }
+    
+    .btn {
+      width: 100%;
+    }
+    
+    .description-cell {
+      max-width: 150px;
+    }
+  }
