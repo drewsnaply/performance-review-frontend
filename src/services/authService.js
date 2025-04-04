@@ -6,7 +6,7 @@ const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': 'https://performance-review-frontend.onrender.com'
+    'Access-Control-Allow-Origin': '*'
   },
   withCredentials: true,
   timeout: 10000 // 10 second timeout
