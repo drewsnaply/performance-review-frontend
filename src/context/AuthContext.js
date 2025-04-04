@@ -17,7 +17,6 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Function to check if token is expired
   const isTokenExpired = (token) => {
     try {
       const decoded = jwtDecode(token);
@@ -27,20 +26,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Restore authentication on page load
   useEffect(() => {
     const checkAuthStatus = () => {
       const token = localStorage.getItem('authToken');
       
       if (token) {
         try {
-          // Check if token is expired
           if (isTokenExpired(token)) {
             console.log('Token expired, logging out');
             localStorage.removeItem('authToken');
             setCurrentUser(null);
             setIsAuthenticated(false);
-            // Don't automatically redirect if on login page when token is expired
             if (window.location.pathname !== '/login') {
               window.location.replace('/login');
             }
@@ -58,11 +54,9 @@ export const AuthProvider = ({ children }) => {
           window.location.replace('/login');
         }
       } else {
-        // No token found, ensure user is not authenticated
         setCurrentUser(null);
         setIsAuthenticated(false);
         
-        // If not on login or register page, redirect to login
         if (
           window.location.pathname !== '/login' && 
           window.location.pathname !== '/register'
@@ -100,25 +94,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    console.error('LOGOUT CALLED - AuthContext');
+    console.log('LOGOUT CALLED - AuthContext');
     
     try {
-      // Remove authentication token
       localStorage.removeItem('authToken');
-      console.log('Token removed from localStorage');
-      
-      // Clear all local storage to remove any sensitive data
       localStorage.clear();
-      console.log('Local storage cleared');
       sessionStorage.clear();
-      console.log('Session storage cleared');
       
-      // Reset context state IMMEDIATELY
       setCurrentUser(null);
       setIsAuthenticated(false);
-      console.log('Context state reset');
 
-      // Force full page reload to login
       window.location.replace('/login');
     } catch (error) {
       console.error('Comprehensive logout error:', error);

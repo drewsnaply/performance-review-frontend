@@ -1,15 +1,15 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/auth';
+const API_URL = process.env.REACT_APP_API_URL || 'https://performance-review-backend.onrender.com/api/auth';
 
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-// Automatically add the authorization header to all requests
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('authToken');
@@ -26,9 +26,16 @@ const login = async (username, password) => {
     const response = await api.post('/login', { username, password });
     console.log('Login Response:', response.data);
 
-    return response.data; // Return the full response
+    if (response.data && response.data.token) {
+      return {
+        token: response.data.token,
+        user: response.data.user
+      };
+    } else {
+      throw new Error('Invalid response from server');
+    }
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error:', error.response ? error.response.data : error);
     throw new Error(error.response?.data?.message || 'Login failed');
   }
 };
