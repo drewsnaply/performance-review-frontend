@@ -7,68 +7,84 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true,
   timeout: 15000 // Increased timeout
 });
 
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
+    // Log full request details
+    console.log('Full API Request Configuration:', {
+      url: config.url,
+      method: config.method,
+      baseURL: config.baseURL,
+      headers: config.headers,
+      env: {
+        API_URL: process.env.REACT_APP_API_URL,
+        NODE_ENV: process.env.NODE_ENV
+      }
+    });
+    
     const token = localStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    console.log('API Request:', {
-      url: config.url,
-      method: config.method,
-      headers: config.headers
-    });
-    
     return config;
   },
-  (error) => Promise.reject(error)
-);
-
-// Response interceptor
-api.interceptors.response.use(
-  (response) => response,
   (error) => {
-    console.error('API Response Error:', {
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message
-    });
-    
+    console.error('Request Preparation Error:', error);
     return Promise.reject(error);
   }
 );
 
 const login = async (username, password) => {
   try {
-    const response = await api.post('/login', { username, password });
-    console.log('Login Response:', response.data);
+    console.log('Login Attempt:', {
+      username,
+      apiUrl: API_URL
+    });
 
-    if (response.data && response.data.token) {
+    const response = await api.post('/login', { 
+      username, 
+      password 
+    }, {
+      // Additional axios config
+      validateStatus: function (status) {
+        return status >= 200 && status < 500; // Reject only if status is 500 or above
+      }
+    });
+
+    console.log('Raw Login Response:', response);
+
+    // More robust response handling
+    if (response.status === 200 && response.data && response.data.token) {
       return {
         token: response.data.token,
         user: response.data.user
       };
     } else {
-      throw new Error('Invalid response from server');
+      console.error('Unexpected Response:', response);
+      throw new Error(response.data?.message || 'Unexpected server response');
     }
   } catch (error) {
-    console.error('Login Error:', {
-      response: error.response?.data,
-      message: error.message
+    console.error('Comprehensive Login Error:', {
+      name: error.name,
+      message: error.message,
+      response: error.response,
+      request: error.request,
+      config: error.config
     });
-    
+
     if (error.response) {
+      // The request was made and the server responded with a status code
       throw new Error(error.response.data.message || 'Login failed');
     } else if (error.request) {
+      // The request was made but no response was received
       throw new Error('No response received from server');
     } else {
-      throw new Error('Error preparing login request');
+      // Something happened in setting up the request
+      throw new Error('Error preparing login request: ' + error.message);
     }
   }
 };
