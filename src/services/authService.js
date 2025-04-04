@@ -13,22 +13,17 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // Log full request details
-    console.log('Full API Request Configuration:', {
+    console.log('Detailed API Request:', {
       url: config.url,
       method: config.method,
       baseURL: config.baseURL,
       headers: config.headers,
+      data: config.data,
       env: {
         API_URL: process.env.REACT_APP_API_URL,
         NODE_ENV: process.env.NODE_ENV
       }
     });
-    
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
     
     return config;
   },
@@ -38,54 +33,68 @@ api.interceptors.request.use(
   }
 );
 
-const login = async (username, password) => {
-  try {
-    console.log('Login Attempt:', {
-      username,
-      apiUrl: API_URL
+// Response interceptor
+api.interceptors.response.use(
+  (response) => {
+    console.log('Detailed API Response:', {
+      status: response.status,
+      data: response.data,
+      headers: response.headers
     });
-
-    const response = await api.post('/login', { 
-      username, 
-      password 
-    }, {
-      // Additional axios config
-      validateStatus: function (status) {
-        return status >= 200 && status < 500; // Reject only if status is 500 or above
-      }
-    });
-
-    console.log('Raw Login Response:', response);
-
-    // More robust response handling
-    if (response.status === 200 && response.data && response.data.token) {
-      return {
-        token: response.data.token,
-        user: response.data.user
-      };
-    } else {
-      console.error('Unexpected Response:', response);
-      throw new Error(response.data?.message || 'Unexpected server response');
-    }
-  } catch (error) {
-    console.error('Comprehensive Login Error:', {
-      name: error.name,
-      message: error.message,
+    return response;
+  },
+  (error) => {
+    console.error('Comprehensive API Error:', {
       response: error.response,
       request: error.request,
+      message: error.message,
       config: error.config
     });
+    return Promise.reject(error);
+  }
+);
 
-    if (error.response) {
-      // The request was made and the server responded with a status code
-      throw new Error(error.response.data.message || 'Login failed');
-    } else if (error.request) {
-      // The request was made but no response was received
-      throw new Error('No response received from server');
+const login = async (username, password) => {
+  try {
+    console.log('Attempting Login:', { username, apiUrl: API_URL });
+
+    const response = await fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ username, password })
+    });
+
+    console.log('Raw Fetch Response:', {
+      status: response.status,
+      headers: Object.fromEntries(response.headers.entries())
+    });
+
+    const data = await response.json();
+
+    console.log('Parsed Response Data:', data);
+
+    if (response.ok) {
+      if (data.token) {
+        return {
+          token: data.token,
+          user: data.user
+        };
+      } else {
+        throw new Error('No token in response');
+      }
     } else {
-      // Something happened in setting up the request
-      throw new Error('Error preparing login request: ' + error.message);
+      throw new Error(data.message || 'Login failed');
     }
+  } catch (error) {
+    console.error('Login Error:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+
+    throw error;
   }
 };
 
