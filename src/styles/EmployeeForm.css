@@ -1,0 +1,78 @@
+.employee-form-container {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .employee-form h2 {
+    margin-bottom: 20px;
+    color: #343a40;
+    font-size: 1.8em;
+  }
+  
+  .employee-form .form-row {
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  .employee-form .form-group {
+    flex: 1;
+    margin: 10px;
+  }
+  
+  .employee-form .form-group label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  
+  .employee-form .form-group input,
+  .employee-form .form-group select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+  }
+  
+  .employee-form .form-group .input-error {
+    border-color: #dc3545;
+  }
+  
+  .employee-form .error-message {
+    color: #dc3545;
+    font-size: 0.9em;
+  }
+  
+  .employee-form .form-buttons {
+    text-align: right;
+    margin-top: 20px;
+  }
+  
+  .employee-form .button-primary {
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .employee-form .button-primary:hover {
+    background-color: #0056b3;
+  }
+  
+  .employee-form .button-secondary {
+    background-color: #6c757d;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .employee-form .button-secondary:hover {
+    background-color: #5a6268;
+  }

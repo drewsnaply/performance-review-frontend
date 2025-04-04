@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { DepartmentProvider } from './context/DepartmentContext';
 import PrivateRoute from './components/PrivateRoute';
+import AuthInitCheck from './components/AuthInitCheck';
 
 // Import pages
 import Login from './pages/Login';
@@ -10,7 +11,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
 import Unauthorized from './pages/Unauthorized';
-import Test from './pages/Test'; // or './Test' depending on your folder structure
+import Test from './pages/Test';
 
 // Import components for routes
 import MyReviews from './components/MyReviews';
@@ -21,19 +22,21 @@ import ImportTool from './components/ImportTool';
 import ExportTool from './components/ExportTool';
 import EvaluationManagement from './components/EvaluationManagement';
 import DepartmentManager from './components/DepartmentManager';
-import ViewEvaluation from './components/ViewEvaluation';
 
 function App() {
   return (
-    <DepartmentProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <DepartmentProvider>
         <BrowserRouter>
+          <AuthInitCheck />
+          
           <Routes>
+            {/* Public Routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
-            
-            {/* Shared routes for authenticated users */}
+
+            {/* Private Routes */}
             <Route
               path="/dashboard"
               element={
@@ -42,7 +45,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            
             <Route
               path="/my-reviews"
               element={
@@ -51,17 +53,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            
-            <Route
-              path="/evaluation/:id"
-              element={
-                <PrivateRoute>
-                  <Dashboard initialView="evaluation-detail" />
-                </PrivateRoute>
-              }
-            />
-            
-            {/* Manager and Admin routes */}
             <Route
               path="/employees"
               element={
@@ -70,7 +61,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            
             <Route
               path="/team-reviews"
               element={
@@ -79,7 +69,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            
             <Route
               path="/review-cycles"
               element={
@@ -88,7 +77,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            
             <Route
               path="/review-templates"
               element={
@@ -97,8 +85,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            
-            {/* Admin-only routes */}
             <Route
               path="/import-tool"
               element={
@@ -107,7 +93,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            
             <Route
               path="/export-tool"
               element={
@@ -116,7 +101,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            
             <Route
               path="/evaluation-management"
               element={
@@ -125,7 +109,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            
             <Route
               path="/departments"
               element={
@@ -134,18 +117,23 @@ function App() {
                 </PrivateRoute>
               }
             />
-            
-            {/* Redirect to Dashboard if authenticated, else to Login */}
-            <Route path="/" element={<PrivateRoute><Navigate to="/dashboard" replace /></PrivateRoute>} />
-            
+
+            {/* Default Routes */}
+            <Route 
+              path="/" 
+              element={<Navigate to="/login" replace />}
+            />
+
             {/* Catch-all route */}
             <Route path="*" element={<Navigate to="/login" replace />} />
+            
+            {/* Additional routes */}
             <Route path="/test" element={<Test />} />
             <Route path="/direct-dashboard" element={<Dashboard />} />
           </Routes>
         </BrowserRouter>
-      </AuthProvider>
-    </DepartmentProvider>
+      </DepartmentProvider>
+    </AuthProvider>
   );
 }
 

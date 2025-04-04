@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import { useDepartments } from '../context/DepartmentContext';
 import { useAuth } from '../context/AuthContext'; 
+import LogoutButton from '../components/LogoutButton';
 
 // Import components
 import MyReviews from '../components/MyReviews';
@@ -284,16 +285,11 @@ function Dashboard({ initialView = 'dashboard' }) {
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
-        <div className="user-info">
-          <span className="user-name">{user.firstName} {user.lastName}</span>
-          <button 
-            className="logout-button" 
-            onClick={confirmLogout}
-          >
-            Logout
-          </button>
-        </div>
-      </header>
+  <div className="user-info">
+    <span className="user-name">{user.firstName} {user.lastName}</span>
+    <LogoutButton />
+  </div>
+</header>
       
       {showLogoutConfirm && (
         <div className="logout-modal">

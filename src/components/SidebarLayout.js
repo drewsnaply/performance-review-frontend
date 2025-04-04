@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import '../styles/Dashboard.css';
 
 function SidebarLayout({ children, user, activeView, setActiveView }) {
@@ -7,6 +8,7 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
   const location = useLocation();
   const [toolsOpen, setToolsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { logout } = useAuth(); // Keep for compatibility
 
   // Check localStorage for saved sidebar state on component mount
   useEffect(() => {
@@ -42,8 +44,45 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
     handleSetActiveView(route.replace('/', ''));
   };
 
+  // Function to generate absolute URL
+  const getAbsoluteUrl = (relativeUrl) => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}${relativeUrl}`;
+  };
+
+  // Get the full URL for the login page
+  const loginUrl = getAbsoluteUrl('/login');
+
+  // Comprehensive logout handler
+  const handleLogout = async (e) => {
+    e.preventDefault(); // Prevent default link behavior
+
+    console.error('Logout Initiated - Clearing Authentication');
+
+    // Remove authentication token first
+    localStorage.removeItem('authToken');
+
+    // Clear all storage
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // Attempt to use context logout
+    if (typeof logout === 'function') {
+      try {
+        await logout();
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    }
+
+    console.log('Redirecting to login page:', loginUrl);
+    
+    // Force complete logout and redirect
+    window.location.replace(loginUrl);
+  };
+
   // Fallback to default if user or activeView is undefined
-  const currentUser = user || { firstName: 'Guest', lastName: '' };
+  const currentUser = user || { firstName: 'Guest', lastName: '', role: 'USER' };
   const currentActiveView = activeView || 'dashboard';
   const handleSetActiveView = setActiveView || (() => {});
 
@@ -54,7 +93,15 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
           <span className="user-name">
             {`${currentUser.firstName} ${currentUser.lastName}`}
           </span>
-          <button className="logout-button">LOGOUT</button>
+          
+          {/* Logout button */}
+          <a 
+            href="#"
+            className="logout-button"
+            onClick={handleLogout}
+          >
+            LOGOUT
+          </a>
         </div>
       </div>
       

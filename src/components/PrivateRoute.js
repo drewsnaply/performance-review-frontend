@@ -1,29 +1,40 @@
-// PrivateRoute.js
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function PrivateRoute({ children, allowedRoles = [] }) {
-  const { currentUser, isAuthenticated } = useAuth();
-  
-  console.log('PrivateRoute check:', { isAuthenticated, currentUser, allowedRoles });
+  const { currentUser, isAuthenticated, loading } = useAuth();
+  const location = useLocation();
 
-  // First, just check authentication 
-  if (!isAuthenticated) {
-    console.log('User not authenticated, redirecting to login');
-    return <Navigate to="/login" />;
+  // Verbose logging for debugging
+  console.log('PrivateRoute check:', { 
+    isAuthenticated, 
+    currentUser, 
+    tokenExists: !!localStorage.getItem('authToken'),
+    allowedRoles 
+  });
+
+  // If still loading authentication status, show loading indicator
+  if (loading) {
+    return <div>Authenticating...</div>;
   }
-  
-  // Keep the role check commented out for now
-  /*
-  // If roles are specified and user doesn't have permission
-  if (allowedRoles.length > 0 && 
-      currentUser && 
-      !allowedRoles.includes(currentUser.role?.toLowerCase())) {
-    return <Navigate to="/unauthorized" />;
+
+  // Check token existence as a secondary measure
+  const token = localStorage.getItem('authToken');
+  if (!token || !isAuthenticated) {
+    console.warn('No valid authentication, redirecting to login');
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  */
-  
+
+  if (
+    allowedRoles.length > 0 &&
+    currentUser &&
+    !allowedRoles.includes(currentUser.role?.toLowerCase())
+  ) {
+    console.warn(`User role "${currentUser.role}" not authorized`);
+    return <Navigate to="/unauthorized" replace />;
+  }
+
   return children;
 }
 

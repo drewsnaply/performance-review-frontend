@@ -1,10 +1,9 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AuthService from '../services/authService';
+import { jwtDecode } from 'jwt-decode';
 
-// Create the context
 const AuthContext = createContext(null);
 
-// Export custom hook to use the auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -13,85 +12,122 @@ export const useAuth = () => {
   return context;
 };
 
-// Auth provider component
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  // Initialize auth state on component mount
+  // Function to check if token is expired
+  const isTokenExpired = (token) => {
+    try {
+      const decoded = jwtDecode(token);
+      return decoded.exp < Date.now() / 1000;
+    } catch (error) {
+      return true;
+    }
+  };
+
+  // Restore authentication on page load
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const user = AuthService.getCurrentUser();
-        setCurrentUser(user);
-      } catch (err) {
-        console.error('Auth initialization error:', err);
-        setError('Failed to initialize authentication');
-      } finally {
-        setLoading(false);
+    const checkAuthStatus = () => {
+      const token = localStorage.getItem('authToken');
+      
+      if (token) {
+        try {
+          // Check if token is expired
+          if (isTokenExpired(token)) {
+            console.log('Token expired, logging out');
+            localStorage.removeItem('authToken');
+            setCurrentUser(null);
+            setIsAuthenticated(false);
+            // Don't automatically redirect if on login page when token is expired
+            if (window.location.pathname !== '/login') {
+              window.location.replace('/login');
+            }
+          } else {
+            const decodedToken = jwtDecode(token);
+            console.log('Restored user from token:', decodedToken);
+            setCurrentUser(decodedToken);
+            setIsAuthenticated(true);
+          }
+        } catch (error) {
+          console.error('Error decoding token:', error);
+          localStorage.removeItem('authToken');
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+          window.location.replace('/login');
+        }
+      } else {
+        // No token found, ensure user is not authenticated
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+        
+        // If not on login or register page, redirect to login
+        if (
+          window.location.pathname !== '/login' && 
+          window.location.pathname !== '/register'
+        ) {
+          window.location.replace('/login');
+        }
       }
+      
+      setLoading(false);
     };
-
-    initAuth();
+    
+    checkAuthStatus();
   }, []);
 
-  // Login function
   const login = async (username, password) => {
     try {
-      setError(null);
       const response = await AuthService.login(username, password);
-      setCurrentUser(response.user);
-      return response.user;
-    } catch (err) {
-      console.error("Login error:", err);
-      setError(err.message || 'Login failed');
-      throw err;
-    }
-  };
+      const { token } = response;
 
-  // Registration function
-  const register = async (username, email, password, role = 'employee') => {
-    try {
-      setError(null);
-      const response = await AuthService.register(username, email, password, role);
-      setCurrentUser(response.user);
-      return response.user;
-    } catch (err) {
-      console.error("Registration error:", err);
-      setError(err.message || 'Registration failed');
-      throw err;
-    }
-  };
-
-  // Logout function
-  const logout = () => {
-    try {
-      const logoutResult = AuthService.logout();
-      setCurrentUser(null);
-      
-      if (logoutResult) {
-        // Force navigation
-        window.location.href = '/login';
+      if (!token) {
+        throw new Error('No token received from backend');
       }
-    } catch (error) {
-      console.error('Context logout error:', error);
+
+      localStorage.setItem('authToken', token);
+      const decodedToken = jwtDecode(token);
+      console.log('Decoded token after login:', decodedToken);
+
+      setCurrentUser(decodedToken);
+      setIsAuthenticated(true);
+      return { token, user: decodedToken };
+    } catch (err) {
+      console.error('Login error:', err);
+      throw err;
     }
   };
 
-  // Context value
-  const value = {
-    currentUser,
-    isAuthenticated: !!currentUser,
-    loading,
-    error,
-    login,
-    logout,
-    register
+  const logout = async () => {
+    console.error('LOGOUT CALLED - AuthContext');
+    
+    try {
+      // Remove authentication token
+      localStorage.removeItem('authToken');
+      console.log('Token removed from localStorage');
+      
+      // Clear all local storage to remove any sensitive data
+      localStorage.clear();
+      console.log('Local storage cleared');
+      sessionStorage.clear();
+      console.log('Session storage cleared');
+      
+      // Reset context state IMMEDIATELY
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      console.log('Context state reset');
+
+      // Force full page reload to login
+      window.location.replace('/login');
+    } catch (error) {
+      console.error('Comprehensive logout error:', error);
+      window.location.replace('/login');
+    }
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ currentUser, isAuthenticated, login, logout, loading }}>
       {!loading ? children : <div>Loading authentication...</div>}
     </AuthContext.Provider>
   );
