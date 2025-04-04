@@ -1,6 +1,7 @@
 {
   "name": "performance-review-system-new",
   "version": "0.1.0",
+  "homepage": ".",
   "private": true,
   "dependencies": {
     "@testing-library/dom": "^10.4.0",
@@ -19,6 +20,7 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
+    "postbuild": "cp -r public/*.png build/ && cp -r public/*.ico build/",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
