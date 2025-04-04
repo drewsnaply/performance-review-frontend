@@ -6,47 +6,40 @@ const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*'
   },
   withCredentials: true,
-  timeout: 10000 // 10 second timeout
+  timeout: 15000 // Increased timeout
 });
 
-// Request interceptor for API calls
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('authToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
     console.log('API Request:', {
       url: config.url,
       method: config.method,
       headers: config.headers
     });
+    
     return config;
   },
-  (error) => {
-    console.error('API Request Error:', error);
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor for API calls
+// Response interceptor
 api.interceptors.response.use(
-  (response) => {
-    console.log('API Response:', {
-      status: response.status,
-      data: response.data
-    });
-    return response;
-  },
+  (response) => response,
   (error) => {
     console.error('API Response Error:', {
       status: error.response?.status,
       data: error.response?.data,
       message: error.message
     });
+    
     return Promise.reject(error);
   }
 );
@@ -70,15 +63,11 @@ const login = async (username, password) => {
       message: error.message
     });
     
-    // More detailed error handling
     if (error.response) {
-      // The request was made and the server responded with a status code
       throw new Error(error.response.data.message || 'Login failed');
     } else if (error.request) {
-      // The request was made but no response was received
       throw new Error('No response received from server');
     } else {
-      // Something happened in setting up the request
       throw new Error('Error preparing login request');
     }
   }
