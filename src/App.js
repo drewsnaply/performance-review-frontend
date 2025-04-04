@@ -29,7 +29,7 @@ function App() {
       <DepartmentProvider>
         <BrowserRouter>
           <AuthInitCheck />
-          
+
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
@@ -119,14 +119,9 @@ function App() {
             />
 
             {/* Default Routes */}
-            <Route 
-              path="/" 
-              element={<Navigate to="/login" replace />}
-            />
-
-            {/* Catch-all route */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
-            
+
             {/* Additional routes */}
             <Route path="/test" element={<Test />} />
             <Route path="/direct-dashboard" element={<Dashboard />} />
