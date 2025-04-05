@@ -1,34 +1,39 @@
 import axios from 'axios';
 
+// IMPORTANT: Make sure this points to your deployed backend
 const API_URL = process.env.REACT_APP_API_URL || 'https://performance-review-backend.onrender.com/api/auth';
+
+console.log('Using API URL:', API_URL); // Debug URL being used
 
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 15000 // Increased timeout
+  withCredentials: true,
+  timeout: 30000 // Increased timeout for slower response on Render free tier
 });
 
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    console.log('Detailed API Request:', {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    console.log('API Request:', {
       url: config.url,
       method: config.method,
       baseURL: config.baseURL,
       headers: config.headers,
-      data: config.data,
-      env: {
-        API_URL: process.env.REACT_APP_API_URL,
-        NODE_ENV: process.env.NODE_ENV
-      }
+      data: config.data
     });
     
     return config;
   },
   (error) => {
-    console.error('Request Preparation Error:', error);
+    console.error('Request Error:', error);
     return Promise.reject(error);
   }
 );
@@ -36,19 +41,17 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
-    console.log('Detailed API Response:', {
+    console.log('API Response:', {
       status: response.status,
-      data: response.data,
-      headers: response.headers
+      data: response.data
     });
     return response;
   },
   (error) => {
-    console.error('Comprehensive API Error:', {
-      response: error.response,
-      request: error.request,
+    console.error('API Error Details:', {
       message: error.message,
-      config: error.config
+      status: error.response?.status,
+      data: error.response?.data
     });
     return Promise.reject(error);
   }
@@ -56,44 +59,58 @@ api.interceptors.response.use(
 
 const login = async (username, password) => {
   try {
-    console.log('Attempting Login:', { username, apiUrl: API_URL });
-
+    console.log('Attempting Login:', { username });
+    
+    // Try a direct raw fetch first with better error handling
     const response = await fetch(`${API_URL}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify({ username, password })
     });
-
+    
     console.log('Raw Fetch Response:', {
       status: response.status,
+      statusText: response.statusText,
       headers: Object.fromEntries(response.headers.entries())
     });
-
-    const data = await response.json();
-
-    console.log('Parsed Response Data:', data);
-
-    if (response.ok) {
-      if (data.token) {
-        return {
-          token: data.token,
-          user: data.user
-        };
-      } else {
-        throw new Error('No token in response');
-      }
+    
+    // Check for empty response
+    const text = await response.text();
+    console.log('Raw response text:', text);
+    
+    if (!text || text.trim() === '') {
+      throw new Error('Empty response from server');
+    }
+    
+    // Parse JSON manually after checking it's not empty
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error('JSON Parse Error:', e, 'Raw Text:', text);
+      throw new Error(`Failed to parse server response: ${e.message}`);
+    }
+    
+    console.log('Parsed Login Response:', data);
+    
+    if (data && data.token) {
+      return {
+        token: data.token,
+        user: data.user
+      };
     } else {
-      throw new Error(data.message || 'Login failed');
+      throw new Error('Invalid response: No token received');
     }
   } catch (error) {
     console.error('Login Error:', {
-      name: error.name,
       message: error.message,
+      name: error.name,
       stack: error.stack
     });
-
+    
     throw error;
   }
 };
