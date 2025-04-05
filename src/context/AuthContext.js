@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
       const decoded = jwtDecode(token);
       return decoded.exp < Date.now() / 1000;
     } catch (error) {
+      console.error('Token decoding error:', error);
       return true;
     }
   };
@@ -47,7 +48,7 @@ export const AuthProvider = ({ children }) => {
             setIsAuthenticated(true);
           }
         } catch (error) {
-          console.error('Error decoding token:', error);
+          console.error('Authentication check error:', error);
           localStorage.removeItem('authToken');
           setCurrentUser(null);
           setIsAuthenticated(false);
@@ -82,38 +83,33 @@ export const AuthProvider = ({ children }) => {
 
       localStorage.setItem('authToken', token);
       const decodedToken = jwtDecode(token);
-      console.log('Decoded token after login:', decodedToken);
-
+      
       setCurrentUser(decodedToken);
       setIsAuthenticated(true);
+      
       return { token, user: decodedToken };
     } catch (err) {
-      console.error('Login error:', err);
+      console.error('Login context error:', err);
       throw err;
     }
   };
 
-  const logout = async () => {
-    console.log('LOGOUT CALLED - AuthContext');
-    
-    try {
-      localStorage.removeItem('authToken');
-      localStorage.clear();
-      sessionStorage.clear();
-      
-      setCurrentUser(null);
-      setIsAuthenticated(false);
-
-      window.location.replace('/login');
-    } catch (error) {
-      console.error('Comprehensive logout error:', error);
-      window.location.replace('/login');
-    }
+  const logout = () => {
+    localStorage.removeItem('authToken');
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    window.location.replace('/login');
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAuthenticated, login, logout, loading }}>
-      {!loading ? children : <div>Loading authentication...</div>}
+    <AuthContext.Provider value={{ 
+      currentUser, 
+      isAuthenticated, 
+      login, 
+      logout, 
+      loading 
+    }}>
+      {children}
     </AuthContext.Provider>
   );
 };

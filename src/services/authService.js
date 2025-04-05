@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Determine API URL based on environment
 const API_URL = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:5000/api/auth'  // Note the port change to 5000
+  ? 'http://localhost:5000/api/auth'
   : 'https://performance-review-backend.onrender.com/api/auth';
 
 // Create axios instance with comprehensive configuration
@@ -11,7 +11,8 @@ const api = axios.create({
   timeout: 10000, // 10 second timeout
   headers: {
     'Content-Type': 'application/json',
-  }
+  },
+  withCredentials: true, // Include credentials in the request
 });
 
 const login = async (username, password) => {
@@ -19,15 +20,7 @@ const login = async (username, password) => {
     console.log('Attempting login with:', username);
     console.log('Using API URL:', API_URL);
 
-    const response = await api.post('/login', 
-      { username, password },
-      {
-        withCredentials: false,
-        headers: {
-          'Access-Control-Allow-Origin': '*'
-        }
-      }
-    );
+    const response = await api.post('/login', { username, password });
     
     if (response.data && response.data.token) {
       localStorage.setItem('authToken', response.data.token);
