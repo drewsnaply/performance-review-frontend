@@ -4,7 +4,7 @@ module.exports = function (app) {
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'https://performance-review-backend.onrender.com', // Backend API URL
+      target: 'https://performance-review-backend-ab8z.onrender.com', // Backend API URL
       changeOrigin: true, // Adjust the 'Origin' header to match the target
       secure: true, // Ensures secure HTTPS requests
       pathRewrite: {

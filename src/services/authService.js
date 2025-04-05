@@ -3,7 +3,7 @@ import axios from 'axios';
 // Determine API URL based on environment
 const API_URL = process.env.NODE_ENV === 'development' 
   ? 'http://localhost:5000/api/auth'
-  : 'https://performance-review-backend.onrender.com/api/auth';
+  : 'https://performance-review-backend-ab8z.onrender.com/api/auth';
 
 // Create axios instance with comprehensive configuration
 const api = axios.create({
