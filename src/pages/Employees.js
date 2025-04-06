@@ -3,6 +3,7 @@ import { useDepartments } from '../context/DepartmentContext';
 import EmployeeForm from '../components/EmployeeForm';
 import { FaEdit, FaTrash, FaUserPlus, FaSearch, FaKey, FaSyncAlt } from 'react-icons/fa';
 import '../styles/Employees.css';
+import { Link } from 'react-router-dom';
 
 function Employees() {
   const { departments, employees, setEmployees } = useDepartments();
