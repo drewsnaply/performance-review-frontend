@@ -19,7 +19,7 @@ function Employees() {
 
   // Define the API base URL based on environment
   const API_BASE_URL = process.env.NODE_ENV === 'development' 
-    ? ''  // Empty string for development (uses relative paths)
+    ? 'http://localhost:5000'  // Explicit local server URL
     : 'https://performance-review-backend-ab8z.onrender.com';
 
   // Fetch employees on component mount
@@ -28,12 +28,21 @@ function Employees() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/employees`, {
+        const response = await fetch(`${API_BASE_URL}/api/employees`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
           }
         });
-        if (!response.ok) throw new Error('Failed to fetch employees');
+
+        console.log('Employees Fetch Status:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Employees Fetch Error:', errorText);
+          throw new Error(`Failed to fetch employees: ${errorText}`);
+        }
+
         const data = await response.json();
         setEmployees(data);
         setIsLoading(false);
@@ -44,8 +53,10 @@ function Employees() {
       }
     };
     fetchEmployees();
-  }, [setEmployees, API_BASE_URL]);
+  }, [setEmployees]);
 
+  // All other methods and component logic remain the same as in the original file
+  
   // Handle sorting
   const requestSort = (key) => {
     let direction = 'ascending';
@@ -112,7 +123,7 @@ function Employees() {
     try {
       if (isEditing) {
         // Update existing employee
-        const response = await fetch(`${API_BASE_URL}/api/auth/employees/${employeeData._id}`, {
+        const response = await fetch(`${API_BASE_URL}/api/employees/${employeeData._id}`, {
           method: 'PUT',
           headers: { 
             'Content-Type': 'application/json',
@@ -134,7 +145,7 @@ function Employees() {
           requirePasswordChange: true
         };
         
-        const response = await fetch(`${API_BASE_URL}/api/auth/employees`, {
+        const response = await fetch(`${API_BASE_URL}/api/employees`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -162,7 +173,7 @@ function Employees() {
     if (window.confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
       setIsLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/employees/${employeeId}`, { 
+        const response = await fetch(`${API_BASE_URL}/api/employees/${employeeId}`, { 
           method: 'DELETE',
           headers: { 
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`

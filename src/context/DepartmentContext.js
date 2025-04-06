@@ -15,26 +15,95 @@ export const DepartmentProvider = ({ children }) => {
   const { isAuthenticated } = useAuth();
   const [departments, setDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Define the API base URL based on environment
+  const API_BASE_URL = process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:5000'  // Explicit local server URL
+    : 'https://performance-review-backend-ab8z.onrender.com';
 
   useEffect(() => {
-    if (isAuthenticated) {
-      try {
-        const savedDepartments = localStorage.getItem('departments');
-        setDepartments(savedDepartments ? JSON.parse(savedDepartments) : DEFAULT_DEPARTMENTS);
-        console.log('Loaded departments:', departments);
+    const fetchData = async () => {
+      // Only fetch if authenticated
+      if (!isAuthenticated) return;
 
-        const savedEmployees = localStorage.getItem('employees');
-        setEmployees(savedEmployees ? JSON.parse(savedEmployees) : []);
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Get the auth token
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+
+        // Fetch departments
+        const departmentsResponse = await fetch(`${API_BASE_URL}/api/departments`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        console.log('Departments Fetch Status:', departmentsResponse.status);
+
+        if (!departmentsResponse.ok) {
+          const errorText = await departmentsResponse.text();
+          console.error('Departments Fetch Error:', errorText);
+          throw new Error(`Failed to fetch departments: ${errorText}`);
+        }
+
+        const departmentsData = await departmentsResponse.json();
+        setDepartments(departmentsData.length > 0 ? departmentsData : DEFAULT_DEPARTMENTS);
+
+        // Fetch employees
+        const employeesResponse = await fetch(`${API_BASE_URL}/api/employees`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        console.log('Employees Fetch Status:', employeesResponse.status);
+
+        if (!employeesResponse.ok) {
+          const errorText = await employeesResponse.text();
+          console.error('Employees Fetch Error:', errorText);
+          throw new Error(`Failed to fetch employees: ${errorText}`);
+        }
+
+        const employeesData = await employeesResponse.json();
+        
+        // Handle different possible response structures
+        setEmployees(employeesData.data || employeesData);
+
+        // Log successful data fetch
+        console.log('Departments fetched:', departmentsData.length);
+        console.log('Employees fetched:', employeesData.length);
       } catch (error) {
-        console.error('Error initializing departments/employees:', error);
+        console.error('Error fetching data:', error);
+        setError(error.message);
+        
+        // Fallback to default departments if fetch fails
         setDepartments(DEFAULT_DEPARTMENTS);
-        setEmployees([]);
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
+
+    fetchData();
   }, [isAuthenticated]);
 
   return (
-    <DepartmentContext.Provider value={{ departments, employees }}>
+    <DepartmentContext.Provider value={{ 
+      departments, 
+      setDepartments, 
+      employees, 
+      setEmployees, 
+      isLoading, 
+      error 
+    }}>
       {children}
     </DepartmentContext.Provider>
   );
