@@ -38,10 +38,30 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  // Function to navigate to specific routes
+  // Updated navigateTo function
   const navigateTo = (route) => {
     navigate(route);
-    handleSetActiveView(route.replace('/', ''));
+    
+    // Map routes to active views
+    const viewMapping = {
+      '/dashboard': 'dashboard',
+      '/my-reviews': 'my-reviews',
+      '/team-reviews': 'team-reviews',
+      '/employees': 'employees',
+      '/settings': 'settings',
+      '/review-cycles': 'review-cycles',
+      '/templates': 'templates',
+      '/evaluation-management': 'evaluation-management',
+      '/import-tool': 'tools-imports',
+      '/export-tool': 'tools-exports'
+    };
+
+    const activeViewName = viewMapping[route] || route.replace('/', '');
+    
+    // Only call setActiveView if it's a function
+    if (typeof setActiveView === 'function') {
+      setActiveView(activeViewName);
+    }
   };
 
   // Function to generate absolute URL
@@ -84,7 +104,6 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
   // Fallback to default if user or activeView is undefined
   const currentUser = user || { firstName: 'Guest', lastName: '', role: 'USER' };
   const currentActiveView = activeView || 'dashboard';
-  const handleSetActiveView = setActiveView || (() => {});
 
   return (
     <div className="dashboard-container">
@@ -173,10 +192,10 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
                   </button>
                   {/* Add the Department Management Button */}
                   <button 
-                    className={currentActiveView === 'departments' ? 'active' : ''}
-                    onClick={() => navigateTo('/departments')}
+                    className={currentActiveView === 'settings' ? 'active' : ''}
+                    onClick={() => navigateTo('/settings')}
                   >
-                    Departments
+                    Settings
                   </button>
                   <button 
                     className={currentActiveView === 'review-cycles' ? 'active' : ''}
@@ -287,9 +306,9 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
                   </button>
                   {/* Add Department Management Icon Button */}
                   <button 
-                    className={currentActiveView === 'departments' ? 'active' : ''}
-                    onClick={() => navigateTo('/departments')}
-                    title="Departments"
+                    className={currentActiveView === 'settings' ? 'active' : ''}
+                    onClick={() => navigateTo('/settings')}
+                    title="Settings"
                   >
                     🏢
                   </button>

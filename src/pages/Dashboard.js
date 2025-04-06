@@ -14,7 +14,7 @@ import ReviewTemplates from '../components/ReviewTemplates';
 import ImportTool from '../components/ImportTool';
 import ExportTool from '../components/ExportTool';
 import EvaluationManagement from '../components/EvaluationManagement';
-import DepartmentManager from '../components/DepartmentManager';
+import Settings from './Settings';
 import ViewEvaluation from '../components/ViewEvaluation';
 
 function Dashboard({ initialView = 'dashboard' }) {
@@ -137,8 +137,8 @@ function Dashboard({ initialView = 'dashboard' }) {
         return <TeamReviews />;
       case 'employees':
         return <Employees />;
-      case 'departments':
-        return <DepartmentManager />;
+      case 'settings':
+        return <Settings />;
       case 'review-cycles':
         return <ReviewCycles />;
       case 'templates':
@@ -352,10 +352,10 @@ function Dashboard({ initialView = 'dashboard' }) {
               <>
                 <div className="sidebar-heading">Administration</div>
                 <button 
-                  className={activeView === 'departments' ? 'active' : ''}
-                  onClick={() => setView('departments')}
+                  className={activeView === 'settings' ? 'active' : ''}
+                  onClick={() => setView('settings')}
                 >
-                  Departments
+                  Settings
                 </button>
                 <button 
                   className={activeView === 'review-cycles' ? 'active' : ''}

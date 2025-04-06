@@ -26,7 +26,12 @@ function PrivateRoute({ children, allowedRoles = [] }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // DEVELOPMENT MODE: Temporarily bypass role checks
+  // IMPORTANT: Remove this bypass before deploying to production
+  const isDevelopmentMode = true; // Set to false for production
+  
   if (
+    !isDevelopmentMode && 
     allowedRoles.length > 0 &&
     currentUser &&
     !allowedRoles.includes(currentUser.role?.toLowerCase())

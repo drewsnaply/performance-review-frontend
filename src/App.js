@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { DepartmentProvider } from './context/DepartmentContext';
 import PrivateRoute from './components/PrivateRoute';
@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
+import Settings from './pages/Settings';
 import Unauthorized from './pages/Unauthorized';
 import Test from './pages/Test';
 
@@ -21,7 +22,34 @@ import ReviewTemplates from './components/ReviewTemplates';
 import ImportTool from './components/ImportTool';
 import ExportTool from './components/ExportTool';
 import EvaluationManagement from './components/EvaluationManagement';
-import DepartmentManager from './components/DepartmentManager';
+
+// Title Updater Component
+const TitleUpdater = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    const getPageTitle = () => {
+      const pathToTitleMap = {
+        '/dashboard': 'Dashboard',
+        '/my-reviews': 'My Reviews',
+        '/team-reviews': 'Team Reviews',
+        '/employees': 'Employees',
+        '/settings': 'Settings',
+        '/review-cycles': 'Review Cycles',
+        '/templates': 'Templates',
+        '/evaluation-management': 'Evaluation Management',
+        '/import-tool': 'Import Tool',
+        '/export-tool': 'Export Tool'
+      };
+
+      return pathToTitleMap[location.pathname] || 'Performance Review System';
+    };
+
+    document.title = getPageTitle();
+  }, [location.pathname]);
+
+  return null;
+};
 
 function App() {
   return (
@@ -29,6 +57,7 @@ function App() {
       <DepartmentProvider>
         <BrowserRouter>
           <AuthInitCheck />
+          <TitleUpdater />
 
           <Routes>
             {/* Public Routes */}
@@ -62,6 +91,14 @@ function App() {
               }
             />
             <Route
+              path="/settings"
+              element={
+                <PrivateRoute allowedRoles={['admin']}>
+                  <Settings />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/team-reviews"
               element={
                 <PrivateRoute allowedRoles={['manager', 'admin']}>
@@ -78,7 +115,7 @@ function App() {
               }
             />
             <Route
-              path="/review-templates"
+              path="/templates"
               element={
                 <PrivateRoute allowedRoles={['manager', 'admin']}>
                   <ReviewTemplates />
@@ -109,22 +146,13 @@ function App() {
                 </PrivateRoute>
               }
             />
-            <Route
-              path="/departments"
-              element={
-                <PrivateRoute allowedRoles={['admin']}>
-                  <DepartmentManager />
-                </PrivateRoute>
-              }
-            />
 
             {/* Default Routes */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
 
             {/* Additional routes */}
             <Route path="/test" element={<Test />} />
-            <Route path="/direct-dashboard" element={<Dashboard />} />
           </Routes>
         </BrowserRouter>
       </DepartmentProvider>
