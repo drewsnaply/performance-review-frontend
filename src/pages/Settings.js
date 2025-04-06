@@ -9,11 +9,16 @@ function Settings() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { 
+    employees,
     departments, 
     addDepartment, 
     updateDepartment, 
     deleteDepartment 
   } = useDepartments();
+
+  // Log employee data to see its structure
+  console.log('Detailed first employee:', employees[0]);
+
   
   const [activeTab, setActiveTab] = useState('departments');
   const [isAddDepartmentModalOpen, setIsAddDepartmentModalOpen] = useState(false);
@@ -89,7 +94,7 @@ function Settings() {
                 <td className="dept-name">{dept.name}</td>
                 <td>{dept.description}</td>
                 <td>{dept.manager || 'Not Assigned'}</td>
-                <td>{dept.employeeCount || 0}</td>
+                <td>{employees.filter(employee => employee.department === dept.name).length || 0}</td>
                 <td className="action-buttons">
                   <button 
                     className="edit-button"
@@ -817,3 +822,4 @@ const DepartmentModal = ({ department, onSave, onUpdate, onCancel }) => {
 };
 
 export default Settings;
+

@@ -3,6 +3,28 @@ import { useDepartments } from '../context/DepartmentContext';
 import '../styles/EmployeeForm.css';
 import { FaUserAlt, FaEnvelope, FaBuilding, FaIdBadge, FaCalendarAlt, FaVenusMars, FaUserTag, FaPhone, FaMapMarkerAlt } from 'react-icons/fa';
 
+// Utility function to format date consistently
+const formatDateForInput = (dateString) => {
+  if (!dateString) return '';
+  
+  try {
+    const date = new Date(dateString);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) return '';
+    
+    // Format to YYYY-MM-DD
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    console.error('Date formatting error:', error);
+    return '';
+  }
+};
+
 const EmployeeForm = ({ employee, onSave, onCancel }) => {
   const { departments } = useDepartments();
   
@@ -10,10 +32,12 @@ const EmployeeForm = ({ employee, onSave, onCancel }) => {
     firstName: '',
     lastName: '',
     email: '',
-    username: '', // Added field for username
+    username: '',
     department: '',
     title: '',
-    role: 'employee', // Added field for role with default
+    position: '', // Add position to match the backend schema
+    jobTitle: '', // Also include jobTitle for consistency
+    role: 'employee',
     isActive: true,
     hireDate: new Date().toISOString().split('T')[0],
     manager: '',
@@ -29,14 +53,36 @@ const EmployeeForm = ({ employee, onSave, onCancel }) => {
 
   useEffect(() => {
     if (employee) {
-      setFormData({
+      console.log('Employee data received for editing:', employee);
+      
+      // Get job title from any of the possible fields
+      const jobTitle = employee.position || employee.jobTitle || employee.title || '';
+      console.log('Job title detected:', jobTitle);
+      
+      const updatedFormData = {
         ...employee,
-        dateOfBirth: employee.dateOfBirth || '',
-        hireDate: employee.hireDate || new Date().toISOString().split('T')[0],
-        title: employee.title || employee.jobTitle || '',
-        role: employee.role || 'employee',
+        // Ensure all job title fields are set consistently
+        title: jobTitle,
+        jobTitle: jobTitle,
+        position: jobTitle,
+        
+        // Ensure dates are formatted correctly
+        dateOfBirth: formatDateForInput(employee.dateOfBirth) || '',
+        hireDate: formatDateForInput(employee.hireDate) || new Date().toISOString().split('T')[0],
+        
+        // Ensure username is set correctly
         username: employee.username || (employee.email ? employee.email.split('@')[0] : ''),
-      });
+        
+        // Default fallback for role
+        role: employee.role || 'employee',
+        
+        // Set active status
+        isActive: employee.isActive !== undefined ? employee.isActive : 
+                  (employee.status === 'Active')
+      };
+      
+      console.log('Prepared form data for editing:', updatedFormData);
+      setFormData(updatedFormData);
       
       // Check if custom username exists
       if (employee.username && employee.email && 
@@ -52,6 +98,8 @@ const EmployeeForm = ({ employee, onSave, onCancel }) => {
         username: '',
         department: '',
         title: '',
+        position: '',
+        jobTitle: '',
         role: 'employee',
         isActive: true,
         hireDate: new Date().toISOString().split('T')[0],
@@ -62,6 +110,7 @@ const EmployeeForm = ({ employee, onSave, onCancel }) => {
         address: '',
         gender: '',
       });
+      setCustomUsername(false);
     }
   }, [employee]);
 
@@ -69,7 +118,17 @@ const EmployeeForm = ({ employee, onSave, onCancel }) => {
     const { name, value, type, checked } = e.target;
     const newValue = type === 'checkbox' ? checked : value;
     
-    setFormData(prev => ({ ...prev, [name]: newValue }));
+    // If changing job title field, update all job title related fields
+    if (name === 'title') {
+      setFormData(prev => ({
+        ...prev,
+        title: newValue,
+        jobTitle: newValue,
+        position: newValue
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: newValue }));
+    }
     
     // Auto-generate username from email if not custom
     if (name === 'email' && !customUsername) {
@@ -133,8 +192,20 @@ const EmployeeForm = ({ employee, onSave, onCancel }) => {
     e.preventDefault();
     
     if (validateForm()) {
-      console.log('Form data being submitted:', formData);
-      onSave(formData);
+      // Ensure all job title fields are set for consistency
+      const dataToSave = {
+        ...formData,
+        title: formData.title,
+        jobTitle: formData.title,
+        position: formData.title,
+        
+        // Set status based on isActive
+        status: formData.isActive ? 'Active' : 'Inactive'
+      };
+      
+      console.log('Data being sent to onSave:', dataToSave);
+      
+      onSave(dataToSave);
     }
   };
 

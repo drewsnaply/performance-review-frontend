@@ -95,14 +95,44 @@ export const DepartmentProvider = ({ children }) => {
     fetchData();
   }, [isAuthenticated]);
 
+  const addDepartment = async (newDepartment) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/departments`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newDepartment)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to add department: ${errorText}`);
+      }
+
+      const addedDepartment = await response.json();
+      setDepartments([...departments, addedDepartment]);
+    } catch (error) {
+      console.error('Error adding department:', error);
+      // Handle the error, show an error message, etc.
+    }
+  };
+
   return (
     <DepartmentContext.Provider value={{ 
       departments, 
-      setDepartments, 
+      setDepartments,
       employees, 
-      setEmployees, 
-      isLoading, 
-      error 
+      setEmployees,
+      isLoading,
+      error,
+      addDepartment
     }}>
       {children}
     </DepartmentContext.Provider>

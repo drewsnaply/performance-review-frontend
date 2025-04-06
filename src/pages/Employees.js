@@ -54,8 +54,6 @@ function Employees() {
     };
     fetchEmployees();
   }, [setEmployees]);
-
-  // All other methods and component logic remain the same as in the original file
   
   // Handle sorting
   const requestSort = (key) => {
@@ -118,32 +116,83 @@ function Employees() {
     setIsModalOpen(true);
   };
 
+  // Enhanced function to open the edit modal with pre-processed employee data
+  const openEditEmployeeModal = (employee) => {
+    // Create a deep copy of the employee with explicit job title handling
+    const employeeWithFixedFields = {
+      ...employee,
+      // Ensure jobTitle and title are both set
+      jobTitle: employee.jobTitle || employee.title || '',
+      title: employee.jobTitle || employee.title || '',
+    };
+    
+    console.log('Original employee data:', employee);
+    console.log('Enhanced employee data for editing:', employeeWithFixedFields);
+    
+    setIsEditing(true);
+    setCurrentEmployee(employeeWithFixedFields);
+    setIsModalOpen(true);
+  };
+
   const handleSaveEmployee = async (employeeData) => {
     setIsLoading(true);
     try {
+      // Log submission data for debugging
+      console.log('Raw employee data submitted:', employeeData);
+      
       if (isEditing) {
         // Update existing employee
+        // Create a new object that ensures all fields are properly set
+        const updatedEmployeeData = {
+          ...employeeData,
+          // Ensure jobTitle is explicitly set
+          jobTitle: employeeData.title || employeeData.jobTitle || '',
+        };
+        
+        console.log('Enhanced data for update:', updatedEmployeeData);
+
         const response = await fetch(`${API_BASE_URL}/api/employees/${employeeData._id}`, {
           method: 'PUT',
           headers: { 
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           },
-          body: JSON.stringify(employeeData),
+          body: JSON.stringify(updatedEmployeeData),
         });
         
-        if (!response.ok) throw new Error('Failed to update employee');
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Update error response:', errorText);
+          throw new Error('Failed to update employee');
+        }
         
         const updatedEmployee = await response.json();
-        setEmployees(employees.map(emp => (emp._id === updatedEmployee._id ? updatedEmployee : emp)));
+        console.log('Response from server after update:', updatedEmployee);
+        
+        // Ensure the job title is preserved in the local state
+        if (updatedEmployee.jobTitle || employeeData.title) {
+          updatedEmployee.jobTitle = updatedEmployee.jobTitle || employeeData.title;
+          updatedEmployee.title = updatedEmployee.jobTitle;
+        }
+        
+        // Update the employees array with the modified employee
+        setEmployees(employees.map(emp => 
+          (emp._id === updatedEmployee._id ? updatedEmployee : emp)
+        ));
       } else {
         // Add new employee with username and password
         const newEmployeeData = {
           ...employeeData,
-          username: employeeData.username || employeeData.email.split('@')[0], // Use provided username or default to email prefix
-          password: 'DefaultPass123!', // Default password that will require reset
+          // Ensure job title is set consistently
+          jobTitle: employeeData.title || employeeData.jobTitle || '',
+          // Username handling
+          username: employeeData.username || employeeData.email.split('@')[0],
+          // Default password settings
+          password: 'DefaultPass123!',
           requirePasswordChange: true
         };
+        
+        console.log('New employee data being sent:', newEmployeeData);
         
         const response = await fetch(`${API_BASE_URL}/api/employees`, {
           method: 'POST',
@@ -154,9 +203,21 @@ function Employees() {
           body: JSON.stringify(newEmployeeData),
         });
         
-        if (!response.ok) throw new Error('Failed to add employee');
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Create error response:', errorText);
+          throw new Error('Failed to add employee');
+        }
         
         const newEmployee = await response.json();
+        console.log('Response from server after create:', newEmployee);
+        
+        // Ensure job title is preserved
+        if (newEmployee.jobTitle || employeeData.title) {
+          newEmployee.jobTitle = newEmployee.jobTitle || employeeData.title;
+          newEmployee.title = newEmployee.jobTitle;
+        }
+        
         setEmployees([...employees, newEmployee]);
       }
       
@@ -310,7 +371,7 @@ function Employees() {
                   <td className="actions-cell">
                     <button
                       className="btn btn-icon btn-edit"
-                      onClick={() => { setIsEditing(true); setCurrentEmployee(emp); setIsModalOpen(true); }}
+                      onClick={() => openEditEmployeeModal(emp)}
                       title="Edit Employee"
                     >
                       <FaEdit />
