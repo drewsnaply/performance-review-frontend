@@ -124,6 +124,40 @@ export const DepartmentProvider = ({ children }) => {
     }
   };
 
+  // Add the missing deleteDepartment function
+  const deleteDepartment = async (departmentId) => {
+    try {
+      setIsLoading(true);
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/departments/${departmentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete department: ${errorText}`);
+      }
+
+      // Update the departments state by removing the deleted department
+      setDepartments(departments.filter(dept => dept._id !== departmentId));
+      setIsLoading(false);
+      return true;
+    } catch (error) {
+      console.error('Error deleting department:', error);
+      setError(error.message);
+      setIsLoading(false);
+      return false;
+    }
+  };
+
   return (
     <DepartmentContext.Provider value={{ 
       departments, 
@@ -132,7 +166,8 @@ export const DepartmentProvider = ({ children }) => {
       setEmployees,
       isLoading,
       error,
-      addDepartment
+      addDepartment,
+      deleteDepartment // Add the deleteDepartment function to the context
     }}>
       {children}
     </DepartmentContext.Provider>
