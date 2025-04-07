@@ -101,13 +101,70 @@ export const AuthProvider = ({ children }) => {
     window.location.replace('/login');
   };
 
+  // Enhanced role-based permission checking
+  const hasPermission = (action) => {
+    if (!currentUser || !currentUser.role) return false;
+    
+    const role = currentUser.role.toLowerCase();
+    
+    // Super admin can do anything
+    if (role === 'superadmin') return true;
+    
+    // Admin can do most things except manage super admins
+    if (role === 'admin') {
+      return action !== 'manage_superadmin';
+    }
+    
+    // Manager permissions
+    if (role === 'manager') {
+      switch(action) {
+        case 'view_departments':
+        case 'view_own_department':
+        case 'edit_own_department':
+        case 'view_employees':
+        case 'add_employee':
+        case 'edit_employee':
+        case 'view_reviews':
+        case 'create_review':
+        case 'approve_review':
+          return true;
+          
+        case 'delete_department':
+        case 'manage_admin':
+        case 'system_settings':
+          return false;
+          
+        default:
+          return false;
+      }
+    }
+    
+    // Employee permissions
+    if (role === 'employee') {
+      switch(action) {
+        case 'view_own_department':
+        case 'view_own_profile':
+        case 'edit_own_profile':
+        case 'view_own_reviews':
+        case 'submit_self_assessment':
+          return true;
+          
+        default:
+          return false;
+      }
+    }
+    
+    return false;
+  };
+
   return (
     <AuthContext.Provider value={{ 
       currentUser, 
       isAuthenticated, 
       login, 
       logout, 
-      loading 
+      loading,
+      hasPermission 
     }}>
       {children}
     </AuthContext.Provider>

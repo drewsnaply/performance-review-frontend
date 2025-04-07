@@ -12,7 +12,7 @@ const DEFAULT_DEPARTMENTS = [
 ];
 
 export const DepartmentProvider = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [departments, setDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -95,8 +95,61 @@ export const DepartmentProvider = ({ children }) => {
     fetchData();
   }, [isAuthenticated]);
 
+  // Role-based permission checking
+  const canPerformAction = (action) => {
+    if (!user) return false;
+    
+    const role = user.role;
+    
+    // Super admin can do anything
+    if (role === 'superadmin') return true;
+    
+    // Admin can do most things
+    if (role === 'admin') {
+      return action !== 'manage_superadmin'; // Admins can't manage super admins
+    }
+    
+    // Manager permissions
+    if (role === 'manager') {
+      switch(action) {
+        case 'view_departments':
+        case 'view_own_department':
+        case 'view_managed_employees':
+        case 'edit_department':
+        case 'add_employee':
+        case 'edit_employee':
+          return true;
+        case 'delete_department':
+        case 'manage_admin':
+          return false;
+        default:
+          return false;
+      }
+    }
+    
+    // Employee permissions
+    if (role === 'employee') {
+      switch(action) {
+        case 'view_own_department':
+        case 'view_own_data':
+          return true;
+        default:
+          return false;
+      }
+    }
+    
+    return false;
+  };
+
   const addDepartment = async (newDepartment) => {
+    // Check if user has permission
+    if (!canPerformAction('add_department')) {
+      setError('You do not have permission to add departments');
+      return false;
+    }
+    
     try {
+      setIsLoading(true);
       const token = localStorage.getItem('authToken');
       if (!token) {
         throw new Error('No authentication token found');
@@ -112,20 +165,32 @@ export const DepartmentProvider = ({ children }) => {
       });
 
       if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error('You do not have permission to add departments');
+        }
         const errorText = await response.text();
         throw new Error(`Failed to add department: ${errorText}`);
       }
 
       const addedDepartment = await response.json();
       setDepartments([...departments, addedDepartment]);
+      setIsLoading(false);
+      return true;
     } catch (error) {
       console.error('Error adding department:', error);
-      // Handle the error, show an error message, etc.
+      setError(error.message);
+      setIsLoading(false);
+      return false;
     }
   };
 
-  // Add the missing deleteDepartment function
   const deleteDepartment = async (departmentId) => {
+    // Check if user has permission
+    if (!canPerformAction('delete_department')) {
+      setError('You do not have permission to delete departments');
+      return false;
+    }
+    
     try {
       setIsLoading(true);
       const token = localStorage.getItem('authToken');
@@ -142,6 +207,13 @@ export const DepartmentProvider = ({ children }) => {
       });
 
       if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error('You do not have permission to delete departments');
+        }
+        if (response.status === 400) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Cannot delete department with active employees');
+        }
         const errorText = await response.text();
         throw new Error(`Failed to delete department: ${errorText}`);
       }
@@ -158,6 +230,136 @@ export const DepartmentProvider = ({ children }) => {
     }
   };
 
+  const updateDepartment = async (departmentId, updatedData) => {
+    // Check if user has permission
+    if (!canPerformAction('edit_department')) {
+      setError('You do not have permission to update departments');
+      return false;
+    }
+    
+    try {
+      setIsLoading(true);
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/departments/${departmentId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedData)
+      });
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error('You do not have permission to update this department');
+        }
+        const errorText = await response.text();
+        throw new Error(`Failed to update department: ${errorText}`);
+      }
+
+      const updatedDepartment = await response.json();
+      
+      // Update departments state with the updated department
+      setDepartments(departments.map(dept => 
+        dept._id === departmentId ? updatedDepartment : dept
+      ));
+      
+      setIsLoading(false);
+      return true;
+    } catch (error) {
+      console.error('Error updating department:', error);
+      setError(error.message);
+      setIsLoading(false);
+      return false;
+    }
+  };
+
+  const assignManager = async (departmentId, managerId) => {
+    // Check if user has permission
+    if (!canPerformAction('edit_department')) {
+      setError('You do not have permission to assign department managers');
+      return false;
+    }
+    
+    try {
+      setIsLoading(true);
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/departments/${departmentId}/manager`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ managerId })
+      });
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error('You do not have permission to assign department managers');
+        }
+        const errorText = await response.text();
+        throw new Error(`Failed to assign department manager: ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      // Update departments state with the updated department
+      setDepartments(departments.map(dept => 
+        dept._id === departmentId ? result.data.department : dept
+      ));
+      
+      setIsLoading(false);
+      return true;
+    } catch (error) {
+      console.error('Error assigning department manager:', error);
+      setError(error.message);
+      setIsLoading(false);
+      return false;
+    }
+  };
+
+  // Function to display user-friendly error messages for department actions
+  const handleActionWithFeedback = async (action, params = {}) => {
+    setError(null);
+    setIsLoading(true);
+    
+    try {
+      let result;
+      
+      switch (action) {
+        case 'add_department':
+          result = await addDepartment(params.departmentData);
+          break;
+        case 'update_department':
+          result = await updateDepartment(params.departmentId, params.departmentData);
+          break;
+        case 'delete_department':
+          result = await deleteDepartment(params.departmentId);
+          break;
+        case 'assign_manager':
+          result = await assignManager(params.departmentId, params.managerId);
+          break;
+        default:
+          throw new Error('Unknown action');
+      }
+      
+      setIsLoading(false);
+      return result;
+    } catch (error) {
+      setError(error.message);
+      setIsLoading(false);
+      return false;
+    }
+  };
+
   return (
     <DepartmentContext.Provider value={{ 
       departments, 
@@ -167,7 +369,11 @@ export const DepartmentProvider = ({ children }) => {
       isLoading,
       error,
       addDepartment,
-      deleteDepartment // Add the deleteDepartment function to the context
+      deleteDepartment,
+      updateDepartment,
+      assignManager,
+      canPerformAction,
+      handleActionWithFeedback
     }}>
       {children}
     </DepartmentContext.Provider>

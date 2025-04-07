@@ -2,8 +2,8 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-function PrivateRoute({ children, allowedRoles = [] }) {
-  const { currentUser, isAuthenticated, loading } = useAuth();
+function PrivateRoute({ children, allowedRoles = [], requiredPermissions = [] }) {
+  const { currentUser, isAuthenticated, loading, hasPermission } = useAuth();
   const location = useLocation();
 
   // Verbose logging for debugging
@@ -11,7 +11,8 @@ function PrivateRoute({ children, allowedRoles = [] }) {
     isAuthenticated, 
     currentUser, 
     tokenExists: !!localStorage.getItem('authToken'),
-    allowedRoles 
+    allowedRoles,
+    requiredPermissions
   });
 
   // If still loading authentication status, show loading indicator
@@ -28,8 +29,9 @@ function PrivateRoute({ children, allowedRoles = [] }) {
 
   // DEVELOPMENT MODE: Temporarily bypass role checks
   // IMPORTANT: Remove this bypass before deploying to production
-  const isDevelopmentMode = true; // Set to false for production
+  const isDevelopmentMode = process.env.NODE_ENV === 'development';
   
+  // Check if user has the required role
   if (
     !isDevelopmentMode && 
     allowedRoles.length > 0 &&
@@ -37,6 +39,16 @@ function PrivateRoute({ children, allowedRoles = [] }) {
     !allowedRoles.includes(currentUser.role?.toLowerCase())
   ) {
     console.warn(`User role "${currentUser.role}" not authorized`);
+    return <Navigate to="/unauthorized" replace />;
+  }
+  
+  // Check if user has the required permissions
+  if (
+    !isDevelopmentMode && 
+    requiredPermissions.length > 0 &&
+    !requiredPermissions.every(permission => hasPermission(permission))
+  ) {
+    console.warn(`User lacks required permissions: ${requiredPermissions.join(', ')}`);
     return <Navigate to="/unauthorized" replace />;
   }
 

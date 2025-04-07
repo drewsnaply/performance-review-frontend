@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useDepartments } from '../context/DepartmentContext';
 import { useAuth } from '../context/AuthContext';
@@ -7,18 +7,21 @@ import '../styles/Settings.css'; // Settings-specific styles
 
 function Settings() {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, hasPermission } = useAuth();
   const { 
     employees,
     departments, 
     addDepartment, 
     updateDepartment, 
-    deleteDepartment 
+    deleteDepartment,
+    isLoading,
+    error,
+    canPerformAction,
+    handleActionWithFeedback
   } = useDepartments();
 
   // Log employee data to see its structure
   console.log('Detailed first employee:', employees[0]);
-
   
   const [activeTab, setActiveTab] = useState('departments');
   const [isAddDepartmentModalOpen, setIsAddDepartmentModalOpen] = useState(false);
@@ -26,29 +29,96 @@ function Settings() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [departmentToDelete, setDepartmentToDelete] = useState(null);
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
-  // Check if the current user role is manager (for development)
-  if (currentUser?.role?.toLowerCase() !== 'manager') {
+  // Clear messages after 5 seconds
+  useEffect(() => {
+    if (errorMessage || successMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage('');
+        setSuccessMessage('');
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [errorMessage, successMessage]);
+
+  // Check if the current user has access to settings
+  // Redirect to unauthorized if they don't have access
+  if (!currentUser || 
+      (currentUser.role !== 'admin' && 
+       currentUser.role !== 'superadmin' && 
+       currentUser.role !== 'manager')) {
     return <Navigate to="/unauthorized" replace />;
   }
 
-  const handleAddDepartment = (departmentData) => {
-    addDepartment(departmentData);
-    setIsAddDepartmentModalOpen(false);
+  const handleAddDepartment = async (departmentData) => {
+    if (!canPerformAction('add_department')) {
+      setErrorMessage('You do not have permission to add departments');
+      return;
+    }
+    
+    const result = await handleActionWithFeedback('add_department', { departmentData });
+    
+    if (result) {
+      setSuccessMessage('Department added successfully');
+      setIsAddDepartmentModalOpen(false);
+    } else {
+      setErrorMessage(error || 'Failed to add department');
+    }
   };
 
   const handleEditDepartment = (department) => {
+    if (!canPerformAction('edit_department')) {
+      setErrorMessage('You do not have permission to edit departments');
+      return;
+    }
+    
     setSelectedDepartment(department);
     setIsAddDepartmentModalOpen(true);
   };
 
+  const handleUpdateDepartment = async (departmentId, updatedData) => {
+    if (!canPerformAction('edit_department')) {
+      setErrorMessage('You do not have permission to update departments');
+      return;
+    }
+    
+    const result = await handleActionWithFeedback('update_department', { 
+      departmentId, 
+      departmentData: updatedData 
+    });
+    
+    if (result) {
+      setSuccessMessage('Department updated successfully');
+      setIsAddDepartmentModalOpen(false);
+    } else {
+      setErrorMessage(error || 'Failed to update department');
+    }
+  };
+
   const openDeleteConfirmation = (departmentId) => {
+    if (!canPerformAction('delete_department')) {
+      setErrorMessage('You do not have permission to delete departments');
+      return;
+    }
+    
     setDepartmentToDelete(departmentId);
     setIsDeleteModalOpen(true);
   };
 
-  const handleDeleteDepartment = () => {
-    deleteDepartment(departmentToDelete);
+  const handleDeleteDepartment = async () => {
+    const result = await handleActionWithFeedback('delete_department', { 
+      departmentId: departmentToDelete 
+    });
+    
+    if (result) {
+      setSuccessMessage('Department deleted successfully');
+    } else {
+      setErrorMessage(error || 'Failed to delete department. Make sure it has no active employees.');
+    }
+    
     setIsDeleteModalOpen(false);
     setDepartmentToDelete(null);
   };
@@ -62,19 +132,39 @@ function Settings() {
     setActiveDropdown(null);
   };
 
+  const canUserAccessTab = (tabName) => {
+    switch(tabName) {
+      case 'departments':
+        return canPerformAction('view_departments');
+        
+      case 'company-info':
+        return currentUser.role === 'admin' || currentUser.role === 'superadmin';
+        
+      case 'system-settings':
+      case 'integrations':
+      case 'audit-log':
+        return currentUser.role === 'admin' || currentUser.role === 'superadmin';
+        
+      default:
+        return false;
+    }
+  };
+
   const renderDepartmentsTab = () => (
     <div className="settings-departments">
       <div className="settings-header">
         <h2>Department Management</h2>
-        <button 
-          className="primary-button"
-          onClick={() => {
-            setSelectedDepartment(null);
-            setIsAddDepartmentModalOpen(true);
-          }}
-        >
-          Add Department
-        </button>
+        {canPerformAction('add_department') && (
+          <button 
+            className="primary-button"
+            onClick={() => {
+              setSelectedDepartment(null);
+              setIsAddDepartmentModalOpen(true);
+            }}
+          >
+            Add Department
+          </button>
+        )}
       </div>
       
       <div className="table-container">
@@ -90,24 +180,28 @@ function Settings() {
           </thead>
           <tbody>
             {departments.map(dept => (
-              <tr key={dept.id}>
+              <tr key={dept._id || dept.id}>
                 <td className="dept-name">{dept.name}</td>
                 <td>{dept.description}</td>
                 <td>{dept.manager || 'Not Assigned'}</td>
                 <td>{employees.filter(employee => employee.department === dept.name).length || 0}</td>
                 <td className="action-buttons">
-                  <button 
-                    className="edit-button"
-                    onClick={() => handleEditDepartment(dept)}
-                  >
-                    Edit
-                  </button>
-                  <button 
-                    className="delete-button"
-                    onClick={() => openDeleteConfirmation(dept.id)}
-                  >
-                    Delete
-                  </button>
+                  {canPerformAction('edit_department') && (
+                    <button 
+                      className="edit-button"
+                      onClick={() => handleEditDepartment(dept)}
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {canPerformAction('delete_department') && (
+                    <button 
+                      className="delete-button"
+                      onClick={() => openDeleteConfirmation(dept._id || dept.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -176,7 +270,12 @@ function Settings() {
             <select className="form-select">
               <option>Employee</option>
               <option>Manager</option>
-              <option>Admin</option>
+              {(currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
+                <option>Admin</option>
+              )}
+              {currentUser.role === 'superadmin' && (
+                <option>Super Admin</option>
+              )}
             </select>
           </div>
           
@@ -569,6 +668,95 @@ function Settings() {
     </div>
   );
 
+  const renderRoleManagementTab = () => {
+    // Only super admins and admins can access this tab
+    if (currentUser.role !== 'superadmin' && currentUser.role !== 'admin') {
+      return <div className="unauthorized-message">You don't have permission to view this page.</div>;
+    }
+    
+    return (
+      <div className="settings-roles">
+        <div className="settings-header">
+          <h2>Role Management</h2>
+          {currentUser.role === 'superadmin' && (
+            <button className="primary-button">Add User</button>
+          )}
+        </div>
+        
+        <div className="table-container">
+          <table className="settings-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Current Role</th>
+                <th>Department</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {employees.map(emp => (
+                <tr key={emp._id || emp.id}>
+                  <td>{emp.firstName} {emp.lastName}</td>
+                  <td>{emp.email}</td>
+                  <td>{emp.role || 'Employee'}</td>
+                  <td>{emp.department}</td>
+                  <td className="action-buttons">
+                    {/* Super admins can change any role */}
+                    {currentUser.role === 'superadmin' && (
+                      <select 
+                        className="role-select"
+                        defaultValue={emp.role}
+                        onChange={(e) => handleRoleChange(emp._id, e.target.value)}
+                      >
+                        <option value="employee">Employee</option>
+                        <option value="manager">Manager</option>
+                        <option value="admin">Admin</option>
+                        <option value="superadmin">Super Admin</option>
+                      </select>
+                    )}
+                    
+                    {/* Admins can promote to manager or employee only */}
+                    {currentUser.role === 'admin' && (
+                      <select 
+                        className="role-select"
+                        defaultValue={emp.role}
+                        onChange={(e) => handleRoleChange(emp._id, e.target.value)}
+                        disabled={emp.role === 'admin' || emp.role === 'superadmin'}
+                      >
+                        <option value="employee">Employee</option>
+                        <option value="manager">Manager</option>
+                      </select>
+                    )}
+                    
+                    <button 
+                      className="reset-button"
+                      onClick={() => handlePasswordReset(emp._id)}
+                    >
+                      Reset Password
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const handleRoleChange = (userId, newRole) => {
+    // This would be implemented to call an API to update the user's role
+    console.log(`Changing role for user ${userId} to ${newRole}`);
+    // In a real implementation, you would call an API here
+  };
+
+  const handlePasswordReset = (userId) => {
+    // This would be implemented to call an API to reset the user's password
+    console.log(`Resetting password for user ${userId}`);
+    // In a real implementation, you would call an API here
+  };
+
   const renderActiveTab = () => {
     switch(activeTab) {
       case 'departments': return renderDepartmentsTab();
@@ -576,86 +764,100 @@ function Settings() {
       case 'system-settings': return renderSystemSettingsTab();
       case 'integrations': return renderIntegrationsTab();
       case 'audit-log': return renderAuditLogTab();
+      case 'role-management': return renderRoleManagementTab();
       default: return renderDepartmentsTab();
     }
   };
 
+  // Determine which menu items should be visible based on user role
+  const getVisibleMenuItems = () => {
+    const items = [];
+    
+    // Organization menu
+    if (canUserAccessTab('departments') || canUserAccessTab('company-info')) {
+      items.push({
+        key: 'organization',
+        label: 'Organization',
+        subItems: [
+          canUserAccessTab('departments') ? { key: 'departments', label: 'Departments' } : null,
+          canUserAccessTab('company-info') ? { key: 'company-info', label: 'Company Info' } : null,
+        ].filter(Boolean)
+      });
+    }
+    
+    // Configuration menu
+    if (canUserAccessTab('system-settings') || canUserAccessTab('integrations')) {
+      items.push({
+        key: 'configuration',
+        label: 'Configuration',
+        subItems: [
+          canUserAccessTab('system-settings') ? { key: 'system-settings', label: 'System Settings' } : null,
+          canUserAccessTab('integrations') ? { key: 'integrations', label: 'Integrations' } : null,
+        ].filter(Boolean)
+      });
+    }
+    
+    // Administration menu
+    if (canUserAccessTab('audit-log') || currentUser.role === 'admin' || currentUser.role === 'superadmin') {
+      items.push({
+        key: 'administration',
+        label: 'Administration',
+        subItems: [
+          canUserAccessTab('audit-log') ? { key: 'audit-log', label: 'Audit Log' } : null,
+          (currentUser.role === 'admin' || currentUser.role === 'superadmin') ? 
+            { key: 'role-management', label: 'Role Management' } : null,
+        ].filter(Boolean)
+      });
+    }
+    
+    return items;
+  };
+
+  const visibleMenuItems = getVisibleMenuItems();
+
   return (
     <div className="settings-container-top-nav">
+      {/* Message display */}
+      {errorMessage && (
+        <div className="error-notification">
+          <span>{errorMessage}</span>
+          <button onClick={() => setErrorMessage('')}>×</button>
+        </div>
+      )}
+      
+      {successMessage && (
+        <div className="success-notification">
+          <span>{successMessage}</span>
+          <button onClick={() => setSuccessMessage('')}>×</button>
+        </div>
+      )}
+    
       {/* Top Navigation */}
       <div className="settings-top-nav">
         <div className="settings-nav-categories">
-          {/* Organization Dropdown */}
-          <div className="settings-nav-category">
-            <button 
-              className={`settings-nav-dropdown-button ${activeDropdown === 'organization' ? 'active' : ''}`}
-              onClick={() => toggleDropdown('organization')}
-            >
-              Organization <span className="dropdown-arrow">{activeDropdown === 'organization' ? '▲' : '▼'}</span>
-            </button>
-            {activeDropdown === 'organization' && (
-              <div className="settings-nav-dropdown">
-                <button 
-                  className={activeTab === 'departments' ? 'active' : ''}
-                  onClick={() => handleTabClick('departments')}
-                >
-                  Departments
-                </button>
-                <button 
-                  className={activeTab === 'company-info' ? 'active' : ''}
-                  onClick={() => handleTabClick('company-info')}
-                >
-                  Company Info
-                </button>
-              </div>
-            )}
-          </div>
-          
-          {/* Configuration Dropdown */}
-          <div className="settings-nav-category">
-            <button 
-              className={`settings-nav-dropdown-button ${activeDropdown === 'configuration' ? 'active' : ''}`}
-              onClick={() => toggleDropdown('configuration')}
-            >
-              Configuration <span className="dropdown-arrow">{activeDropdown === 'configuration' ? '▲' : '▼'}</span>
-            </button>
-            {activeDropdown === 'configuration' && (
-              <div className="settings-nav-dropdown">
-                <button 
-                  className={activeTab === 'system-settings' ? 'active' : ''}
-                  onClick={() => handleTabClick('system-settings')}
-                >
-                  System Settings
-                </button>
-                <button 
-                  className={activeTab === 'integrations' ? 'active' : ''}
-                  onClick={() => handleTabClick('integrations')}
-                >
-                  Integrations
-                </button>
-              </div>
-            )}
-          </div>
-          
-          {/* Administration Dropdown */}
-          <div className="settings-nav-category">
-            <button 
-              className={`settings-nav-dropdown-button ${activeDropdown === 'administration' ? 'active' : ''}`}
-              onClick={() => toggleDropdown('administration')}
-            >
-              Administration <span className="dropdown-arrow">{activeDropdown === 'administration' ? '▲' : '▼'}</span>
-            </button>
-            {activeDropdown === 'administration' && (
-              <div className="settings-nav-dropdown">
-                <button 
-                  className={activeTab === 'audit-log' ? 'active' : ''}
-                  onClick={() => handleTabClick('audit-log')}
-                >
-                  Audit Log
-                </button>
-              </div>
-            )}
-          </div>
+          {visibleMenuItems.map(item => (
+            <div className="settings-nav-category" key={item.key}>
+              <button 
+                className={`settings-nav-dropdown-button ${activeDropdown === item.key ? 'active' : ''}`}
+                onClick={() => toggleDropdown(item.key)}
+              >
+                {item.label} <span className="dropdown-arrow">{activeDropdown === item.key ? '▲' : '▼'}</span>
+              </button>
+              {activeDropdown === item.key && (
+                <div className="settings-nav-dropdown">
+                  {item.subItems.map(subItem => (
+                    <button 
+                      key={subItem.key}
+                      className={activeTab === subItem.key ? 'active' : ''}
+                      onClick={() => handleTabClick(subItem.key)}
+                    >
+                      {subItem.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* Current Tab Indicator */}
@@ -665,12 +867,17 @@ function Settings() {
           {activeTab === 'system-settings' && 'System Settings'}
           {activeTab === 'integrations' && 'Integrations'}
           {activeTab === 'audit-log' && 'Audit Log'}
+          {activeTab === 'role-management' && 'Role Management'}
         </div>
       </div>
       
       {/* Content Area */}
       <div className="settings-content">
-        {renderActiveTab()}
+        {isLoading ? (
+          <div className="loading-spinner">Loading...</div>
+        ) : (
+          renderActiveTab()
+        )}
       </div>
       
       {/* Department Modal */}
@@ -678,7 +885,7 @@ function Settings() {
         <DepartmentModal 
           department={selectedDepartment}
           onSave={handleAddDepartment}
-          onUpdate={updateDepartment}
+          onUpdate={(updatedDept) => handleUpdateDepartment(updatedDept._id || updatedDept.id, updatedDept)}
           onCancel={() => setIsAddDepartmentModalOpen(false)}
         />
       )}
@@ -689,6 +896,10 @@ function Settings() {
           <div className="modal-content delete-modal">
             <h2>Confirm Deletion</h2>
             <p>Are you sure you want to delete this department? This action cannot be undone.</p>
+            <p className="warning-text">
+              Note: You cannot delete departments with active employees. 
+              Please reassign or remove employees first.
+            </p>
             <div className="modal-actions">
               <button 
                 className="cancel-button" 
@@ -730,7 +941,6 @@ const DepartmentModal = ({ department, onSave, onUpdate, onCancel }) => {
       // Add new department
       onSave(formData);
     }
-    onCancel();
   };
 
   return (
@@ -822,4 +1032,3 @@ const DepartmentModal = ({ department, onSave, onUpdate, onCancel }) => {
 };
 
 export default Settings;
-
