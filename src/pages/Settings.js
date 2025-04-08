@@ -186,21 +186,22 @@ function Settings() {
                 <td>{dept.manager || 'Not Assigned'}</td>
                 <td>{employees.filter(employee => employee.department === dept.name).length || 0}</td>
                 <td className="action-buttons">
-                  {canPerformAction('edit_department') && (
-                    <button 
-                      className="edit-button"
-                      onClick={() => handleEditDepartment(dept)}
-                    >
-                      Edit
-                    </button>
-                  )}
-                  {canPerformAction('delete_department') && (
-                    <button 
-                      className="delete-button"
-                      onClick={() => openDeleteConfirmation(dept._id || dept.id)}
-                    >
-                      Delete
-                    </button>
+                  {/* Check if current user is admin or superadmin */}
+                  {(currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
+                    <>
+                      <button 
+                        className="edit-button"
+                        onClick={() => handleEditDepartment(dept)}
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        className="delete-button"
+                        onClick={() => openDeleteConfirmation(dept._id || dept.id)}
+                      >
+                        Delete
+                      </button>
+                    </>
                   )}
                 </td>
               </tr>
