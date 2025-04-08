@@ -371,25 +371,31 @@ function Employees() {
                   <td>{emp.role}</td>
                   <td className="actions-cell">
                     <button
-                      className="btn btn-icon btn-edit"
+                      className="btn-action btn-edit with-label"
                       onClick={() => openEditEmployeeModal(emp)}
                       title="Edit Employee"
                     >
                       <FaEdit />
+                      <span>Edit</span>
+                      <div className="action-tooltip">Edit Employee</div>
                     </button>
                     <button 
-                      className="btn btn-icon btn-password"
+                      className="btn-action btn-reset with-label"
                       onClick={() => openResetPasswordModal(emp._id)}
                       title="Reset Password"
                     >
                       <FaKey />
+                      <span>Reset</span>
+                      <div className="action-tooltip">Reset Password</div>
                     </button>
                     <button 
-                      className="btn btn-icon btn-delete"
+                      className="btn-action btn-delete with-label"
                       onClick={() => handleDeleteEmployee(emp._id)}
                       title="Delete Employee"
                     >
                       <FaTrash />
+                      <span>Delete</span>
+                      <div className="action-tooltip">Delete Employee</div>
                     </button>
                   </td>
                 </tr>

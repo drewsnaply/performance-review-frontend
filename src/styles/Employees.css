@@ -130,52 +130,114 @@
     border-bottom: none;
   }
   
+  /* Updated Action Buttons Styling */
   .actions-cell {
     display: flex;
-    gap: 8px;
-    justify-content: flex-start;
+    gap: 10px;
+    justify-content: center;
   }
   
-  .btn-icon {
+  .btn-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
+    min-width: 36px;
     height: 36px;
-    border-radius: 50%;
+    border-radius: 6px;
     border: none;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
+    position: relative;
+    font-size: 14px;
+    padding: 0 12px;
+    font-weight: 500;
+  }
+  
+  .btn-action svg {
+    font-size: 16px;
+  }
+  
+  .btn-action.with-label {
+    padding: 0 14px;
+  }
+  
+  .btn-action.with-label svg {
+    margin-right: 6px;
+  }
+  
+  .btn-view {
+    background-color: #EEF2FF;
+    color: #6366F1;
+  }
+  
+  .btn-view:hover {
+    background-color: #E0E7FF;
+    color: #4F46E5;
   }
   
   .btn-edit {
-    background-color: #edf2f7;
-    color: #4299e1;
+    background-color: #ECF4FF;
+    color: #3B82F6;
   }
   
   .btn-edit:hover {
-    background-color: #e2e8f0;
-    color: #3182ce;
+    background-color: #DBEAFE;
+    color: #2563EB;
   }
   
-  .btn-password {
-    background-color: #fef3c7;
-    color: #d97706;
+  .btn-reset {
+    background-color: #FEF3C7;
+    color: #D97706;
   }
   
-  .btn-password:hover {
-    background-color: #fde68a;
-    color: #b45309;
+  .btn-reset:hover {
+    background-color: #FDE68A;
+    color: #B45309;
   }
   
   .btn-delete {
-    background-color: #fee2e2;
-    color: #ef4444;
+    background-color: #FEE2E2;
+    color: #EF4444;
   }
   
   .btn-delete:hover {
-    background-color: #fecaca;
-    color: #dc2626;
+    background-color: #FECACA;
+    color: #DC2626;
+  }
+  
+  /* Tooltip for action buttons */
+  .action-tooltip {
+    position: absolute;
+    top: -35px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+    z-index: 10;
+    pointer-events: none;
+  }
+  
+  .action-tooltip:after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+  }
+  
+  .btn-action:hover .action-tooltip {
+    opacity: 1;
+    visibility: visible;
   }
   
   .no-results {
@@ -328,5 +390,13 @@
     
     .actions-cell {
       flex-wrap: wrap;
+    }
+    
+    .btn-action.with-label {
+      padding: 0 8px;
+    }
+    
+    .btn-action.with-label span {
+      display: none;
     }
   }
