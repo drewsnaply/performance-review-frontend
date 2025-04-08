@@ -3,14 +3,6 @@ import { useAuth } from '../context/AuthContext';
 
 const DepartmentContext = createContext();
 
-const DEFAULT_DEPARTMENTS = [
-  { id: "1", name: 'Engineering', manager: 'Alice Johnson', description: 'Software development and engineering', status: 'active' },
-  { id: "2", name: 'Marketing', manager: 'Bob Smith', description: 'Marketing and brand management', status: 'active' },
-  { id: "3", name: 'Sales', manager: 'Carol Williams', description: 'Sales and customer relations', status: 'active' },
-  { id: "4", name: 'Human Resources', manager: 'David Miller', description: 'Personnel management', status: 'active' },
-  { id: "5", name: 'Finance', manager: 'Eve Davis', description: 'Financial operations', status: 'active' },
-];
-
 export const DepartmentProvider = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
   const [departments, setDepartments] = useState([]);
@@ -55,7 +47,7 @@ export const DepartmentProvider = ({ children }) => {
         }
 
         const departmentsData = await departmentsResponse.json();
-        setDepartments(departmentsData.length > 0 ? departmentsData : DEFAULT_DEPARTMENTS);
+        setDepartments(departmentsData);
 
         // Fetch employees
         const employeesResponse = await fetch(`${API_BASE_URL}/api/employees`, {
@@ -85,8 +77,9 @@ export const DepartmentProvider = ({ children }) => {
         console.error('Error fetching data:', error);
         setError(error.message);
         
-        // Fallback to default departments if fetch fails
-        setDepartments(DEFAULT_DEPARTMENTS);
+        // Set empty arrays if fetch fails
+        setDepartments([]);
+        setEmployees([]);
       } finally {
         setIsLoading(false);
       }
@@ -95,18 +88,37 @@ export const DepartmentProvider = ({ children }) => {
     fetchData();
   }, [isAuthenticated]);
 
-  // Role-based permission checking
+  // Updated Role-based permission checking
   const canPerformAction = (action) => {
-    if (!user) return false;
+    // Detailed logging for debugging
+    console.log('Permission Check:', {
+      action: action,
+      user: user,
+      userRole: user?.role
+    });
+
+    if (!user) {
+      console.log('No user found, permission denied');
+      return false;
+    }
     
     const role = user.role;
     
     // Super admin can do anything
-    if (role === 'superadmin') return true;
+    if (role === 'superadmin') {
+      console.log('Superadmin, full access granted');
+      return true;
+    }
     
     // Admin can do most things
     if (role === 'admin') {
-      return action !== 'manage_superadmin'; // Admins can't manage super admins
+      console.log('Admin attempting action:', action);
+      // Explicitly allow almost all actions for admin except managing superadmin
+      if (action === 'manage_superadmin') {
+        return false;
+      }
+      console.log('Admin action permitted');
+      return true;
     }
     
     // Manager permissions
@@ -138,6 +150,7 @@ export const DepartmentProvider = ({ children }) => {
       }
     }
     
+    console.log('No specific permission found, access denied');
     return false;
   };
 

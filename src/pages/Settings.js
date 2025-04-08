@@ -47,14 +47,13 @@ function Settings() {
   // Check if the current user has access to settings
   // Redirect to unauthorized if they don't have access
   if (!currentUser || 
-      (currentUser.role !== 'admin' && 
-       currentUser.role !== 'superadmin' && 
-       currentUser.role !== 'manager')) {
-    return <Navigate to="/unauthorized" replace />;
-  }
+    (currentUser.role !== 'admin' && 
+     currentUser.role !== 'superadmin')) {
+  return <Navigate to="/unauthorized" replace />;
+}
 
-  const handleAddDepartment = async (departmentData) => {
-    if (!canPerformAction('add_department')) {
+const handleAddDepartment = async (departmentData) => {
+    if (!hasPermission('add_department')) {
       setErrorMessage('You do not have permission to add departments');
       return;
     }
@@ -70,7 +69,7 @@ function Settings() {
   };
 
   const handleEditDepartment = (department) => {
-    if (!canPerformAction('edit_department')) {
+    if (!hasPermission('edit_department')) {
       setErrorMessage('You do not have permission to edit departments');
       return;
     }
@@ -80,7 +79,7 @@ function Settings() {
   };
 
   const handleUpdateDepartment = async (departmentId, updatedData) => {
-    if (!canPerformAction('edit_department')) {
+    if (!hasPermission('edit_department')) {
       setErrorMessage('You do not have permission to update departments');
       return;
     }
@@ -99,7 +98,7 @@ function Settings() {
   };
 
   const openDeleteConfirmation = (departmentId) => {
-    if (!canPerformAction('delete_department')) {
+    if (!hasPermission('delete_department')) {
       setErrorMessage('You do not have permission to delete departments');
       return;
     }
@@ -133,90 +132,102 @@ function Settings() {
   };
 
   const canUserAccessTab = (tabName) => {
+    // Only admin and superadmin can access any tab
+    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin') {
+      return false;
+    }
+    
     switch(tabName) {
       case 'departments':
-        return canPerformAction('view_departments');
-        
       case 'company-info':
-        return currentUser.role === 'admin' || currentUser.role === 'superadmin';
-        
       case 'system-settings':
       case 'integrations':
       case 'audit-log':
-        return currentUser.role === 'admin' || currentUser.role === 'superadmin';
-        
+      case 'role-management':
+        return true;
       default:
         return false;
     }
   };
 
-  const renderDepartmentsTab = () => (
-    <div className="settings-departments">
-      <div className="settings-header">
-        <h2>Department Management</h2>
-        {canPerformAction('add_department') && (
-          <button 
-            className="primary-button"
-            onClick={() => {
-              setSelectedDepartment(null);
-              setIsAddDepartmentModalOpen(true);
-            }}
-          >
-            Add Department
-          </button>
+  const renderDepartmentsTab = () => {
+    console.log('Current User:', currentUser);
+    console.log('Current User Role:', currentUser?.role);
+    console.log('Can add department (hasPermission):', hasPermission('add_department'));
+    console.log('Can add department (role check):', 
+      currentUser?.role === 'admin' || currentUser?.role === 'superadmin');
+  
+    return (
+      <div className="settings-departments">
+        <div className="settings-header">
+          <h2>Department Management</h2>
+          {(hasPermission('add_department') || 
+            currentUser?.role === 'admin' || 
+            currentUser?.role === 'superadmin') && (
+            <button 
+              className="primary-button"
+              onClick={() => {
+                console.log('Add Department button clicked');
+                setSelectedDepartment(null);
+                setIsAddDepartmentModalOpen(true);
+              }}
+            >
+              Add Department
+            </button>
+          )}
+        </div>
+        
+        <div className="table-container">
+          <table className="settings-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Manager</th>
+                <th>Employees</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {departments.map(dept => (
+                <tr key={dept._id || dept.id}>
+                  <td className="dept-name">{dept.name}</td>
+                  <td>{dept.description}</td>
+                  <td>{dept.manager || 'Not Assigned'}</td>
+                  <td>{employees.filter(employee => employee.department === dept.name).length || 0}</td>
+                  <td className="action-buttons">
+                    {/* Check if current user is admin or superadmin */}
+                    {(currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
+                      <>
+                        <button 
+                          className="edit-button"
+                          onClick={() => handleEditDepartment(dept)}
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          className="delete-button"
+                          onClick={() => openDeleteConfirmation(dept._id || dept.id)}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+  
+        {departments.length === 0 && (
+          <div className="empty-state">
+            <p>No departments found. Create a department to get started.</p>
+          </div>
         )}
       </div>
-      
-      <div className="table-container">
-        <table className="settings-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Description</th>
-              <th>Manager</th>
-              <th>Employees</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {departments.map(dept => (
-              <tr key={dept._id || dept.id}>
-                <td className="dept-name">{dept.name}</td>
-                <td>{dept.description}</td>
-                <td>{dept.manager || 'Not Assigned'}</td>
-                <td>{employees.filter(employee => employee.department === dept.name).length || 0}</td>
-                <td className="action-buttons">
-                  {/* Check if current user is admin or superadmin */}
-                  {(currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
-                    <>
-                      <button 
-                        className="edit-button"
-                        onClick={() => handleEditDepartment(dept)}
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        className="delete-button"
-                        onClick={() => openDeleteConfirmation(dept._id || dept.id)}
-                      >
-                        Delete
-                      </button>
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {departments.length === 0 && (
-        <div className="empty-state">
-          <p>No departments found. Create a department to get started.</p>
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderSystemSettingsTab = () => (
     <div className="settings-system">
@@ -772,44 +783,42 @@ function Settings() {
 
   // Determine which menu items should be visible based on user role
   const getVisibleMenuItems = () => {
+    // Only admin and superadmin can see any menu items
+    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin') {
+      return [];
+    }
+  
     const items = [];
     
     // Organization menu
-    if (canUserAccessTab('departments') || canUserAccessTab('company-info')) {
-      items.push({
-        key: 'organization',
-        label: 'Organization',
-        subItems: [
-          canUserAccessTab('departments') ? { key: 'departments', label: 'Departments' } : null,
-          canUserAccessTab('company-info') ? { key: 'company-info', label: 'Company Info' } : null,
-        ].filter(Boolean)
-      });
-    }
+    items.push({
+      key: 'organization',
+      label: 'Organization',
+      subItems: [
+        { key: 'departments', label: 'Departments' },
+        { key: 'company-info', label: 'Company Info' }
+      ]
+    });
     
     // Configuration menu
-    if (canUserAccessTab('system-settings') || canUserAccessTab('integrations')) {
-      items.push({
-        key: 'configuration',
-        label: 'Configuration',
-        subItems: [
-          canUserAccessTab('system-settings') ? { key: 'system-settings', label: 'System Settings' } : null,
-          canUserAccessTab('integrations') ? { key: 'integrations', label: 'Integrations' } : null,
-        ].filter(Boolean)
-      });
-    }
+    items.push({
+      key: 'configuration',
+      label: 'Configuration',
+      subItems: [
+        { key: 'system-settings', label: 'System Settings' },
+        { key: 'integrations', label: 'Integrations' }
+      ]
+    });
     
     // Administration menu
-    if (canUserAccessTab('audit-log') || currentUser.role === 'admin' || currentUser.role === 'superadmin') {
-      items.push({
-        key: 'administration',
-        label: 'Administration',
-        subItems: [
-          canUserAccessTab('audit-log') ? { key: 'audit-log', label: 'Audit Log' } : null,
-          (currentUser.role === 'admin' || currentUser.role === 'superadmin') ? 
-            { key: 'role-management', label: 'Role Management' } : null,
-        ].filter(Boolean)
-      });
-    }
+    items.push({
+      key: 'administration',
+      label: 'Administration',
+      subItems: [
+        { key: 'audit-log', label: 'Audit Log' },
+        { key: 'role-management', label: 'Role Management' }
+      ]
+    });
     
     return items;
   };
@@ -923,113 +932,157 @@ function Settings() {
 }
 
 // Department Modal Component
+// Department Modal Component
 const DepartmentModal = ({ department, onSave, onUpdate, onCancel }) => {
-  const [formData, setFormData] = useState({
-    name: department ? department.name : '',
-    description: department ? department.description : '',
-    manager: department ? department.manager : '',
-    location: department ? department.location : '',
-    budget: department ? department.budget : '',
-    headCount: department ? department.headCount : ''
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (department) {
-      // Update existing department
-      onUpdate({...department, ...formData});
-    } else {
-      // Add new department
-      onSave(formData);
-    }
-  };
-
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <div className="modal-header">
-          <h2>{department ? 'Edit Department' : 'Add New Department'}</h2>
-          <button className="close-button" onClick={onCancel}>×</button>
+    const [formData, setFormData] = useState({
+      name: department ? department.name : '',
+      description: department ? department.description : '',
+      manager: department ? department.manager : '',
+      location: department ? department.location : '',
+      budget: department ? department.budget : '',
+      headCount: department ? department.headCount : ''
+    });
+  
+    const [errors, setErrors] = useState({});
+  
+    const validateForm = () => {
+      const newErrors = {};
+      
+      // Department name validation
+      if (!formData.name.trim()) {
+        newErrors.name = 'Department name is required';
+      }
+  
+      // Budget validation (optional, but ensure it's a valid number if provided)
+      if (formData.budget && isNaN(parseFloat(formData.budget.replace('$', '').trim()))) {
+        newErrors.budget = 'Budget must be a valid number';
+      }
+  
+      // Head count validation (ensure it's a non-negative integer)
+      if (formData.headCount && (isNaN(parseInt(formData.headCount)) || parseInt(formData.headCount) < 0)) {
+        newErrors.headCount = 'Head count must be a non-negative number';
+      }
+  
+      setErrors(newErrors);
+      return Object.keys(newErrors).length === 0;
+    };
+  
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      
+      if (!validateForm()) {
+        return;
+      }
+  
+      // Sanitize budget (remove $ and trim)
+      const sanitizedData = {
+        ...formData,
+        budget: formData.budget ? formData.budget.replace('$', '').trim() : '',
+        headCount: formData.headCount ? parseInt(formData.headCount) : 0
+      };
+  
+      if (department) {
+        // Update existing department
+        onUpdate({...department, ...sanitizedData});
+      } else {
+        // Add new department
+        onSave(sanitizedData);
+      }
+    };
+  
+    return (
+      <div className="modal-overlay">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h2>{department ? 'Edit Department' : 'Add New Department'}</h2>
+            <button className="close-button" onClick={onCancel}>×</button>
+          </div>
+          <form onSubmit={handleSubmit}>
+            <div className="modal-body">
+              <div className={`form-group ${errors.name ? 'has-error' : ''}`}>
+                <label>Department Name *</label>
+                <input 
+                  type="text"
+                  className="form-input"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  required
+                />
+                {errors.name && <span className="error-message">{errors.name}</span>}
+              </div>
+              
+              <div className="form-group">
+                <label>Description</label>
+                <textarea 
+                  className="form-textarea"
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  placeholder="Optional department description"
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>Manager</label>
+                <input 
+                  type="text"
+                  className="form-input"
+                  value={formData.manager}
+                  onChange={(e) => setFormData({...formData, manager: e.target.value})}
+                  placeholder="Optional department manager"
+                />
+              </div>
+              
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Location</label>
+                  <input 
+                    type="text"
+                    className="form-input"
+                    value={formData.location}
+                    onChange={(e) => setFormData({...formData, location: e.target.value})}
+                    placeholder="Optional department location"
+                  />
+                </div>
+                
+                <div className={`form-group ${errors.budget ? 'has-error' : ''}`}>
+                  <label>Budget</label>
+                  <input 
+                    type="text"
+                    className="form-input"
+                    value={formData.budget}
+                    onChange={(e) => setFormData({...formData, budget: e.target.value})}
+                    placeholder="$ Optional budget"
+                  />
+                  {errors.budget && <span className="error-message">{errors.budget}</span>}
+                </div>
+                
+                <div className={`form-group ${errors.headCount ? 'has-error' : ''}`}>
+                  <label>Head Count</label>
+                  <input 
+                    type="number"
+                    className="form-input"
+                    value={formData.headCount}
+                    onChange={(e) => setFormData({...formData, headCount: e.target.value})}
+                    min="0"
+                    placeholder="Optional head count"
+                  />
+                  {errors.headCount && <span className="error-message">{errors.headCount}</span>}
+                </div>
+              </div>
+            </div>
+            
+            <div className="modal-footer">
+              <button type="button" className="cancel-button" onClick={onCancel}>
+                Cancel
+              </button>
+              <button type="submit" className="save-button">
+                {department ? 'Update' : 'Add'} Department
+              </button>
+            </div>
+          </form>
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            <div className="form-group">
-              <label>Department Name</label>
-              <input 
-                type="text"
-                className="form-input"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                required
-              />
-            </div>
-            
-            <div className="form-group">
-              <label>Description</label>
-              <textarea 
-                className="form-textarea"
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-              />
-            </div>
-            
-            <div className="form-group">
-              <label>Manager</label>
-              <input 
-                type="text"
-                className="form-input"
-                value={formData.manager}
-                onChange={(e) => setFormData({...formData, manager: e.target.value})}
-              />
-            </div>
-            
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Location</label>
-                <input 
-                  type="text"
-                  className="form-input"
-                  value={formData.location}
-                  onChange={(e) => setFormData({...formData, location: e.target.value})}
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>Budget</label>
-                <input 
-                  type="text"
-                  className="form-input"
-                  value={formData.budget}
-                  onChange={(e) => setFormData({...formData, budget: e.target.value})}
-                  placeholder="$"
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>Head Count</label>
-                <input 
-                  type="number"
-                  className="form-input"
-                  value={formData.headCount}
-                  onChange={(e) => setFormData({...formData, headCount: e.target.value})}
-                  min="0"
-                />
-              </div>
-            </div>
-          </div>
-          
-          <div className="modal-footer">
-            <button type="button" className="cancel-button" onClick={onCancel}>
-              Cancel
-            </button>
-            <button type="submit" className="save-button">
-              {department ? 'Update' : 'Add'} Department
-            </button>
-          </div>
-        </form>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 export default Settings;
