@@ -4,6 +4,7 @@ import { FaUser, FaHistory, FaDollarSign, FaStar, FaGraduationCap, FaChartLine }
 import '../styles/EmployeeProfile.css';
 import PositionFormModal from './PositionFormModal';
 import CompensationFormModal from './CompensationFormModal';
+import SkillFormModal from './SkillFormModal';
 
 // Import tab components (placeholders - you can implement these later)
 const PersonalInfoTab = ({ employee }) => (
@@ -392,20 +393,106 @@ const ReviewsTab = ({ employeeId }) => {
 };
 
 const SkillsTab = ({ employee }) => {
-  // For now, create a simple placeholder that will be implemented later
-  return (
-    <div className="skills-tab">
-      <div className="tab-header">
-        <h3>Skills & Development</h3>
-        <button className="add-button">Add Skill</button>
+    const [skills, setSkills] = useState(employee.skills || []);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    
+    const API_BASE_URL = process.env.NODE_ENV === 'development' 
+      ? 'http://localhost:5000' 
+      : 'https://performance-review-backend-ab8z.onrender.com';
+  
+    const handleSaveSkill = async (skillData) => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/api/employees/${employee._id}/skills`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(skillData)
+        });
+        
+        if (!response.ok) throw new Error('Failed to add skill');
+        
+        const updatedEmployee = await response.json();
+        
+        // Update skills from the returned employee object
+        setSkills(updatedEmployee.skills || []);
+        setIsModalOpen(false);
+        setLoading(false);
+      } catch (error) {
+        setError(error.message);
+        setLoading(false);
+      }
+    };
+  
+    // Render proficiency level as stars
+    const renderProficiencyStars = (level) => {
+      return [1, 2, 3, 4, 5].map(star => (
+        <span 
+          key={star} 
+          className={star <= level ? 'star filled' : 'star'}
+        >
+          ★
+        </span>
+      ));
+    };
+    
+    return (
+      <div className="skills-tab">
+        <div className="tab-header">
+          <h3>Skills & Development</h3>
+          <button 
+            className="add-button" 
+            onClick={() => setIsModalOpen(true)}
+            disabled={loading}
+          >
+            Add Skill
+          </button>
+        </div>
+        
+        {loading && <div>Loading...</div>}
+        {error && <div className="error">Error: {error}</div>}
+        
+        {skills.length === 0 ? (
+          <div className="empty-state">No skills recorded</div>
+        ) : (
+          <div className="skills-list">
+            {skills.map((skill, index) => (
+              <div key={index} className="skill-card">
+                <div className="skill-header">
+                  <h4>{skill.name}</h4>
+                  <div className="skill-proficiency">
+                    {renderProficiencyStars(skill.proficiencyLevel)}
+                  </div>
+                </div>
+                <div className="skill-details">
+                  <div className="skill-meta">
+                    <span>Years of Experience: {skill.yearsOfExperience || 'N/A'}</span>
+                    <span>Last Used: {skill.lastUsed ? new Date(skill.lastUsed).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                  {skill.notes && (
+                    <div className="skill-notes">
+                      <strong>Notes:</strong> {skill.notes}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        <SkillFormModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSave={handleSaveSkill}
+          employeeId={employee._id}
+        />
       </div>
-      
-      <div className="empty-state">
-        Skills tracking will be implemented soon.
-      </div>
-    </div>
-  );
-};
+    );
+  };
 
 const PerformanceTab = ({ employeeId }) => {
   // For now, create a simple placeholder that will be implemented later
