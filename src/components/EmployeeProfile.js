@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { FaUser, FaHistory, FaDollarSign, FaStar, FaGraduationCap, FaChartLine } from 'react-icons/fa';
 import '../styles/EmployeeProfile.css';
+import PositionFormModal from './PositionFormModal';
 
 // Import tab components (placeholders - you can implement these later)
 const PersonalInfoTab = ({ employee }) => (
@@ -48,10 +49,11 @@ const PersonalInfoTab = ({ employee }) => (
   </div>
 );
 
-const PositionHistoryTab = ({ employeeId }) => {
+const PositionHistoryTab = ({ employeeId, departments }) => {
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
   const API_BASE_URL = process.env.NODE_ENV === 'development' 
     ? 'http://localhost:5000' 
@@ -82,6 +84,29 @@ const PositionHistoryTab = ({ employeeId }) => {
     if (employeeId) fetchPositions();
   }, [employeeId, API_BASE_URL]);
   
+  const handleSavePosition = async (positionData) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/positions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(positionData)
+      });
+      
+      if (!response.ok) throw new Error('Failed to add position');
+      
+      const newPosition = await response.json();
+      
+      // Update the positions list with the new position
+      setPositions([...positions, newPosition]);
+      setIsModalOpen(false);
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+  
   if (loading) return <div>Loading position history...</div>;
   if (error) return <div className="error">Error: {error}</div>;
   
@@ -89,7 +114,7 @@ const PositionHistoryTab = ({ employeeId }) => {
     <div className="position-history-tab">
       <div className="tab-header">
         <h3>Position History</h3>
-        <button className="add-button">Add Position</button>
+        <button className="add-button" onClick={() => setIsModalOpen(true)}>Add Position</button>
       </div>
       
       {positions.length === 0 ? (
@@ -117,6 +142,14 @@ const PositionHistoryTab = ({ employeeId }) => {
           ))}
         </div>
       )}
+      
+      <PositionFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSavePosition}
+        employeeId={employeeId}
+        departments={departments}
+      />
     </div>
   );
 };
@@ -157,7 +190,6 @@ const CompensationTab = ({ employeeId }) => {
   
   if (loading) return <div>Loading compensation history...</div>;
   if (error) return <div className="error">Error: {error}</div>;
-  // ...continuing the CompensationTab component:
   
   // Format currency
   const formatCurrency = (amount, currency = 'USD') => {
@@ -359,6 +391,7 @@ const PerformanceTab = ({ employeeId }) => {
 const EmployeeProfile = () => {
   const { id } = useParams();
   const [employee, setEmployee] = useState(null);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('personal');
@@ -369,23 +402,38 @@ const EmployeeProfile = () => {
     : 'https://performance-review-backend-ab8z.onrender.com';
   
   useEffect(() => {
-    const fetchEmployeeData = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
         
-        const response = await fetch(`${API_BASE_URL}/api/employees/${id}`, {
+        // Fetch employee data
+        const employeeResponse = await fetch(`${API_BASE_URL}/api/employees/${id}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json'
           }
         });
         
-        if (!response.ok) {
+        if (!employeeResponse.ok) {
           throw new Error('Failed to fetch employee data');
         }
         
-        const data = await response.json();
-        setEmployee(data);
+        const employeeData = await employeeResponse.json();
+        setEmployee(employeeData);
+        
+        // Fetch departments for dropdown options
+        const departmentsResponse = await fetch(`${API_BASE_URL}/api/departments`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (departmentsResponse.ok) {
+          const departmentsData = await departmentsResponse.json();
+          setDepartments(departmentsData);
+        }
+        
         setLoading(false);
       } catch (error) {
         setError(error.message);
@@ -393,7 +441,7 @@ const EmployeeProfile = () => {
       }
     };
     
-    fetchEmployeeData();
+    fetchData();
   }, [id, API_BASE_URL]);
   
   if (loading) {
@@ -481,7 +529,7 @@ const EmployeeProfile = () => {
         
         <div className="tab-content">
           {activeTab === 'personal' && <PersonalInfoTab employee={employee} />}
-          {activeTab === 'positions' && <PositionHistoryTab employeeId={employee._id} />}
+          {activeTab === 'positions' && <PositionHistoryTab employeeId={employee._id} departments={departments} />}
           {activeTab === 'compensation' && <CompensationTab employeeId={employee._id} />}
           {activeTab === 'reviews' && <ReviewsTab employeeId={employee._id} />}
           {activeTab === 'skills' && <SkillsTab employee={employee} />}
