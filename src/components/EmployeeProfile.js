@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { FaUser, FaHistory, FaDollarSign, FaStar, FaGraduationCap, FaChartLine } from 'react-icons/fa';
 import '../styles/EmployeeProfile.css';
 import PositionFormModal from './PositionFormModal';
+import CompensationFormModal from './CompensationFormModal';
 
 // Import tab components (placeholders - you can implement these later)
 const PersonalInfoTab = ({ employee }) => (
@@ -155,94 +156,127 @@ const PositionHistoryTab = ({ employeeId, departments }) => {
 };
 
 const CompensationTab = ({ employeeId }) => {
-  const [compensation, setCompensation] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+    const [compensation, setCompensation] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    
+    const API_BASE_URL = process.env.NODE_ENV === 'development' 
+      ? 'http://localhost:5000' 
+      : 'https://performance-review-backend-ab8z.onrender.com';
+    
+    useEffect(() => {
+      const fetchCompensation = async () => {
+        try {
+          setLoading(true);
+          const response = await fetch(`${API_BASE_URL}/api/compensation/employee/${employeeId}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (!response.ok) throw new Error('Failed to fetch compensation history');
+          
+          const data = await response.json();
+          setCompensation(data);
+          setLoading(false);
+        } catch (error) {
+          setError(error.message);
+          setLoading(false);
+        }
+      };
+      
+      if (employeeId) fetchCompensation();
+    }, [employeeId, API_BASE_URL]);
   
-  const API_BASE_URL = process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:5000' 
-    : 'https://performance-review-backend-ab8z.onrender.com';
-  
-  useEffect(() => {
-    const fetchCompensation = async () => {
+    const handleSaveCompensation = async (compensationData) => {
       try {
-        setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/api/compensation/employee/${employeeId}`, {
+        const response = await fetch(`${API_BASE_URL}/api/compensation`, {
+          method: 'POST',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json'
-          }
+          },
+          body: JSON.stringify(compensationData)
         });
         
-        if (!response.ok) throw new Error('Failed to fetch compensation history');
+        if (!response.ok) throw new Error('Failed to add compensation record');
         
-        const data = await response.json();
-        setCompensation(data);
-        setLoading(false);
+        const newCompensation = await response.json();
+        
+        // Update the compensation list with the new record
+        setCompensation([...compensation, newCompensation]);
+        setIsModalOpen(false);
       } catch (error) {
         setError(error.message);
-        setLoading(false);
       }
     };
     
-    if (employeeId) fetchCompensation();
-  }, [employeeId, API_BASE_URL]);
-  
-  if (loading) return <div>Loading compensation history...</div>;
-  if (error) return <div className="error">Error: {error}</div>;
-  
-  // Format currency
-  const formatCurrency = (amount, currency = 'USD') => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency
-    }).format(amount);
-  };
-  
-  return (
-    <div className="compensation-tab">
-      <div className="tab-header">
-        <h3>Compensation History</h3>
-        <button className="add-button">Add Compensation</button>
-      </div>
-      
-      {compensation.length === 0 ? (
-        <div className="empty-state">No compensation records found</div>
-      ) : (
-        <div className="compensation-table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Effective Date</th>
-                <th>Salary</th>
-                <th>Type</th>
-                <th>Reason</th>
-                <th>Approved By</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {compensation.map(record => (
-                <tr key={record._id}>
-                  <td>{new Date(record.effectiveDate).toLocaleDateString()}</td>
-                  <td>{formatCurrency(record.salary, record.currency)}</td>
-                  <td>{record.salaryType}</td>
-                  <td>{record.reason}</td>
-                  <td>
-                    {record.approvedBy ? 
-                      `${record.approvedBy.firstName} ${record.approvedBy.lastName}` :
-                      'N/A'}
-                  </td>
-                  <td>{record.notes || 'N/A'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    if (loading) return <div>Loading compensation history...</div>;
+    if (error) return <div className="error">Error: {error}</div>;
+    
+    // Format currency
+    const formatCurrency = (amount, currency = 'USD') => {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency
+      }).format(amount);
+    };
+    
+    return (
+      <div className="compensation-tab">
+        <div className="tab-header">
+          <h3>Compensation History</h3>
+          <button className="add-button" onClick={() => setIsModalOpen(true)}>
+            Add Compensation
+          </button>
         </div>
-      )}
-    </div>
-  );
-};
+        
+        {compensation.length === 0 ? (
+          <div className="empty-state">No compensation records found</div>
+        ) : (
+          <div className="compensation-table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Effective Date</th>
+                  <th>Salary</th>
+                  <th>Type</th>
+                  <th>Reason</th>
+                  <th>Approved By</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compensation.map(record => (
+                  <tr key={record._id}>
+                    <td>{new Date(record.effectiveDate).toLocaleDateString()}</td>
+                    <td>{formatCurrency(record.salary, record.currency)}</td>
+                    <td>{record.salaryType}</td>
+                    <td>{record.reason}</td>
+                    <td>
+                      {record.approvedBy ? 
+                        `${record.approvedBy.firstName} ${record.approvedBy.lastName}` :
+                        'N/A'}
+                    </td>
+                    <td>{record.notes || 'N/A'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        
+        <CompensationFormModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSave={handleSaveCompensation}
+          employeeId={employeeId}
+        />
+      </div>
+    );
+  };
 
 const ReviewsTab = ({ employeeId }) => {
   const [reviews, setReviews] = useState([]);
