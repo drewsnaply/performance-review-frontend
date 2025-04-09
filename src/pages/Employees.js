@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDepartments } from '../context/DepartmentContext';
 import EmployeeForm from '../components/EmployeeForm';
-import { FaEdit, FaTrash, FaUserPlus, FaSearch, FaKey, FaSyncAlt } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaUserPlus, FaSearch, FaKey, FaSyncAlt, FaEye } from 'react-icons/fa';
 import '../styles/Employees.css';
 import { Link } from 'react-router-dom';
 
@@ -370,6 +370,15 @@ function Employees() {
                   <td>{emp.department}</td>
                   <td>{emp.role}</td>
                   <td className="actions-cell">
+                    <Link 
+                      to={`/employees/${emp._id}`}
+                      className="btn-action btn-view with-label"
+                      title="View Employee Profile"
+                    >
+                      <FaEye />
+                      <span>View</span>
+                      <div className="action-tooltip">View Profile</div>
+                    </Link>
                     <button
                       className="btn-action btn-edit with-label"
                       onClick={() => openEditEmployeeModal(emp)}

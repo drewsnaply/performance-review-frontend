@@ -4,6 +4,8 @@ import { AuthProvider } from './context/AuthContext';
 import { DepartmentProvider } from './context/DepartmentContext';
 import PrivateRoute from './components/PrivateRoute';
 import AuthInitCheck from './components/AuthInitCheck';
+import EmployeeProfile from './components/EmployeeProfile';
+
 
 // Import pages
 import Login from './pages/Login';
@@ -41,6 +43,11 @@ const TitleUpdater = () => {
         '/import-tool': 'Import Tool',
         '/export-tool': 'Export Tool'
       };
+
+      // Check if path is an employee profile page
+      if (location.pathname.startsWith('/employees/')) {
+        return 'Employee Profile';
+      }
 
       return pathToTitleMap[location.pathname] || 'Performance Review System';
     };
@@ -87,6 +94,15 @@ function App() {
               element={
                 <PrivateRoute allowedRoles={['manager', 'admin']}>
                   <Employees />
+                </PrivateRoute>
+              }
+            />
+            {/* New route for employee profile */}
+            <Route
+              path="/employees/:id"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin']}>
+                  <EmployeeProfile />
                 </PrivateRoute>
               }
             />
