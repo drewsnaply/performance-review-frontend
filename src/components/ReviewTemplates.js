@@ -1,679 +1,516 @@
 import React, { useState, useEffect } from 'react';
 import { useDepartments } from '../context/DepartmentContext';
+import { FaEdit, FaTrash, FaUsers, FaPlusCircle, FaTasks, FaCheck, FaHourglass, FaEye } from 'react-icons/fa';
+import TemplateFormModal from './TemplateFormModal';
+import AssignTemplateModal from './AssignTemplateModal';
 import '../styles/ReviewTemplates.css';
 
 function ReviewTemplates() {
   const { employees } = useDepartments();
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('templates');
+  const [assignments, setAssignments] = useState([]);
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Sample template data (you can replace this with actual data from your backend or context)
-  const initialTemplates = [
-    {
-      id: 1,
-      name: 'Standard Performance Review',
-      description: 'Default template for annual performance reviews',
-      sections: [
-        {
-          title: 'Job Performance',
-          questions: [
-            'How well does the employee meet job responsibilities?',
-            'What are the employee\'s key strengths?',
-            'Are there areas where the employee can improve?'
-          ]
-        },
-        {
-          title: 'Professional Development',
-          questions: [
-            'What training or development opportunities would benefit the employee?',
-            'What are the employee\'s career goals?',
-            'How can the organization support these goals?'
-          ]
-        }
-      ],
-      // Workflow Configuration
-      reviewFrequency: 'Annually',
-      approvalFlow: 'Manager → Department Head → HR',
-      enableSelfAssessment: true,
-      enablePeerReviews: false,
-      enableGoalTracking: true,
-      lastUpdated: new Date().toISOString(),
-      isActive: true
-    },
-    {
-      id: 2,
-      name: 'Manager Evaluation',
-      description: 'Template for evaluating management performance',
-      sections: [
-        {
-          title: 'Leadership Skills',
-          questions: [
-            'How effectively does the manager lead their team?',
-            'What is the manager\'s approach to team motivation?',
-            'How well does the manager communicate?'
-          ]
-        },
-        {
-          title: 'Strategic Thinking',
-          questions: [
-            'How does the manager contribute to company strategy?',
-            'What innovative approaches has the manager implemented?',
-            'How well does the manager adapt to changing business needs?'
-          ]
-        }
-      ],
-      // Workflow Configuration
-      reviewFrequency: 'Semi-Annually',
-      approvalFlow: 'Manager → HR',
-      enableSelfAssessment: false,
-      enablePeerReviews: true,
-      enableGoalTracking: true,
-      lastUpdated: new Date().toISOString(),
-      isActive: true
-    }
-  ];
+  const API_BASE_URL = process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:5000' 
+    : 'https://performance-review-backend-ab8z.onrender.com';
 
   useEffect(() => {
-    // Load templates from localStorage or use initial templates
-    const storedTemplates = localStorage.getItem('reviewTemplates');
-    
-    if (storedTemplates) {
-      try {
-        const parsedTemplates = JSON.parse(storedTemplates);
-        setTemplates(parsedTemplates);
-      } catch (error) {
-        console.error('Error parsing templates:', error);
-        setTemplates(initialTemplates);
-        localStorage.setItem('reviewTemplates', JSON.stringify(initialTemplates));
-      }
-    } else {
-      setTemplates(initialTemplates);
-      localStorage.setItem('reviewTemplates', JSON.stringify(initialTemplates));
-    }
+    fetchTemplates();
+    fetchAssignments();
   }, []);
 
-  const handleTemplateSelect = (template) => {
-    setSelectedTemplate(template);
-    setIsEditing(false);
+  const fetchTemplates = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/templates`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch templates');
+      }
+
+      const data = await response.json();
+      setTemplates(data);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+      setError(error.message);
+      setIsLoading(false);
+    }
   };
 
-  const handleCreateTemplate = () => {
-    const newTemplate = {
-      id: templates.length + 1,
-      name: 'New Review Template',
-      description: 'Custom review template',
-      sections: [],
-      // Default Workflow Configuration
-      reviewFrequency: 'Annually',
-      approvalFlow: 'Manager → Department Head → HR',
-      enableSelfAssessment: true,
-      enablePeerReviews: false,
-      enableGoalTracking: false,
-      lastUpdated: new Date().toISOString(),
-      isActive: true
-    };
+  const fetchAssignments = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/templates/assignments`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-    setEditingTemplate(newTemplate);
-    setIsEditing(true);
+      if (!response.ok) {
+        throw new Error('Failed to fetch assignments');
+      }
+
+      const data = await response.json();
+      setAssignments(data);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error fetching assignments:', error);
+      setError(error.message);
+      setIsLoading(false);
+    }
   };
 
   const handleEditTemplate = (template) => {
-    setEditingTemplate({...template});
-    setIsEditing(true);
+    setSelectedTemplate(template);
+    setIsTemplateModalOpen(true);
   };
 
-  const handleDeleteTemplate = (templateId) => {
-    const updatedTemplates = templates.filter(template => template.id !== templateId);
-    setTemplates(updatedTemplates);
-    localStorage.setItem('reviewTemplates', JSON.stringify(updatedTemplates));
-    
-    if (selectedTemplate && selectedTemplate.id === templateId) {
-      setSelectedTemplate(null);
+  const handleDeleteTemplate = async (templateId) => {
+    if (!window.confirm('Are you sure you want to delete this template?')) {
+      return;
     }
-  };
 
-  const handleTemplateSave = (updatedTemplate) => {
-    const isNew = !templates.find(t => t.id === updatedTemplate.id);
-    let updatedTemplates;
-    
-    if (isNew) {
-      updatedTemplates = [...templates, updatedTemplate];
-    } else {
-      updatedTemplates = templates.map(template => 
-        template.id === updatedTemplate.id ? updatedTemplate : template
-      );
-    }
-    
-    setTemplates(updatedTemplates);
-    localStorage.setItem('reviewTemplates', JSON.stringify(updatedTemplates));
-    setIsEditing(false);
-    setSelectedTemplate(updatedTemplate);
-  };
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/templates/${templateId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditingTemplate(null);
-  };
-
-  // Template editor component
-  const TemplateEditor = ({ template, onSave, onCancel }) => {
-    const [formData, setFormData] = useState({
-      ...template,
-      lastUpdated: new Date().toISOString()
-    });
-    
-    const [newSection, setNewSection] = useState({ title: '', questions: [''] });
-    
-    const handleInputChange = (e) => {
-      const { name, value } = e.target;
-      setFormData({
-        ...formData,
-        [name]: value
-      });
-    };
-    
-    const handleToggleChange = (field) => {
-      setFormData({
-        ...formData,
-        [field]: !formData[field]
-      });
-    };
-    
-    const handleSectionTitleChange = (index, value) => {
-      const updatedSections = [...formData.sections];
-      updatedSections[index].title = value;
-      setFormData({
-        ...formData,
-        sections: updatedSections
-      });
-    };
-    
-    const handleQuestionChange = (sectionIndex, questionIndex, value) => {
-      const updatedSections = [...formData.sections];
-      updatedSections[sectionIndex].questions[questionIndex] = value;
-      setFormData({
-        ...formData,
-        sections: updatedSections
-      });
-    };
-    
-    const handleAddQuestion = (sectionIndex) => {
-      const updatedSections = [...formData.sections];
-      updatedSections[sectionIndex].questions.push('');
-      setFormData({
-        ...formData,
-        sections: updatedSections
-      });
-    };
-    
-    const handleRemoveQuestion = (sectionIndex, questionIndex) => {
-      const updatedSections = [...formData.sections];
-      updatedSections[sectionIndex].questions.splice(questionIndex, 1);
-      setFormData({
-        ...formData,
-        sections: updatedSections
-      });
-    };
-    
-    const handleNewSectionTitleChange = (e) => {
-      setNewSection({
-        ...newSection,
-        title: e.target.value
-      });
-    };
-    
-    const handleNewQuestionChange = (index, value) => {
-      const updatedQuestions = [...newSection.questions];
-      updatedQuestions[index] = value;
-      setNewSection({
-        ...newSection,
-        questions: updatedQuestions
-      });
-    };
-    
-    const handleAddNewQuestion = () => {
-      setNewSection({
-        ...newSection,
-        questions: [...newSection.questions, '']
-      });
-    };
-    
-    const handleRemoveNewQuestion = (index) => {
-      const updatedQuestions = [...newSection.questions];
-      updatedQuestions.splice(index, 1);
-      setNewSection({
-        ...newSection,
-        questions: updatedQuestions
-      });
-    };
-    
-    const handleAddSection = () => {
-      if (newSection.title && newSection.questions.some(q => q.trim() !== '')) {
-        const filteredQuestions = newSection.questions.filter(q => q.trim() !== '');
-        setFormData({
-          ...formData,
-          sections: [...formData.sections, {
-            title: newSection.title,
-            questions: filteredQuestions
-          }]
-        });
-        setNewSection({ title: '', questions: [''] });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete template');
       }
-    };
-    
-    const handleRemoveSection = (index) => {
-      const updatedSections = [...formData.sections];
-      updatedSections.splice(index, 1);
-      setFormData({
-        ...formData,
-        sections: updatedSections
+
+      setTemplates(templates.filter(t => t._id !== templateId));
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const handleAssignTemplate = (template) => {
+    setSelectedTemplate(template);
+    setIsAssignModalOpen(true);
+  };
+
+  const handleAssignmentSubmit = async (assignmentData) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/templates/assign`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          templateId: selectedTemplate._id,
+          ...assignmentData
+        })
       });
-    };
-    
-    const handleSave = () => {
-      onSave(formData);
-    };
-    
-    return (
-      <div className="template-editor">
-        <h2>{template.id ? 'Edit Template' : 'Create New Template'}</h2>
-        
-        <div className="editor-section">
-          <h3>Template Information</h3>
-          <div className="form-group">
-            <label htmlFor="name">Template Name</label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              className="form-input"
-              required
-            />
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="description">Description</label>
-            <textarea
-              id="description"
-              name="description"
-              value={formData.description}
-              onChange={handleInputChange}
-              className="form-textarea"
-              rows="3"
-            ></textarea>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="isActive">Status</label>
-            <div className="toggle-group">
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={formData.isActive}
-                  onChange={() => handleToggleChange('isActive')}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-              <span>{formData.isActive ? 'Active' : 'Inactive'}</span>
-            </div>
-          </div>
-        </div>
-        
-        {/* Workflow Configuration */}
-        <div className="editor-section">
-          <h3>Workflow Configuration</h3>
-          
-          <div className="form-group">
-            <label htmlFor="reviewFrequency">Review Frequency</label>
-            <select
-              id="reviewFrequency"
-              name="reviewFrequency"
-              value={formData.reviewFrequency}
-              onChange={handleInputChange}
-              className="form-select"
-            >
-              <option value="Annually">Annually</option>
-              <option value="Semi-Annually">Semi-Annually</option>
-              <option value="Quarterly">Quarterly</option>
-              <option value="Monthly">Monthly</option>
-            </select>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="approvalFlow">Approval Flow</label>
-            <select
-              id="approvalFlow"
-              name="approvalFlow"
-              value={formData.approvalFlow}
-              onChange={handleInputChange}
-              className="form-select"
-            >
-              <option value="Manager → Department Head → HR">Manager → Department Head → HR</option>
-              <option value="Manager → HR">Manager → HR</option>
-              <option value="Manager Only">Manager Only</option>
-              <option value="Custom">Custom</option>
-            </select>
-          </div>
-          
-          <div className="form-group">
-            <label>Self-Assessment</label>
-            <div className="toggle-group">
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={formData.enableSelfAssessment}
-                  onChange={() => handleToggleChange('enableSelfAssessment')}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-              <span>Enable employee self-assessment</span>
-            </div>
-          </div>
-          
-          <div className="form-group">
-            <label>Peer Reviews</label>
-            <div className="toggle-group">
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={formData.enablePeerReviews}
-                  onChange={() => handleToggleChange('enablePeerReviews')}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-              <span>Enable peer feedback collection</span>
-            </div>
-          </div>
-          
-          <div className="form-group">
-            <label>Goal Tracking</label>
-            <div className="toggle-group">
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={formData.enableGoalTracking}
-                  onChange={() => handleToggleChange('enableGoalTracking')}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-              <span>Enable OKR/goal integration</span>
-            </div>
-          </div>
-        </div>
-        
-        {/* Template Sections */}
-        <div className="editor-section">
-          <h3>Evaluation Sections</h3>
-          
-          {formData.sections.map((section, sectionIndex) => (
-            <div key={sectionIndex} className="template-section-editor">
-              <div className="section-header">
-                <div className="form-group">
-                  <label>Section Title</label>
-                  <input
-                    type="text"
-                    value={section.title}
-                    onChange={(e) => handleSectionTitleChange(sectionIndex, e.target.value)}
-                    className="form-input"
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-danger btn-sm"
-                  onClick={() => handleRemoveSection(sectionIndex)}
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create assignment');
+      }
+
+      const newAssignment = await response.json();
+      setAssignments([newAssignment, ...assignments]);
+      setIsAssignModalOpen(false);
+      setActiveTab('assignments');
+    } catch (error) {
+      console.error('Error creating assignment:', error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const handleTemplateSubmit = async (templateData) => {
+    try {
+      const url = selectedTemplate
+        ? `${API_BASE_URL}/api/templates/${selectedTemplate._id}`
+        : `${API_BASE_URL}/api/templates`;
+      
+      const method = selectedTemplate ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(templateData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save template');
+      }
+
+      const savedTemplate = await response.json();
+      
+      if (selectedTemplate) {
+        setTemplates(templates.map(t => 
+          t._id === savedTemplate._id ? savedTemplate : t
+        ));
+      } else {
+        setTemplates([savedTemplate, ...templates]);
+      }
+      
+      setIsTemplateModalOpen(false);
+      setSelectedTemplate(null);
+    } catch (error) {
+      console.error('Error saving template:', error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const handleUpdateAssignmentStatus = async (assignmentId, newStatus) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/templates/assignments/${assignmentId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update assignment status');
+      }
+
+      const updatedAssignment = await response.json();
+      setAssignments(assignments.map(a => 
+        a._id === updatedAssignment._id ? updatedAssignment : a
+      ));
+    } catch (error) {
+      console.error('Error updating assignment status:', error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const handleDeleteAssignment = async (assignmentId) => {
+    if (!window.confirm('Are you sure you want to delete this assignment?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/templates/assignments/${assignmentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete assignment');
+      }
+
+      setAssignments(assignments.filter(a => a._id !== assignmentId));
+    } catch (error) {
+      console.error('Error deleting assignment:', error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const handleStartReview = async (assignmentId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/templates/assignments/${assignmentId}/start`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to start review');
+      }
+
+      const { assignment, review } = await response.json();
+      
+      // Update the assignment in the list
+      setAssignments(assignments.map(a => 
+        a._id === assignment._id ? assignment : a
+      ));
+      
+      // Redirect to the review editor
+      window.location.href = `/reviews/edit/${review._id}`;
+    } catch (error) {
+      console.error('Error starting review:', error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+  const filteredAssignments = statusFilter === 'All'
+    ? assignments
+    : assignments.filter(a => a.status === statusFilter);
+
+  const renderTemplatesTab = () => (
+    <div className="templates-container">
+      <div className="templates-grid">
+        {templates.map(template => (
+          <div key={template._id} className="template-card">
+            <div className="template-header">
+              <h3>{template.name}</h3>
+              <div className="template-actions">
+                <button 
+                  className="btn-icon" 
+                  onClick={() => handleEditTemplate(template)}
+                  title="Edit Template"
                 >
-                  Remove Section
+                  <FaEdit />
+                </button>
+                <button 
+                  className="btn-icon" 
+                  onClick={() => handleDeleteTemplate(template._id)}
+                  title="Delete Template"
+                >
+                  <FaTrash />
+                </button>
+                <button 
+                  className="btn-icon btn-assign" 
+                  onClick={() => handleAssignTemplate(template)}
+                  title="Assign Template"
+                >
+                  <FaUsers />
                 </button>
               </div>
-              
-              <div className="questions-list">
-                {section.questions.map((question, questionIndex) => (
-                  <div key={questionIndex} className="question-editor">
-                    <div className="form-group">
-                      <label>Question {questionIndex + 1}</label>
-                      <div className="question-input-group">
-                        <input
-                          type="text"
-                          value={question}
-                          onChange={(e) => handleQuestionChange(sectionIndex, questionIndex, e.target.value)}
-                          className="form-input"
-                        />
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm"
-                          onClick={() => handleRemoveQuestion(sectionIndex, questionIndex)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            </div>
+            <div className="template-body">
+              <p>{template.description || 'No description provided'}</p>
+              <div className="template-meta">
+                <div className="meta-item">
+                  <span className="meta-label">Frequency:</span> 
+                  <span className="meta-value">{template.frequency}</span>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-label">Status:</span> 
+                  <span className={`meta-value status-${template.status.toLowerCase()}`}>
+                    {template.status}
+                  </span>
+                </div>
               </div>
-              
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => handleAddQuestion(sectionIndex)}
-              >
-                Add Question
-              </button>
-            </div>
-          ))}
-          
-          {/* Add New Section */}
-          <div className="new-section-editor">
-            <h4>Add New Section</h4>
-            <div className="form-group">
-              <label>Section Title</label>
-              <input
-                type="text"
-                value={newSection.title}
-                onChange={handleNewSectionTitleChange}
-                className="form-input"
-                placeholder="Enter section title"
-              />
-            </div>
-            
-            <div className="questions-list">
-              {newSection.questions.map((question, index) => (
-                <div key={index} className="question-editor">
-                  <div className="form-group">
-                    <label>Question {index + 1}</label>
-                    <div className="question-input-group">
-                      <input
-                        type="text"
-                        value={question}
-                        onChange={(e) => handleNewQuestionChange(index, e.target.value)}
-                        className="form-input"
-                        placeholder="Enter question"
-                      />
-                      {newSection.questions.length > 1 && (
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm"
-                          onClick={() => handleRemoveNewQuestion(index)}
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
+              {template.workflow && template.workflow.steps && (
+                <div className="workflow-preview">
+                  <span className="meta-label">Workflow:</span> 
+                  <div className="workflow-steps">
+                    {template.workflow.steps
+                      .sort((a, b) => a.order - b.order)
+                      .map((step, index, steps) => (
+                        <React.Fragment key={index}>
+                          <span>{step.role}</span>
+                          {index < steps.length - 1 && <span className="arrow">→</span>}
+                        </React.Fragment>
+                      ))}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
-            
-            <div className="form-actions">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleAddNewQuestion}
-              >
-                Add Question
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleAddSection}
-                disabled={!newSection.title || !newSection.questions.some(q => q.trim() !== '')}
-              >
-                Add Section
-              </button>
-            </div>
+            <button 
+              className="btn-assign-large" 
+              onClick={() => handleAssignTemplate(template)}
+            >
+              <FaUsers /> Assign Template
+            </button>
           </div>
-        </div>
-        
-        <div className="form-actions">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={onCancel}
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderAssignmentsTab = () => (
+    <div className="assignments-container">
+      <div className="assignments-filters">
+        <div className="filter-group">
+          <label>Status:</label>
+          <select 
+            value={statusFilter} 
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="status-filter"
           >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleSave}
-          >
-            Save Template
-          </button>
+            <option value="All">All Status</option>
+            <option value="Pending">Pending</option>
+            <option value="InProgress">In Progress</option>
+            <option value="Completed">Completed</option>
+            <option value="Canceled">Canceled</option>
+          </select>
         </div>
       </div>
-    );
-  };
+      
+      {filteredAssignments.length === 0 ? (
+        <div className="no-assignments">
+          <p>No assignments found with the selected filters.</p>
+          <button 
+            className="btn-create" 
+            onClick={() => setActiveTab('templates')}
+          >
+            Go to Templates to Create Assignments
+          </button>
+        </div>
+      ) : (
+        <div className="assignments-table-container">
+          <table className="assignments-table">
+            <thead>
+              <tr>
+                <th>Template</th>
+                <th>Employee</th>
+                <th>Reviewer</th>
+                <th>Due Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAssignments.map(assignment => (
+                <tr key={assignment._id} className={`status-${assignment.status.toLowerCase()}`}>
+                  <td>{assignment.template?.name || 'Unknown Template'}</td>
+                  <td>{`${assignment.employee?.firstName} ${assignment.employee?.lastName}`}</td>
+                  <td>{`${assignment.reviewer?.firstName} ${assignment.reviewer?.lastName}`}</td>
+                  <td>{new Date(assignment.dueDate).toLocaleDateString()}</td>
+                  <td>
+                    <span className={`status-badge ${assignment.status.toLowerCase()}`}>
+                      {assignment.status}
+                    </span>
+                  </td>
+                  <td className="action-buttons">
+                    {assignment.status === 'Pending' && (
+                      <>
+                        <button 
+                          className="btn-icon"
+                          onClick={() => handleStartReview(assignment._id)}
+                          title="Start Review"
+                        >
+                          <FaTasks />
+                        </button>
+                        <button 
+                          className="btn-icon"
+                          onClick={() => handleUpdateAssignmentStatus(assignment._id, 'Canceled')}
+                          title="Cancel Assignment"
+                        >
+                          <FaTrash />
+                        </button>
+                      </>
+                    )}
+                    {assignment.status === 'InProgress' && (
+                      <>
+                        <button 
+                          className="btn-icon"
+                          onClick={() => window.location.href = `/reviews/edit/${assignment.createdReview}`}
+                          title="Continue Review"
+                        >
+                          <FaEdit />
+                        </button>
+                        <button 
+                          className="btn-icon"
+                          onClick={() => handleUpdateAssignmentStatus(assignment._id, 'Completed')}
+                          title="Mark as Completed"
+                        >
+                          <FaCheck />
+                        </button>
+                      </>
+                    )}
+                    {assignment.status === 'Completed' && (
+                      <button 
+                        className="btn-icon"
+                        onClick={() => window.location.href = `/reviews/${assignment.createdReview}`}
+                        title="View Review"
+                      >
+                        <FaEye />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="review-templates-container">
       <div className="page-header">
-        <h1 className="page-title">Review Templates</h1>
-        <button 
-          className="btn btn-primary"
-          onClick={handleCreateTemplate}
-        >
-          Create New Template
-        </button>
-      </div>
-      
-      {!isEditing ? (
-        <>
-          <div className="templates-list">
-            {templates.map(template => (
-              <div 
-                key={template.id} 
-                className="template-card"
-                onClick={() => handleTemplateSelect(template)}
-              >
-                <div className="template-card-header">
-                  <h2>{template.name}</h2>
-                  <div className="template-actions">
-                    <button 
-                      className="btn btn-edit"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditTemplate(template);
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button 
-                      className="btn btn-delete"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteTemplate(template.id);
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                <p>{template.description}</p>
-                <div className="template-meta">
-                  <span className="meta-item">
-                    <strong>Frequency:</strong> {template.reviewFrequency || 'Not specified'}
-                  </span>
-                  <span className="meta-item">
-                    <strong>Workflow:</strong> {template.approvalFlow || 'Standard'}
-                  </span>
-                  <span 
-                    className={`status-badge ${template.isActive ? 'active' : 'inactive'}`}
-                  >
-                    {template.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {selectedTemplate && (
-            <div className="template-details">
-              <h2>{selectedTemplate.name} - Details</h2>
-              
-              {/* Workflow Configuration Summary */}
-              <div className="template-workflow">
-                <h3>Workflow Configuration</h3>
-                <div className="workflow-details">
-                  <div className="workflow-item">
-                    <strong>Review Frequency:</strong> {selectedTemplate.reviewFrequency || 'Not specified'}
-                  </div>
-                  <div className="workflow-item">
-                    <strong>Approval Flow:</strong> {selectedTemplate.approvalFlow || 'Standard'}
-                  </div>
-                  <div className="workflow-item">
-                    <strong>Self-Assessment:</strong> {selectedTemplate.enableSelfAssessment ? 'Enabled' : 'Disabled'}
-                  </div>
-                  <div className="workflow-item">
-                    <strong>Peer Reviews:</strong> {selectedTemplate.enablePeerReviews ? 'Enabled' : 'Disabled'}
-                  </div>
-                  <div className="workflow-item">
-                    <strong>Goal Tracking:</strong> {selectedTemplate.enableGoalTracking ? 'Enabled' : 'Disabled'}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Template Sections */}
-              <h3>Evaluation Sections</h3>
-              {selectedTemplate.sections.length > 0 ? (
-                selectedTemplate.sections.map((section, index) => (
-                  <div key={index} className="template-section">
-                    <h3>{section.title}</h3>
-                    <ul>
-                      {section.questions.map((question, qIndex) => (
-                        <li key={qIndex}>{question}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))
-              ) : (
-                <p>No sections defined for this template.</p>
-              )}
-              
-              <div className="template-actions">
-                <button 
-                  className="btn btn-secondary"
-                  onClick={() => setSelectedTemplate(null)}
-                >
-                  Close Details
-                </button>
-                <button 
-                  className="btn btn-primary"
-                  onClick={() => handleEditTemplate(selectedTemplate)}
-                >
-                  Edit Template
-                </button>
-              </div>
-            </div>
+        <h2>{activeTab === 'templates' ? 'Review Templates' : 'Template Assignments'}</h2>
+        <div className="header-actions">
+          {activeTab === 'templates' && (
+            <button 
+              className="btn-create" 
+              onClick={() => {
+                setSelectedTemplate(null);
+                setIsTemplateModalOpen(true);
+              }}
+            >
+              <FaPlusCircle /> Create New Template
+            </button>
           )}
-        </>
+          <div className="tab-switcher">
+            <button 
+              className={`tab-btn ${activeTab === 'templates' ? 'active' : ''}`}
+              onClick={() => setActiveTab('templates')}
+            >
+              Templates
+            </button>
+            <button 
+              className={`tab-btn ${activeTab === 'assignments' ? 'active' : ''}`}
+              onClick={() => setActiveTab('assignments')}
+            >
+              Assignments
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="loading">Loading...</div>
+      ) : error ? (
+        <div className="error">Error: {error}</div>
       ) : (
-        <TemplateEditor 
-          template={editingTemplate} 
-          onSave={handleTemplateSave} 
-          onCancel={handleCancelEdit} 
+        <div className="tab-content">
+          {activeTab === 'templates' ? renderTemplatesTab() : renderAssignmentsTab()}
+        </div>
+      )}
+
+      {isTemplateModalOpen && (
+        <TemplateFormModal
+          template={selectedTemplate}
+          onSubmit={handleTemplateSubmit}
+          onClose={() => {
+            setIsTemplateModalOpen(false);
+            setSelectedTemplate(null);
+          }}
+        />
+      )}
+
+      {isAssignModalOpen && (
+        <AssignTemplateModal
+          template={selectedTemplate}
+          employees={employees}
+          onSubmit={handleAssignmentSubmit}
+          onClose={() => {
+            setIsAssignModalOpen(false);
+            setSelectedTemplate(null);
+          }}
         />
       )}
     </div>
