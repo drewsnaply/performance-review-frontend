@@ -36,19 +36,29 @@ const PerformanceTab = ({ employeeId }) => {
   useEffect(() => {
     const fetchPerformanceData = async () => {
       try {
+        console.log('Fetching performance data for employeeId:', employeeId);
+        console.log('API Base URL:', API_BASE_URL);
+        
         setLoading(true);
         const response = await fetch(`${API_BASE_URL}/api/performance/${employeeId}`, {
+          method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json'
           }
         });
 
+        console.log('Response status:', response.status);
+
         if (!response.ok) {
-          throw new Error('Failed to fetch performance data');
+          const errorText = await response.text();
+          console.error('Failed to fetch performance data:', errorText);
+          throw new Error(`Failed to fetch performance data: ${errorText}`);
         }
 
         const data = await response.json();
+        console.log('Fetched performance data:', data);
+        
         setPerformanceData(data);
         setLoading(false);
       } catch (error) {
@@ -59,25 +69,39 @@ const PerformanceTab = ({ employeeId }) => {
     };
 
     if (employeeId) fetchPerformanceData();
-  }, [employeeId]);
+  }, [employeeId, API_BASE_URL]);
 
-  if (loading) return <div>Loading performance metrics...</div>;
-  if (error) return <div className="error">Error: {error}</div>;
-
-  // Mock data (you'll replace this with actual backend data)
-  const mockPerformanceData = {
+  // Fallback data for demonstration
+  const fallbackData = {
     overallRating: 4.2,
     reviewCount: 3,
     goalCompletionRate: 85,
     recentAchievements: [
-      { title: "Exceeded Q1 Sales Target", date: "2025-03-31" },
-      { title: "Customer Satisfaction Improvement", date: "2025-02-15" }
+      { title: "Demonstrated Strong Communication Skills", date: "2025-03-31" },
+      { title: "Contributed to Team Project Success", date: "2025-02-15" }
     ],
     skillGrowth: [
-      { skill: "Sales", level: 4, trend: 20 },
-      { skill: "Customer Success", level: 3, trend: 15 }
+      { skill: "Customer Success", level: 4, trend: 20 },
+      { skill: "Sales Strategies", level: 3, trend: 15 }
     ]
   };
+
+  if (loading) {
+    return <div className="loading">Loading performance metrics...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="performance-error">
+        <p>Error loading performance data:</p>
+        <p>{error}</p>
+        <p>Using sample data for demonstration</p>
+      </div>
+    );
+  }
+
+  // Use fetched data or fallback data
+  const data = performanceData || fallbackData;
 
   return (
     <div className="performance-tab">
@@ -86,51 +110,59 @@ const PerformanceTab = ({ employeeId }) => {
           <PerformanceMetricCard 
             icon={<FaTrophy />}
             title="Overall Performance Rating"
-            value={mockPerformanceData.overallRating.toFixed(1)}
+            value={(data.overallRating || 0).toFixed(1)}
             trend={5}
           />
           <PerformanceMetricCard 
             icon={<FaCheckCircle />}
             title="Goal Completion Rate"
-            value={`${mockPerformanceData.goalCompletionRate}%`}
+            value={`${data.goalCompletionRate || 0}%`}
             trend={10}
           />
           <PerformanceMetricCard 
             icon={<FaTimesCircle />}
             title="Total Reviews"
-            value={mockPerformanceData.reviewCount}
+            value={data.reviewCount || 0}
           />
         </div>
 
         <div className="performance-sections">
           <div className="achievements-section">
             <h3>Recent Achievements</h3>
-            {mockPerformanceData.recentAchievements.map((achievement, index) => (
-              <div key={index} className="achievement-card">
-                <FaBullseye className="achievement-icon" />
-                <div>
-                  <h4>{achievement.title}</h4>
-                  <p>Achieved on {new Date(achievement.date).toLocaleDateString()}</p>
+            {(data.recentAchievements || []).length > 0 ? (
+              data.recentAchievements.map((achievement, index) => (
+                <div key={index} className="achievement-card">
+                  <FaBullseye className="achievement-icon" />
+                  <div>
+                    <h4>{achievement.title}</h4>
+                    <p>Achieved on {new Date(achievement.date).toLocaleDateString()}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="empty-state">No recent achievements</div>
+            )}
           </div>
 
           <div className="skill-growth-section">
             <h3>Skill Growth Trajectory</h3>
-            {mockPerformanceData.skillGrowth.map((skillData, index) => (
-              <div key={index} className="skill-growth-card">
-                <div className="skill-info">
-                  <span>{skillData.skill}</span>
-                  <span className={`skill-level level-${skillData.level}`}>
-                    Level {skillData.level}/5
-                  </span>
+            {(data.skillGrowth || []).length > 0 ? (
+              data.skillGrowth.map((skillData, index) => (
+                <div key={index} className="skill-growth-card">
+                  <div className="skill-info">
+                    <span>{skillData.skill}</span>
+                    <span className={`skill-level level-${skillData.level}`}>
+                      Level {skillData.level}/5
+                    </span>
+                  </div>
+                  <div className={`skill-trend ${skillData.trend > 0 ? 'positive' : 'negative'}`}>
+                    {skillData.trend > 0 ? '▲' : '▼'} {Math.abs(skillData.trend)}% Growth
+                  </div>
                 </div>
-                <div className={`skill-trend ${skillData.trend > 0 ? 'positive' : 'negative'}`}>
-                  {skillData.trend > 0 ? '▲' : '▼'} {Math.abs(skillData.trend)}% Growth
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="empty-state">No skill growth data</div>
+            )}
           </div>
         </div>
       </div>
