@@ -1,0 +1,115 @@
+.pending-reviews-container {
+    padding: 20px;
+  }
+  
+  .pending-reviews-container h1 {
+    margin-bottom: 20px;
+    color: #333;
+  }
+  
+  .pending-reviews-table-container {
+    overflow-x: auto;
+    margin-top: 20px;
+  }
+  
+  .pending-reviews-table {
+    width: 100%;
+    border-collapse: collapse;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+  }
+  
+  .pending-reviews-table th,
+  .pending-reviews-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .pending-reviews-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .pending-reviews-table tbody tr:hover {
+    background-color: #f9f9f9;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+  
+  .status-badge.pending {
+    background-color: #fff0c2;
+    color: #927400;
+  }
+  
+  .status-badge.inprogress {
+    background-color: #e3f0ff;
+    color: #0066cc;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background-color: #4a5fe4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+  }
+  
+  .btn-icon:hover {
+    background-color: #3949b6;
+  }
+  
+  .btn-icon[title="Cancel Assignment"] {
+    background-color: #e74c3c;
+  }
+  
+  .btn-icon[title="Cancel Assignment"]:hover {
+    background-color: #c0392b;
+  }
+  
+  .no-assignments {
+    text-align: center;
+    padding: 40px 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    margin-top: 20px;
+  }
+  
+  .no-assignments p {
+    margin: 10px 0;
+    color: #666;
+  }
+  
+  .no-assignments p:first-child {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #333;
+  }
+  
+  .loading, .error {
+    padding: 20px;
+    text-align: center;
+    margin-top: 20px;
+  }
+  
+  .error {
+    color: #e74c3c;
+  }

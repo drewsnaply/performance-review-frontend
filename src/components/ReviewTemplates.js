@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useDepartments } from '../context/DepartmentContext';
 import { FaEdit, FaTrash, FaUsers, FaPlusCircle, FaTasks, FaCheck, FaHourglass, FaEye } from 'react-icons/fa';
+// Import directly instead of lazy loading
 import TemplateFormModal from './TemplateFormModal';
 import AssignTemplateModal from './AssignTemplateModal';
 import '../styles/ReviewTemplates.css';

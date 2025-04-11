@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { FaTimes, FaPlus, FaTrash } from 'react-icons/fa';
 import '../styles/Modal.css';
 
+// Using named function declaration for React 19 compatibility
+// Use a direct function declaration for React 19 compatibility
 function TemplateFormModal({ template, onSubmit, onClose }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');

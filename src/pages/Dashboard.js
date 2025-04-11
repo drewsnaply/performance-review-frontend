@@ -16,6 +16,7 @@ import ExportTool from '../components/ExportTool';
 import EvaluationManagement from '../components/EvaluationManagement';
 import Settings from './Settings';
 import ViewEvaluation from '../components/ViewEvaluation';
+import PendingReviews from '../components/PendingReviews';
 
 function Dashboard({ initialView = 'dashboard' }) {
   console.log('Dashboard component rendering - full version');
@@ -37,6 +38,112 @@ function Dashboard({ initialView = 'dashboard' }) {
   const { currentUser, logout } = useAuth();
   const [user, setUser] = useState(null);
   
+  // API base URL for fetching data
+  const API_BASE_URL = process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:5000' 
+    : 'https://performance-review-backend-ab8z.onrender.com';
+
+  // Function to fetch assignments from the API
+  const fetchAssignments = async () => {
+    try {
+      console.log('Fetching assignments from API');
+      setIsLoading(true);
+      
+      const response = await fetch(`${API_BASE_URL}/api/templates/assignments`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch assignments');
+      }
+
+      const assignments = await response.json();
+      console.log('Fetched assignments:', assignments);
+      
+      // Calculate counts
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      const nextMonth = new Date(currentYear, currentMonth + 1, 1);
+      
+      const pendingCount = assignments.filter(a => 
+        a.status === 'Pending' || a.status === 'InProgress'
+      ).length;
+      
+      const completedCount = assignments.filter(a => 
+        a.status === 'Completed'
+      ).length;
+      
+      const upcomingCount = assignments.filter(a => {
+        const dueDate = new Date(a.dueDate);
+        return dueDate >= nextMonth && a.status !== 'Completed' && a.status !== 'Canceled';
+      }).length;
+      
+      setReviewData({
+        pending: pendingCount,
+        completed: completedCount,
+        upcoming: upcomingCount,
+        recentReviews: assignments.slice(0, 5).map(assignment => ({
+          id: assignment._id,
+          employee: `${assignment.employee?.firstName || ''} ${assignment.employee?.lastName || ''}`.trim() || 'Unknown',
+          cycle: assignment.template?.name || 'Performance Review',
+          dueDate: new Date(assignment.dueDate).toLocaleDateString(),
+          reviewType: assignment.template?.frequency || 'Performance',
+          status: assignment.status?.toLowerCase() || 'pending',
+          createdReview: assignment.createdReview || null
+        }))
+      });
+      
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error fetching assignments:', error);
+      
+      // Fallback to localStorage if API fails
+      const storedReviews = localStorage.getItem('reviews');
+      if (storedReviews) {
+        try {
+          const parsedReviews = JSON.parse(storedReviews);
+          
+          // Calculate review statistics from localStorage
+          const pendingCount = parsedReviews.filter(r => 
+            r.status?.toLowerCase() === 'pending' || 
+            r.status?.toLowerCase() === 'pending manager review'
+          ).length;
+          
+          const completedCount = parsedReviews.filter(r => 
+            r.status?.toLowerCase() === 'completed'
+          ).length;
+          
+          const upcomingCount = parsedReviews.filter(r => 
+            r.status?.toLowerCase() === 'upcoming'
+          ).length;
+          
+          setReviewData({
+            pending: pendingCount,
+            completed: completedCount,
+            upcoming: upcomingCount,
+            recentReviews: parsedReviews.slice(0, 5).map(review => ({
+              id: review.id,
+              employee: review.employeeName || 'Unknown',
+              cycle: review.reviewCycle || 'Annual Review',
+              dueDate: review.submissionDate || 'N/A',
+              reviewType: 'Performance',
+              status: review.status?.toLowerCase() || 'pending',
+              createdReview: review.reviewId || null
+            }))
+          });
+        } catch (error) {
+          console.error('Error parsing reviews from localStorage:', error);
+        }
+      }
+      
+      setIsLoading(false);
+    }
+  };
+  
   useEffect(() => {
     console.log('Dashboard useEffect triggered');
     
@@ -56,51 +163,21 @@ function Dashboard({ initialView = 'dashboard' }) {
     
     setUser(normalizedUser);
     
-    // Fetch reviews from localStorage
-    const storedReviews = localStorage.getItem('reviews');
-    if (storedReviews) {
-      try {
-        const parsedReviews = JSON.parse(storedReviews);
-        
-        // Calculate review statistics
-        const pendingCount = parsedReviews.filter(r => 
-          r.status?.toLowerCase() === 'pending' || 
-          r.status?.toLowerCase() === 'pending manager review'
-        ).length;
-        
-        const completedCount = parsedReviews.filter(r => 
-          r.status?.toLowerCase() === 'completed'
-        ).length;
-        
-        const upcomingCount = parsedReviews.filter(r => 
-          r.status?.toLowerCase() === 'upcoming'
-        ).length;
-        
-        setReviewData({
-          pending: pendingCount,
-          completed: completedCount,
-          upcoming: upcomingCount,
-          recentReviews: parsedReviews.slice(0, 5).map(review => ({
-            id: review.id,
-            employee: review.employeeName || 'Unknown',
-            cycle: review.reviewCycle || 'Annual Review',
-            dueDate: review.submissionDate || 'N/A',
-            reviewType: 'Performance',
-            status: review.status?.toLowerCase() || 'pending'
-          }))
-        });
-      } catch (error) {
-        console.error('Error parsing reviews:', error);
-      }
-    }
-    
-    setIsLoading(false);
+    // Fetch assignments from the API
+    fetchAssignments();
   }, [currentUser, navigate]);
   
   // Set initial view based on prop
   useEffect(() => {
     setActiveView(initialView);
   }, [initialView]);
+  
+  // Refetch data when component becomes visible again
+  useEffect(() => {
+    if (activeView === 'dashboard' && user) {
+      fetchAssignments();
+    }
+  }, [activeView, user]);
   
   const handleLogout = () => {
     try {
@@ -125,7 +202,8 @@ function Dashboard({ initialView = 'dashboard' }) {
   };
   
   const handlePendingReviewsClick = () => {
-    setActiveView('evaluation-management');
+    setActiveView('pending-reviews');
+    navigate('/pending-reviews');
   };
   
   const renderActiveView = () => {
@@ -151,6 +229,8 @@ function Dashboard({ initialView = 'dashboard' }) {
         return <EvaluationManagement initialActiveTab="active-evaluations" />;
       case 'evaluation-detail':
         return <ViewEvaluation />;
+      case 'pending-reviews':
+        return <PendingReviews />;
       default:
         return renderDashboardDefault();
     }
@@ -254,10 +334,53 @@ function Dashboard({ initialView = 'dashboard' }) {
     );
   };
 
-  // Updated to navigate to the evaluation route
+  // Fixed function to handle review actions
   const handleReviewAction = (review) => {
-    navigate(`/evaluation/${review.id}`);
-    console.log(`Navigating to evaluation/${review.id}`);
+    console.log('Handling review action for:', review);
+
+    if (review.status === 'completed') {
+      // Navigate to view completed review
+      navigate(`/reviews/${review.id}`);
+      console.log(`Navigating to view completed review: /reviews/${review.id}`);
+    } else if (review.status === 'pending' || review.status === 'inprogress') {
+      // For pending or in-progress reviews
+      
+      if (review.createdReview) {
+        // Continue existing review if it has already been started
+        navigate(`/reviews/edit/${review.createdReview}`);
+        console.log(`Continuing existing review: /reviews/edit/${review.createdReview}`);
+      } else {
+        // Start a new review process by calling the API
+        console.log(`Starting new review for assignment: ${review.id}`);
+        
+        fetch(`${API_BASE_URL}/api/templates/assignments/${review.id}/start`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to start review');
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('Review started successfully:', data);
+          // Navigate to the review editor with the newly created review
+          navigate(`/reviews/edit/${data.review._id}`);
+        })
+        .catch(error => {
+          console.error('Error starting review:', error);
+          alert(`Error starting review: ${error.message}`);
+        });
+      }
+    } else {
+      // For other statuses, navigate to evaluation management
+      navigate(`/evaluation-management`);
+      setActiveView('evaluation-management');
+    }
   };
   
   // Show loading state while checking for user data
@@ -285,11 +408,11 @@ function Dashboard({ initialView = 'dashboard' }) {
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
-  <div className="user-info">
-    <span className="user-name">{user.firstName} {user.lastName}</span>
-    <LogoutButton />
-  </div>
-</header>
+        <div className="user-info">
+          <span className="user-name">{user.firstName} {user.lastName}</span>
+          <LogoutButton />
+        </div>
+      </header>
       
       {showLogoutConfirm && (
         <div className="logout-modal">
@@ -346,6 +469,16 @@ function Dashboard({ initialView = 'dashboard' }) {
               onClick={() => setView('employees')}
             >
               Employees
+            </button>
+            
+            <button 
+              className={activeView === 'pending-reviews' ? 'active' : ''}
+              onClick={() => {
+                setView('pending-reviews');
+                navigate('/pending-reviews');
+              }}
+            >
+              Pending Reviews
             </button>
             
             {(user.role?.toLowerCase() === 'admin' || user.role?.toLowerCase() === 'manager') && (
