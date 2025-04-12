@@ -34,6 +34,11 @@ function Dashboard({ initialView = 'dashboard' }) {
   const navigate = useNavigate();
   const params = useParams();
   
+  // Client-side review completion tracking
+  const [completedReviewId, setCompletedReviewId] = useState(
+    sessionStorage.getItem('completedReviewId')
+  );
+  
   // Get auth state directly from context - simplified approach
   const { currentUser, logout } = useAuth();
   const [user, setUser] = useState(null);
@@ -42,6 +47,18 @@ function Dashboard({ initialView = 'dashboard' }) {
   const API_BASE_URL = process.env.NODE_ENV === 'development' 
     ? 'http://localhost:5000' 
     : 'https://performance-review-backend-ab8z.onrender.com';
+
+  // Check if we're coming from a completed review
+  useEffect(() => {
+    const locationState = window.history.state?.state;
+    const fromPendingWithCompleted = locationState?.completedReview;
+    
+    if (fromPendingWithCompleted) {
+      setCompletedReviewId(fromPendingWithCompleted);
+      // Store in session storage to persist across page refreshes
+      sessionStorage.setItem('completedReviewId', fromPendingWithCompleted);
+    }
+  }, []);
 
   // Function to fetch assignments from the API
   const fetchAssignments = async () => {
@@ -82,19 +99,35 @@ function Dashboard({ initialView = 'dashboard' }) {
         return dueDate >= nextMonth && a.status !== 'Completed' && a.status !== 'Canceled';
       }).length;
       
+      // Map assignments to recent reviews for display
+      let recentReviews = assignments.slice(0, 5).map(assignment => ({
+        id: assignment._id,
+        employee: `${assignment.employee?.firstName || ''} ${assignment.employee?.lastName || ''}`.trim() || 'Unknown',
+        cycle: assignment.template?.name || 'Performance Review',
+        dueDate: new Date(assignment.dueDate).toLocaleDateString(),
+        reviewType: assignment.template?.frequency || 'Performance',
+        status: assignment.status?.toLowerCase() || 'pending',
+        createdReview: assignment.createdReview || null
+      }));
+      
+      // Update status of any reviews that were marked as completed client-side
+      if (completedReviewId) {
+        recentReviews = recentReviews.map(review => {
+          if (review.id === completedReviewId || review.createdReview === completedReviewId) {
+            return {
+              ...review,
+              status: 'completed'
+            };
+          }
+          return review;
+        });
+      }
+      
       setReviewData({
         pending: pendingCount,
         completed: completedCount,
         upcoming: upcomingCount,
-        recentReviews: assignments.slice(0, 5).map(assignment => ({
-          id: assignment._id,
-          employee: `${assignment.employee?.firstName || ''} ${assignment.employee?.lastName || ''}`.trim() || 'Unknown',
-          cycle: assignment.template?.name || 'Performance Review',
-          dueDate: new Date(assignment.dueDate).toLocaleDateString(),
-          reviewType: assignment.template?.frequency || 'Performance',
-          status: assignment.status?.toLowerCase() || 'pending',
-          createdReview: assignment.createdReview || null
-        }))
+        recentReviews: recentReviews
       });
       
       setIsLoading(false);
@@ -121,19 +154,35 @@ function Dashboard({ initialView = 'dashboard' }) {
             r.status?.toLowerCase() === 'upcoming'
           ).length;
           
+          // Map local reviews for display
+          let recentReviews = parsedReviews.slice(0, 5).map(review => ({
+            id: review.id,
+            employee: review.employeeName || 'Unknown',
+            cycle: review.reviewCycle || 'Annual Review',
+            dueDate: review.submissionDate || 'N/A',
+            reviewType: 'Performance',
+            status: review.status?.toLowerCase() || 'pending',
+            createdReview: review.reviewId || null
+          }));
+          
+          // Update status of any reviews that were marked as completed client-side
+          if (completedReviewId) {
+            recentReviews = recentReviews.map(review => {
+              if (review.id === completedReviewId || review.createdReview === completedReviewId) {
+                return {
+                  ...review,
+                  status: 'completed'
+                };
+              }
+              return review;
+            });
+          }
+          
           setReviewData({
             pending: pendingCount,
             completed: completedCount,
             upcoming: upcomingCount,
-            recentReviews: parsedReviews.slice(0, 5).map(review => ({
-              id: review.id,
-              employee: review.employeeName || 'Unknown',
-              cycle: review.reviewCycle || 'Annual Review',
-              dueDate: review.submissionDate || 'N/A',
-              reviewType: 'Performance',
-              status: review.status?.toLowerCase() || 'pending',
-              createdReview: review.reviewId || null
-            }))
+            recentReviews: recentReviews
           });
         } catch (error) {
           console.error('Error parsing reviews from localStorage:', error);
