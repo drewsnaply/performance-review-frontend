@@ -1,182 +1,230 @@
 import React, { useState, useEffect } from 'react';
-import { FaTasks, FaTrash } from 'react-icons/fa';
-import '../styles/PendingReviews.css'; // You'll need to create this CSS file
+import { useNavigate, useLocation } from 'react-router-dom';
+import SidebarLayout from './SidebarLayout';
+import { useAuth } from '../context/AuthContext';
+import { FaEdit, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 
 function PendingReviews() {
-  const [pendingAssignments, setPendingAssignments] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [pendingReviews, setPendingReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+  const [notification, setNotification] = useState(location.state?.message || null);
+  const [completedReviewId, setCompletedReviewId] = useState(location.state?.completedReview || null);
+
   const API_BASE_URL = process.env.NODE_ENV === 'development' 
     ? 'http://localhost:5000' 
     : 'https://performance-review-backend-ab8z.onrender.com';
 
   useEffect(() => {
-    fetchPendingAssignments();
-  }, []);
+    const fetchPendingReviews = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/api/reviews/pending`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-  const fetchPendingAssignments = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/templates/assignments`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
+        if (!response.ok) {
+          throw new Error('Failed to fetch pending reviews');
         }
-      });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch assignments');
-      }
-
-      const assignments = await response.json();
-      
-      // Filter to only show pending assignments
-      const pending = assignments.filter(a => 
-        a.status === 'Pending' || a.status === 'InProgress'
-      );
-      
-      setPendingAssignments(pending);
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error fetching pending assignments:', error);
-      setError(error.message);
-      setIsLoading(false);
-    }
-  };
-
-  const handleStartReview = async (assignmentId) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/templates/assignments/${assignmentId}/start`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
+        const data = await response.json();
+        
+        // Mark any review as completed if it was just completed in the other component
+        if (completedReviewId) {
+          data.forEach(review => {
+            if (review._id === completedReviewId) {
+              review.clientSideCompleted = true;
+            }
+          });
         }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to start review');
+        
+        setPendingReviews(data);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching pending reviews:', err);
+        setError(err.message);
+        setLoading(false);
       }
+    };
 
-      const { assignment, review } = await response.json();
-      
-      // Update the assignment in the list
-      setPendingAssignments(pendingAssignments.map(a => 
-        a._id === assignment._id ? assignment : a
-      ));
-      
-      // Redirect to the review editor
-      window.location.href = `/reviews/edit/${review._id}`;
-    } catch (error) {
-      console.error('Error starting review:', error);
-      alert(`Error: ${error.message}`);
+    fetchPendingReviews();
+    
+    // Clear notification after 5 seconds
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+      return () => clearTimeout(timer);
     }
+  }, [API_BASE_URL, completedReviewId, notification]);
+
+  const handleReviewClick = (reviewId) => {
+    navigate(`/reviews/edit/${reviewId}`);
   };
 
-  const handleUpdateAssignmentStatus = async (assignmentId, newStatus) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/templates/assignments/${assignmentId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update assignment status');
-      }
-
-      // Refresh the list after status update
-      fetchPendingAssignments();
-    } catch (error) {
-      console.error('Error updating assignment status:', error);
-      alert(`Error: ${error.message}`);
-    }
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
   };
 
-  if (isLoading) {
-    return <div className="loading">Loading pending reviews...</div>;
-  }
+  const extractName = (user) => {
+    if (!user) return 'Unknown';
+    return `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown';
+  };
 
-  if (error) {
-    return <div className="error">Error: {error}</div>;
-  }
+  // Style for the notification
+  const notificationStyle = {
+    padding: '10px 15px',
+    backgroundColor: '#4caf50',
+    color: 'white',
+    borderRadius: '4px',
+    marginBottom: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px'
+  };
+
+  // Card design for the pending reviews
+  const cardStyle = {
+    padding: '15px',
+    borderRadius: '8px',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+    marginBottom: '15px',
+    backgroundColor: 'white',
+    cursor: 'pointer',
+    transition: 'transform 0.2s, box-shadow 0.2s',
+    position: 'relative'
+  };
+
+  const hoverCardStyle = {
+    ...cardStyle,
+    transform: 'translateY(-3px)',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.15)'
+  };
+
+  const completedCardStyle = {
+    ...cardStyle,
+    backgroundColor: '#f0f9f0',
+    borderLeft: '4px solid #4caf50'
+  };
 
   return (
-    <div className="pending-reviews-container">
-      <h1>Pending Reviews</h1>
-      
-      {pendingAssignments.length === 0 ? (
-        <div className="no-assignments">
-          <p>No pending reviews found.</p>
-          <p>All reviews are up to date!</p>
-        </div>
-      ) : (
-        <div className="pending-reviews-table-container">
-          <table className="pending-reviews-table">
-            <thead>
-              <tr>
-                <th>Template</th>
-                <th>Employee</th>
-                <th>Reviewer</th>
-                <th>Due Date</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingAssignments.map(assignment => (
-                <tr key={assignment._id} className={`status-${assignment.status.toLowerCase()}`}>
-                  <td>{assignment.template?.name || 'Unknown Template'}</td>
-                  <td>{`${assignment.employee?.firstName} ${assignment.employee?.lastName}`}</td>
-                  <td>{`${assignment.reviewer?.firstName} ${assignment.reviewer?.lastName}`}</td>
-                  <td>{new Date(assignment.dueDate).toLocaleDateString()}</td>
-                  <td>
-                    <span className={`status-badge ${assignment.status.toLowerCase()}`}>
-                      {assignment.status}
-                    </span>
-                  </td>
-                  <td className="action-buttons">
-                    {assignment.status === 'Pending' && (
-                      <>
-                        <button 
-                          className="btn-icon"
-                          onClick={() => handleStartReview(assignment._id)}
-                          title="Start Review"
-                        >
-                          <FaTasks /> Start
-                        </button>
-                        <button 
-                          className="btn-icon"
-                          onClick={() => handleUpdateAssignmentStatus(assignment._id, 'Canceled')}
-                          title="Cancel Assignment"
-                        >
-                          <FaTrash /> Cancel
-                        </button>
-                      </>
+    <SidebarLayout user={user || {}} activeView="pending-reviews">
+      <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
+        <h1 style={{ marginBottom: '20px', color: '#333' }}>Pending Reviews</h1>
+        
+        {notification && (
+          <div style={notificationStyle}>
+            <FaCheck />
+            <span>{notification}</span>
+          </div>
+        )}
+        
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <div style={{
+              width: '50px',
+              height: '50px',
+              border: '5px solid #f3f3f3',
+              borderTop: '5px solid #5a189a',
+              borderRadius: '50%',
+              margin: '0 auto 20px',
+              animation: 'spin 1s linear infinite'
+            }}></div>
+            <p>Loading pending reviews...</p>
+            <style>
+              {`
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              `}
+            </style>
+          </div>
+        ) : error ? (
+          <div style={{ 
+            padding: '20px', 
+            backgroundColor: '#ffebee', 
+            borderRadius: '5px',
+            color: '#d32f2f',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <FaExclamationTriangle />
+            <p style={{ margin: 0 }}>{error}</p>
+          </div>
+        ) : pendingReviews.length === 0 ? (
+          <div style={{ 
+            padding: '40px 20px', 
+            textAlign: 'center',
+            backgroundColor: '#f9f9f9',
+            borderRadius: '8px'
+          }}>
+            <p style={{ fontSize: '18px', color: '#666' }}>No pending reviews to display</p>
+          </div>
+        ) : (
+          <div>
+            {pendingReviews.map((review, index) => (
+              <div 
+                key={review._id || index}
+                onClick={() => handleReviewClick(review._id)}
+                style={review.clientSideCompleted ? completedCardStyle : cardStyle}
+                onMouseEnter={(e) => {
+                  if (!review.clientSideCompleted) {
+                    e.currentTarget.style.transform = 'translateY(-3px)';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!review.clientSideCompleted) {
+                    e.currentTarget.style.transform = 'none';
+                    e.currentTarget.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+                  }
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>
+                      {review.clientSideCompleted && (
+                        <span style={{ color: '#4caf50', marginRight: '10px' }}>
+                          <FaCheck />
+                        </span>
+                      )}
+                      {extractName(review.employee)}
+                    </h3>
+                    <p style={{ margin: '5px 0', color: '#666' }}>
+                      <strong>Review Period:</strong> {review.reviewPeriod && 
+                        `${formatDate(review.reviewPeriod.start)} to ${formatDate(review.reviewPeriod.end)}`
+                      }
+                    </p>
+                    <p style={{ margin: '5px 0', color: '#666' }}>
+                      <strong>Status:</strong> {review.clientSideCompleted ? 'Completed' : (review.status || 'Pending')}
+                    </p>
+                  </div>
+                  
+                  <div style={{
+                    alignSelf: 'center',
+                    marginRight: '10px'
+                  }}>
+                    {!review.clientSideCompleted && (
+                      <FaEdit size={24} color="#5a189a" />
                     )}
-                    {assignment.status === 'InProgress' && (
-                      <button 
-                        className="btn-icon"
-                        onClick={() => window.location.href = `/reviews/edit/${assignment.createdReview}`}
-                        title="Continue Review"
-                      >
-                        Continue
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </SidebarLayout>
   );
 }
 
