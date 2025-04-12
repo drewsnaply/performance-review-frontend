@@ -208,19 +208,23 @@ function ViewEvaluation() {
 
   const handleComplete = async () => {
     try {
-      // First save the review
-      await handleSubmit(new Event('submit'));
+      // First save the review with updated status
+      const updatedFormData = {
+        ...formData,
+        status: 'completed'
+      };
       
       setSaveStatus('saving');
-      console.log(`Completing review ${id}`);
+      console.log(`Completing review ${id} by updating status:`, updatedFormData);
       
-      const response = await fetch(`${API_BASE_URL}/api/reviews/${id}/complete`, {
-        method: 'POST',
+      // Update the review with the new status directly
+      const response = await fetch(`${API_BASE_URL}/api/reviews/${id}`, {
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ status: 'completed' }) // Include status in the body
+        body: JSON.stringify(updatedFormData)
       });
 
       console.log('Complete review response:', response);
@@ -594,10 +598,19 @@ function ViewEvaluation() {
     );
   };
 
+  // Fix for undefined undefined in navbar
+  const safeUser = user || {
+    firstName: '',
+    lastName: '',
+    role: user?.role || 'employee'
+  };
+  
+  console.log("Current user data:", safeUser);
+  
   return (
     <SidebarLayout 
-      // Make sure user prop is properly provided
-      user={user || {}} 
+      // Make sure user prop is properly provided with defaults
+      user={safeUser} 
       activeView="my-reviews"
     >
       <div style={{ 
