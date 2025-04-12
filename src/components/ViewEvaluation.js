@@ -45,7 +45,7 @@ function ViewEvaluation() {
           id: rawData._id || id,
           employeeName: extractEmployeeName(rawData.employee),
           reviewerName: extractReviewerName(rawData.reviewer),
-          reviewPeriod: extractSimpleValue(rawData.reviewPeriod),
+          reviewPeriod: formatDateRange(rawData.reviewPeriod),
           status: rawData.status || 'Unknown',
           startDate: formatDate(rawData.startDate)
         };
@@ -94,23 +94,21 @@ function ViewEvaluation() {
     return `${firstName} ${lastName}`.trim() || 'Unknown Reviewer';
   };
   
-  // Helper function to extract simple values from possibly complex objects
-  const extractSimpleValue = (value) => {
-    if (value === null || value === undefined) return 'N/A';
-    if (typeof value === 'string') return value;
-    if (typeof value === 'number') return value.toString();
-    if (typeof value === 'object') {
-      // Try to JSON stringify, but fall back to [Object] if it fails
-      try {
-        return JSON.stringify(value);
-      } catch (e) {
-        // If it has a _ property, it might be an object reference
-        if (value._) return value._.toString();
-        // Otherwise just show it's an object
-        return '[Object]';
+  // Format date range specially for review period
+  const formatDateRange = (dateRange) => {
+    if (!dateRange) return 'N/A';
+    
+    try {
+      if (dateRange.start && dateRange.end) {
+        const startDate = new Date(dateRange.start).toLocaleDateString();
+        const endDate = new Date(dateRange.end).toLocaleDateString();
+        return `${startDate} to ${endDate}`;
       }
+      // Fall back to JSON stringify with formatting
+      return JSON.stringify(dateRange, null, 2).replace(/[{}"\[\]]/g, '').replace(/,/g, ', ');
+    } catch (e) {
+      return 'Invalid Date Range';
     }
-    return String(value);
   };
   
   // Format date safely
@@ -215,191 +213,306 @@ function ViewEvaluation() {
   };
 
   const renderSaveStatus = () => {
-    if (saveStatus === 'saving') return <span style={{color: 'blue', marginLeft: '10px'}}>Saving...</span>;
-    if (saveStatus === 'success') return <span style={{color: 'green', marginLeft: '10px'}}>Saved Successfully!</span>;
-    if (saveStatus === 'error') return <span style={{color: 'red', marginLeft: '10px'}}>Error Saving!</span>;
+    const baseStyle = {
+      padding: '5px 10px',
+      borderRadius: '4px',
+      marginLeft: '10px',
+      fontSize: '14px',
+      display: 'flex',
+      alignItems: 'center',
+    };
+    
+    if (saveStatus === 'saving') 
+      return <span style={{...baseStyle, backgroundColor: '#e3f2fd', color: '#2196f3'}}>Saving...</span>;
+    if (saveStatus === 'success') 
+      return <span style={{...baseStyle, backgroundColor: '#e8f5e9', color: '#4caf50'}}>Saved Successfully!</span>;
+    if (saveStatus === 'error') 
+      return <span style={{...baseStyle, backgroundColor: '#ffebee', color: '#f44336'}}>Error Saving!</span>;
     return null;
   };
   
   const content = () => {
     if (loading) {
-      return <div className="loading">Loading review data...</div>;
+      return (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '200px',
+          flexDirection: 'column',
+          gap: '15px'
+        }}>
+          <div style={{
+            width: '50px',
+            height: '50px',
+            border: '5px solid #f3f3f3',
+            borderTop: '5px solid #5a189a',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <p>Loading review data...</p>
+        </div>
+      );
     }
     
     if (error) {
       return (
-        <div className="error-message" style={{ color: 'red' }}>
-          <h3>Error</h3>
+        <div style={{ 
+          padding: '20px', 
+          backgroundColor: '#ffebee', 
+          borderRadius: '5px',
+          color: '#d32f2f',
+          border: '1px solid #ffcdd2'
+        }}>
+          <h3 style={{ marginTop: 0 }}>Error</h3>
           <p>{error}</p>
+          <button 
+            onClick={() => navigate('/pending-reviews')}
+            style={{
+              backgroundColor: '#d32f2f',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Back to Pending Reviews
+          </button>
         </div>
       );
     }
     
     if (!reviewData) {
-      return <div className="no-data">No review data found.</div>;
+      return (
+        <div style={{ 
+          padding: '20px', 
+          backgroundColor: '#f5f5f5', 
+          borderRadius: '5px',
+          textAlign: 'center'
+        }}>
+          <p>No review data found.</p>
+        </div>
+      );
     }
+    
+    const cardStyle = {
+      backgroundColor: 'white',
+      borderRadius: '8px',
+      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
+      padding: '20px',
+      marginBottom: '20px'
+    };
+    
+    const headingStyle = {
+      borderBottom: '2px solid #f0f0f0',
+      paddingBottom: '10px',
+      marginTop: 0,
+      color: '#333',
+      fontSize: '1.2rem'
+    };
+    
+    const fieldStyle = {
+      marginBottom: '15px'
+    };
+    
+    const labelStyle = {
+      display: 'block',
+      marginBottom: '5px',
+      fontWeight: '500',
+      color: '#555'
+    };
+    
+    const inputStyle = {
+      width: '100%',
+      padding: '10px',
+      borderRadius: '4px',
+      border: '1px solid #ddd',
+      fontSize: '14px'
+    };
     
     return (
       <form onSubmit={handleSubmit}>
-        <div className="review-info" style={{ marginBottom: '20px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <tbody>
-              <tr>
-                <td style={{ fontWeight: 'bold', padding: '8px', width: '150px' }}>Employee:</td>
-                <td style={{ padding: '8px' }}>{reviewData.employeeName}</td>
-              </tr>
-              <tr>
-                <td style={{ fontWeight: 'bold', padding: '8px' }}>Reviewer:</td>
-                <td style={{ padding: '8px' }}>{reviewData.reviewerName}</td>
-              </tr>
-              <tr>
-                <td style={{ fontWeight: 'bold', padding: '8px' }}>Review Period:</td>
-                <td style={{ padding: '8px' }}>{reviewData.reviewPeriod}</td>
-              </tr>
-              <tr>
-                <td style={{ fontWeight: 'bold', padding: '8px' }}>Status:</td>
-                <td style={{ padding: '8px' }}>{reviewData.status}</td>
-              </tr>
-              <tr>
-                <td style={{ fontWeight: 'bold', padding: '8px' }}>Date Started:</td>
-                <td style={{ padding: '8px' }}>{reviewData.startDate}</td>
-              </tr>
-            </tbody>
-          </table>
+        {/* Review Info Card */}
+        <div style={cardStyle}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: '15px'
+          }}>
+            <div>
+              <p style={{margin: '5px 0', color: '#666'}}>Employee</p>
+              <p style={{margin: '5px 0', fontWeight: 'bold', fontSize: '16px'}}>{reviewData.employeeName}</p>
+            </div>
+            <div>
+              <p style={{margin: '5px 0', color: '#666'}}>Reviewer</p>
+              <p style={{margin: '5px 0', fontWeight: 'bold', fontSize: '16px'}}>{reviewData.reviewerName}</p>
+            </div>
+            <div>
+              <p style={{margin: '5px 0', color: '#666'}}>Review Period</p>
+              <p style={{margin: '5px 0', fontWeight: 'bold', fontSize: '16px'}}>{reviewData.reviewPeriod}</p>
+            </div>
+            <div>
+              <p style={{margin: '5px 0', color: '#666'}}>Status</p>
+              <p style={{
+                display: 'inline-block',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                backgroundColor: '#e8f5e9',
+                color: '#388e3c',
+                fontWeight: 'bold',
+                fontSize: '14px'
+              }}>{reviewData.status}</p>
+            </div>
+            <div>
+              <p style={{margin: '5px 0', color: '#666'}}>Date Started</p>
+              <p style={{margin: '5px 0', fontWeight: 'bold', fontSize: '16px'}}>{reviewData.startDate}</p>
+            </div>
+          </div>
         </div>
 
-        <div className="review-sections" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Performance Ratings Section */}
-          <div className="review-section" style={{ border: '1px solid #ddd', borderRadius: '5px', padding: '15px' }}>
-            <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '10px', marginTop: 0 }}>Performance Ratings</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
-              <div>
-                <label htmlFor="overall-rating" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Overall Rating:</label>
-                <select 
-                  id="overall-rating" 
-                  name="ratings.overallRating" 
-                  value={formData.ratings.overallRating || ''} 
-                  onChange={handleInputChange}
-                  style={{ width: '100%', padding: '8px' }}
-                >
-                  <option value="">Select Rating</option>
-                  <option value="5">5 - Exceptional</option>
-                  <option value="4">4 - Exceeds Expectations</option>
-                  <option value="3">3 - Meets Expectations</option>
-                  <option value="2">2 - Needs Improvement</option>
-                  <option value="1">1 - Unsatisfactory</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="technical-rating" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Technical Skills:</label>
-                <select 
-                  id="technical-rating" 
-                  name="ratings.technicalSkillsRating" 
-                  value={formData.ratings.technicalSkillsRating || ''} 
-                  onChange={handleInputChange}
-                  style={{ width: '100%', padding: '8px' }}
-                >
-                  <option value="">Select Rating</option>
-                  <option value="5">5 - Exceptional</option>
-                  <option value="4">4 - Exceeds Expectations</option>
-                  <option value="3">3 - Meets Expectations</option>
-                  <option value="2">2 - Needs Improvement</option>
-                  <option value="1">1 - Unsatisfactory</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="communication-rating" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Communication:</label>
-                <select 
-                  id="communication-rating" 
-                  name="ratings.communicationRating" 
-                  value={formData.ratings.communicationRating || ''} 
-                  onChange={handleInputChange}
-                  style={{ width: '100%', padding: '8px' }}
-                >
-                  <option value="">Select Rating</option>
-                  <option value="5">5 - Exceptional</option>
-                  <option value="4">4 - Exceeds Expectations</option>
-                  <option value="3">3 - Meets Expectations</option>
-                  <option value="2">2 - Needs Improvement</option>
-                  <option value="1">1 - Unsatisfactory</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="teamwork-rating" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Teamwork:</label>
-                <select 
-                  id="teamwork-rating" 
-                  name="ratings.teamworkRating" 
-                  value={formData.ratings.teamworkRating || ''} 
-                  onChange={handleInputChange}
-                  style={{ width: '100%', padding: '8px' }}
-                >
-                  <option value="">Select Rating</option>
-                  <option value="5">5 - Exceptional</option>
-                  <option value="4">4 - Exceeds Expectations</option>
-                  <option value="3">3 - Meets Expectations</option>
-                  <option value="2">2 - Needs Improvement</option>
-                  <option value="1">1 - Unsatisfactory</option>
-                </select>
-              </div>
+        {/* Performance Ratings Card */}
+        <div style={cardStyle}>
+          <h3 style={headingStyle}>Performance Ratings</h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: '15px',
+            marginTop: '15px'
+          }}>
+            <div style={fieldStyle}>
+              <label htmlFor="overall-rating" style={labelStyle}>Overall Rating:</label>
+              <select 
+                id="overall-rating" 
+                name="ratings.overallRating" 
+                value={formData.ratings.overallRating || ''} 
+                onChange={handleInputChange}
+                style={inputStyle}
+              >
+                <option value="">Select Rating</option>
+                <option value="5">5 - Exceptional</option>
+                <option value="4">4 - Exceeds Expectations</option>
+                <option value="3">3 - Meets Expectations</option>
+                <option value="2">2 - Needs Improvement</option>
+                <option value="1">1 - Unsatisfactory</option>
+              </select>
+            </div>
+            <div style={fieldStyle}>
+              <label htmlFor="technical-rating" style={labelStyle}>Technical Skills:</label>
+              <select 
+                id="technical-rating" 
+                name="ratings.technicalSkillsRating" 
+                value={formData.ratings.technicalSkillsRating || ''} 
+                onChange={handleInputChange}
+                style={inputStyle}
+              >
+                <option value="">Select Rating</option>
+                <option value="5">5 - Exceptional</option>
+                <option value="4">4 - Exceeds Expectations</option>
+                <option value="3">3 - Meets Expectations</option>
+                <option value="2">2 - Needs Improvement</option>
+                <option value="1">1 - Unsatisfactory</option>
+              </select>
+            </div>
+            <div style={fieldStyle}>
+              <label htmlFor="communication-rating" style={labelStyle}>Communication:</label>
+              <select 
+                id="communication-rating" 
+                name="ratings.communicationRating" 
+                value={formData.ratings.communicationRating || ''} 
+                onChange={handleInputChange}
+                style={inputStyle}
+              >
+                <option value="">Select Rating</option>
+                <option value="5">5 - Exceptional</option>
+                <option value="4">4 - Exceeds Expectations</option>
+                <option value="3">3 - Meets Expectations</option>
+                <option value="2">2 - Needs Improvement</option>
+                <option value="1">1 - Unsatisfactory</option>
+              </select>
+            </div>
+            <div style={fieldStyle}>
+              <label htmlFor="teamwork-rating" style={labelStyle}>Teamwork:</label>
+              <select 
+                id="teamwork-rating" 
+                name="ratings.teamworkRating" 
+                value={formData.ratings.teamworkRating || ''} 
+                onChange={handleInputChange}
+                style={inputStyle}
+              >
+                <option value="">Select Rating</option>
+                <option value="5">5 - Exceptional</option>
+                <option value="4">4 - Exceeds Expectations</option>
+                <option value="3">3 - Meets Expectations</option>
+                <option value="2">2 - Needs Improvement</option>
+                <option value="1">1 - Unsatisfactory</option>
+              </select>
             </div>
           </div>
+        </div>
 
-          {/* Feedback Section */}
-          <div className="review-section" style={{ border: '1px solid #ddd', borderRadius: '5px', padding: '15px' }}>
-            <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '10px', marginTop: 0 }}>Feedback</h3>
-            <div style={{ marginBottom: '15px' }}>
-              <label htmlFor="strengths" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Strengths:</label>
-              <textarea
-                id="strengths"
-                name="feedback.strengths"
-                value={formData.feedback.strengths || ''}
-                onChange={handleInputChange}
-                rows="4"
-                placeholder="Describe employee's strengths and accomplishments..."
-                style={{ width: '100%', padding: '8px' }}
-              ></textarea>
-            </div>
-            <div style={{ marginBottom: '15px' }}>
-              <label htmlFor="improvements" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Areas for Improvement:</label>
-              <textarea
-                id="improvements"
-                name="feedback.areasForImprovement"
-                value={formData.feedback.areasForImprovement || ''}
-                onChange={handleInputChange}
-                rows="4"
-                placeholder="Describe areas where the employee can improve..."
-                style={{ width: '100%', padding: '8px' }}
-              ></textarea>
-            </div>
-          </div>
-
-          {/* Comments Section */}
-          <div className="review-section" style={{ border: '1px solid #ddd', borderRadius: '5px', padding: '15px' }}>
-            <h3 style={{ borderBottom: '1px solid #eee', paddingBottom: '10px', marginTop: 0 }}>Additional Comments</h3>
+        {/* Feedback Section */}
+        <div style={cardStyle}>
+          <h3 style={headingStyle}>Feedback</h3>
+          <div style={fieldStyle}>
+            <label htmlFor="strengths" style={labelStyle}>Strengths:</label>
             <textarea
-              name="comments"
-              value={formData.comments || ''}
+              id="strengths"
+              name="feedback.strengths"
+              value={formData.feedback.strengths || ''}
               onChange={handleInputChange}
               rows="4"
-              placeholder="Any additional comments about the employee's performance..."
-              style={{ width: '100%', padding: '8px' }}
+              placeholder="Describe employee's strengths and accomplishments..."
+              style={inputStyle}
+            ></textarea>
+          </div>
+          <div style={fieldStyle}>
+            <label htmlFor="improvements" style={labelStyle}>Areas for Improvement:</label>
+            <textarea
+              id="improvements"
+              name="feedback.areasForImprovement"
+              value={formData.feedback.areasForImprovement || ''}
+              onChange={handleInputChange}
+              rows="4"
+              placeholder="Describe areas where the employee can improve..."
+              style={inputStyle}
             ></textarea>
           </div>
         </div>
 
-        <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+        {/* Comments Section */}
+        <div style={cardStyle}>
+          <h3 style={headingStyle}>Additional Comments</h3>
+          <textarea
+            name="comments"
+            value={formData.comments || ''}
+            onChange={handleInputChange}
+            rows="4"
+            placeholder="Any additional comments about the employee's performance..."
+            style={inputStyle}
+          ></textarea>
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{
+          display: 'flex',
+          gap: '10px',
+          marginTop: '20px',
+          alignItems: 'center'
+        }}>
           <button 
             type="submit" 
             style={{ 
               padding: '10px 20px',
-              background: '#4c75af',
+              backgroundColor: '#5a189a',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '5px'
+              gap: '5px',
+              fontWeight: '500'
             }}
           >
             <FaSave /> Save
@@ -409,17 +522,36 @@ function ViewEvaluation() {
             onClick={handleComplete} 
             style={{ 
               padding: '10px 20px',
-              background: '#4caf50',
+              backgroundColor: '#4caf50',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '5px'
+              gap: '5px',
+              fontWeight: '500'
             }}
           >
             <FaCheck /> Complete Review
+          </button>
+          <button 
+            type="button" 
+            onClick={() => navigate('/pending-reviews')} 
+            style={{ 
+              padding: '10px 20px',
+              backgroundColor: '#f5f5f5',
+              color: '#333',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              fontWeight: '500'
+            }}
+          >
+            <FaTimes /> Cancel
           </button>
           {renderSaveStatus()}
         </div>
@@ -429,27 +561,40 @@ function ViewEvaluation() {
 
   return (
     <SidebarLayout user={user} activeView="my-reviews">
-      <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
-        <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ 
+        padding: '20px',
+        maxWidth: '1000px',
+        margin: '0 auto',
+        backgroundColor: '#f9f9f9',
+        minHeight: 'calc(100vh - 40px)'
+      }}>
+        <div style={{ 
+          marginBottom: '20px', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center' 
+        }}>
+          <h1 style={{ margin: 0, color: '#333', fontSize: '1.8rem' }}>Review Editor</h1>
           <button 
             onClick={() => navigate('/pending-reviews')}
             style={{ 
               padding: '8px 16px', 
-              background: '#4c75af', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '4px', 
+              backgroundColor: '#f5f5f5',
+              color: '#333',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '5px'
+              gap: '5px',
+              fontSize: '14px',
+              fontWeight: '500'
             }}
           >
             <FaArrowLeft /> Back to Pending Reviews
           </button>
         </div>
         
-        <h1>Review Editor</h1>
         {content()}
       </div>
     </SidebarLayout>
