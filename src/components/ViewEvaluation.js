@@ -1,272 +1,402 @@
-// components/ViewEvaluation.js
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import '../styles/Dashboard.css'; // Keep existing Dashboard styles
-import '../styles/EvaluationReview.css'; // Add the new styles
+import SidebarLayout from './SidebarLayout';
+import '../styles/ViewEvaluation.css';
+import { FaArrowLeft, FaSave, FaCheck, FaTimes } from 'react-icons/fa';
 
 function ViewEvaluation() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [evaluation, setEvaluation] = useState(null);
-  const [feedback, setFeedback] = useState('');
-  const [status, setStatus] = useState('pending');
-  const [isLoading, setIsLoading] = useState(true);
+  const [review, setReview] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState('');
+  const [formData, setFormData] = useState({});
+  const [saveStatus, setSaveStatus] = useState(null);
+  
+  const API_BASE_URL = process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:5000' 
+    : 'https://performance-review-backend-ab8z.onrender.com';
 
   useEffect(() => {
-    const fetchEvaluation = async () => {
+    const fetchReview = async () => {
       try {
-        setIsLoading(true);
-        // Fetch from localStorage since that's where your app stores the data
-        const storedReviews = localStorage.getItem('reviews');
-        
-        if (storedReviews) {
-          const parsedReviews = JSON.parse(storedReviews);
-          const foundReview = parsedReviews.find(review => review.id === id);
-          
-          if (foundReview) {
-            setEvaluation(foundReview);
-            setFeedback(foundReview.feedback || '');
-            setStatus(foundReview.status?.toLowerCase() || 'pending');
-            setIsLoading(false);
-          } else {
-            setError('Evaluation not found');
-            setIsLoading(false);
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/api/reviews/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
           }
-        } else {
-          setError('No reviews data found');
-          setIsLoading(false);
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch review');
         }
+
+        const data = await response.json();
+        setReview(data);
+        setFormData({
+          ...data,
+          feedback: data.feedback || {},
+          ratings: data.ratings || {},
+          goals: data.goals || []
+        });
+        setLoading(false);
       } catch (err) {
-        setError('Failed to load evaluation data');
-        setIsLoading(false);
-        console.error('Error fetching evaluation:', err);
+        console.error('Error fetching review:', err);
+        setError(err.message);
+        setLoading(false);
       }
     };
 
-    if (id) {
-      fetchEvaluation();
-    }
+    fetchReview();
   }, [id]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    
+    // Handle nested fields like feedback.strengths or ratings.technicalSkillsRating
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.');
+      setFormData({
+        ...formData,
+        [parent]: {
+          ...formData[parent],
+          [child]: value
+        }
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+    }
+  };
+
+  const handleGoalChange = (index, field, value) => {
+    const updatedGoals = [...formData.goals];
+    updatedGoals[index] = {
+      ...updatedGoals[index],
+      [field]: value
+    };
+    
+    setFormData({
+      ...formData,
+      goals: updatedGoals
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     try {
-      // Update in localStorage
-      const storedReviews = localStorage.getItem('reviews');
+      setSaveStatus('saving');
       
-      if (storedReviews) {
-        const parsedReviews = JSON.parse(storedReviews);
-        const updatedReviews = parsedReviews.map(review => {
-          if (review.id === id) {
-            return {
-              ...review,
-              status: status,
-              feedback: feedback,
-              lastUpdated: new Date().toISOString()
-            };
-          }
-          return review;
-        });
-        
-        localStorage.setItem('reviews', JSON.stringify(updatedReviews));
-        
-        setSuccessMessage('Evaluation updated successfully');
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 2000);
-      } else {
-        setError('No reviews data found');
+      const response = await fetch(`${API_BASE_URL}/api/reviews/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save review');
       }
+
+      const updatedReview = await response.json();
+      setReview(updatedReview);
+      setSaveStatus('success');
+      
+      // Reset status after 3 seconds
+      setTimeout(() => {
+        setSaveStatus(null);
+      }, 3000);
     } catch (err) {
-      setError('Failed to update evaluation');
-      console.error('Error updating evaluation:', err);
+      console.error('Error saving review:', err);
+      setSaveStatus('error');
+      // Reset status after 3 seconds
+      setTimeout(() => {
+        setSaveStatus(null);
+      }, 3000);
     }
   };
 
-  const handleCancel = () => {
-    navigate('/dashboard');
+  const handleComplete = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/reviews/${id}/complete`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to complete review');
+      }
+
+      // Navigate back to pending reviews
+      navigate('/pending-reviews');
+    } catch (err) {
+      console.error('Error completing review:', err);
+      setError(err.message);
+    }
   };
 
-  // Content to render based on loading/error states
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p>Loading evaluation data...</p>
-        </div>
-      );
-    }
+  const renderSaveStatus = () => {
+    if (saveStatus === 'saving') return <span className="saving-status">Saving...</span>;
+    if (saveStatus === 'success') return <span className="success-status">Saved Successfully!</span>;
+    if (saveStatus === 'error') return <span className="error-status">Error Saving!</span>;
+    return null;
+  };
 
-    if (error) {
-      return (
-        <div className="error-container">
-          <div className="error-icon">⚠️</div>
-          <div className="error-message">{error}</div>
-          <button onClick={handleCancel} className="btn btn-primary">
-            Back to Dashboard
-          </button>
-        </div>
-      );
-    }
-
-    if (!evaluation) {
-      return (
-        <div className="not-found-container">
-          <div className="not-found-icon">🔍</div>
-          <div className="not-found-message">Evaluation not found</div>
-          <button onClick={handleCancel} className="btn btn-primary">
-            Back to Dashboard
-          </button>
-        </div>
-      );
-    }
-
+  if (loading) {
     return (
-      <div className="evaluation-content">
-        <div className="page-header">
-          <h1 className="page-title">Review Evaluation</h1>
-          <button className="btn btn-outline-primary" onClick={handleCancel}>
-            Back to Dashboard
+      <SidebarLayout>
+        <div className="loading-container">
+          <div className="spinner"></div>
+          <p>Loading review data...</p>
+        </div>
+      </SidebarLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <SidebarLayout>
+        <div className="error-container">
+          <h2>Error</h2>
+          <p>{error}</p>
+          <button onClick={() => navigate('/pending-reviews')} className="btn-back">
+            <FaArrowLeft /> Back to Pending Reviews
           </button>
         </div>
+      </SidebarLayout>
+    );
+  }
 
-        {successMessage && (
-          <div className="alert alert-success">
-            <span className="success-icon">✓</span> {successMessage}
+  return (
+    <SidebarLayout>
+      <div className="view-evaluation-container">
+        <div className="eval-header">
+          <div className="eval-title-section">
+            <button onClick={() => navigate('/pending-reviews')} className="btn-back">
+              <FaArrowLeft /> Back
+            </button>
+            <h1>Review Editor</h1>
+            {renderSaveStatus()}
           </div>
-        )}
+          
+          <div className="eval-actions">
+            <button className="btn-save" onClick={handleSubmit}>
+              <FaSave /> Save
+            </button>
+            <button className="btn-complete" onClick={handleComplete}>
+              <FaCheck /> Complete Review
+            </button>
+          </div>
+        </div>
 
-        <div className="card mb-4">
-          <div className="card-header">
-            <h3 className="card-title">Evaluation Details</h3>
-          </div>
-          <div className="card-body">
-            <div className="detail-grid">
-              <div className="detail-row">
-                <div className="detail-label">Employee:</div>
-                <div className="detail-value">{evaluation.employeeName || 'Unknown'}</div>
+        {review ? (
+          <form onSubmit={handleSubmit} className="review-form">
+            <div className="review-meta">
+              <div className="meta-item">
+                <strong>Employee:</strong> {review.employee?.firstName} {review.employee?.lastName}
               </div>
-              <div className="detail-row">
-                <div className="detail-label">Review Cycle:</div>
-                <div className="detail-value">{evaluation.reviewCycle || 'Annual Review'}</div>
+              <div className="meta-item">
+                <strong>Review Period:</strong> {review.reviewPeriod}
               </div>
-              <div className="detail-row">
-                <div className="detail-label">Due Date:</div>
-                <div className="detail-value">
-                  {evaluation.dueDate ? new Date(evaluation.dueDate).toLocaleDateString() : 
-                  evaluation.submissionDate ? new Date(evaluation.submissionDate).toLocaleDateString() : 
-                  'N/A'}
-                </div>
+              <div className="meta-item">
+                <strong>Status:</strong> <span className={`status-badge ${review.status.replace(/\s+/g, '-').toLowerCase()}`}>{review.status}</span>
               </div>
-              <div className="detail-row">
-                <div className="detail-label">Status:</div>
-                <div className="detail-value">
-                  <span className={`status-badge ${status}`}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </span>
-                </div>
+              <div className="meta-item">
+                <strong>Started:</strong> {new Date(review.startDate).toLocaleDateString()}
               </div>
-              
-              {evaluation.completionPercentage !== undefined && (
-                <div className="detail-row">
-                  <div className="detail-label">Completion:</div>
-                  <div className="detail-value">
-                    <div className="progress-container">
-                      <div className="progress">
-                        <div 
-                          className="progress-bar" 
-                          style={{width: `${evaluation.completionPercentage}%`}}
-                        ></div>
-                      </div>
-                      <span className="progress-value">{evaluation.completionPercentage}%</span>
-                    </div>
+            </div>
+
+            <div className="review-sections">
+              <div className="review-section">
+                <h2>Performance Ratings</h2>
+                <div className="ratings-grid">
+                  <div className="rating-item">
+                    <label htmlFor="overall-rating">Overall Rating:</label>
+                    <select 
+                      id="overall-rating" 
+                      name="ratings.overallRating" 
+                      value={formData.ratings?.overallRating || ''} 
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select Rating</option>
+                      <option value="5">5 - Exceptional</option>
+                      <option value="4">4 - Exceeds Expectations</option>
+                      <option value="3">3 - Meets Expectations</option>
+                      <option value="2">2 - Needs Improvement</option>
+                      <option value="1">1 - Unsatisfactory</option>
+                    </select>
+                  </div>
+                  <div className="rating-item">
+                    <label htmlFor="technical-rating">Technical Skills:</label>
+                    <select 
+                      id="technical-rating" 
+                      name="ratings.technicalSkillsRating" 
+                      value={formData.ratings?.technicalSkillsRating || ''} 
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select Rating</option>
+                      <option value="5">5 - Exceptional</option>
+                      <option value="4">4 - Exceeds Expectations</option>
+                      <option value="3">3 - Meets Expectations</option>
+                      <option value="2">2 - Needs Improvement</option>
+                      <option value="1">1 - Unsatisfactory</option>
+                    </select>
+                  </div>
+                  <div className="rating-item">
+                    <label htmlFor="communication-rating">Communication:</label>
+                    <select 
+                      id="communication-rating" 
+                      name="ratings.communicationRating" 
+                      value={formData.ratings?.communicationRating || ''} 
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select Rating</option>
+                      <option value="5">5 - Exceptional</option>
+                      <option value="4">4 - Exceeds Expectations</option>
+                      <option value="3">3 - Meets Expectations</option>
+                      <option value="2">2 - Needs Improvement</option>
+                      <option value="1">1 - Unsatisfactory</option>
+                    </select>
+                  </div>
+                  <div className="rating-item">
+                    <label htmlFor="teamwork-rating">Teamwork:</label>
+                    <select 
+                      id="teamwork-rating" 
+                      name="ratings.teamworkRating" 
+                      value={formData.ratings?.teamworkRating || ''} 
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select Rating</option>
+                      <option value="5">5 - Exceptional</option>
+                      <option value="4">4 - Exceeds Expectations</option>
+                      <option value="3">3 - Meets Expectations</option>
+                      <option value="2">2 - Needs Improvement</option>
+                      <option value="1">1 - Unsatisfactory</option>
+                    </select>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {evaluation.sections && evaluation.sections.length > 0 && (
-          <div className="card mb-4">
-            <div className="card-header">
-              <h3 className="card-title">Review Sections</h3>
-            </div>
-            <div className="card-body">
-              {evaluation.sections.map((section, sectionIndex) => (
-                <div key={sectionIndex} className="section-container">
-                  <h4 className="section-title">{section.title}</h4>
-                  {section.questions && section.questions.map((question, questionIndex) => (
-                    <div key={questionIndex} className="question-container">
-                      <div className="question-text">{question.text}</div>
-                      <div className="answer-container">
-                        {question.answer ? (
-                          <div className="answer">{question.answer}</div>
-                        ) : (
-                          <div className="no-answer">No response yet</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">Manager Review</h3>
-          </div>
-          <div className="card-body">
-            <form onSubmit={handleSubmit}>
-              <div className="form-group mb-4">
-                <label htmlFor="status" className="form-label">Update Status:</label>
-                <select 
-                  id="status"
-                  className="form-select"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                >
-                  <option value="pending">Pending</option>
-                  <option value="in progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                </select>
               </div>
-              
-              <div className="form-group mb-4">
-                <label htmlFor="feedback" className="form-label">Manager Feedback:</label>
+
+              <div className="review-section">
+                <h2>Feedback</h2>
+                <div className="feedback-item">
+                  <label htmlFor="strengths">Strengths:</label>
+                  <textarea
+                    id="strengths"
+                    name="feedback.strengths"
+                    value={formData.feedback?.strengths || ''}
+                    onChange={handleInputChange}
+                    rows="4"
+                    placeholder="Describe employee's strengths and accomplishments..."
+                  ></textarea>
+                </div>
+                <div className="feedback-item">
+                  <label htmlFor="improvements">Areas for Improvement:</label>
+                  <textarea
+                    id="improvements"
+                    name="feedback.areasForImprovement"
+                    value={formData.feedback?.areasForImprovement || ''}
+                    onChange={handleInputChange}
+                    rows="4"
+                    placeholder="Describe areas where the employee can improve..."
+                  ></textarea>
+                </div>
+                <div className="feedback-item">
+                  <label htmlFor="development">Development Plan:</label>
+                  <textarea
+                    id="development"
+                    name="feedback.developmentPlan"
+                    value={formData.feedback?.developmentPlan || ''}
+                    onChange={handleInputChange}
+                    rows="4"
+                    placeholder="Outline a plan for the employee's professional development..."
+                  ></textarea>
+                </div>
+              </div>
+
+              <div className="review-section">
+                <h2>Goals</h2>
+                {formData.goals && formData.goals.length > 0 ? (
+                  <div className="goals-list">
+                    {formData.goals.map((goal, index) => (
+                      <div key={index} className="goal-item">
+                        <div className="goal-description">
+                          <label>Description:</label>
+                          <textarea
+                            value={goal.description || ''}
+                            onChange={(e) => handleGoalChange(index, 'description', e.target.value)}
+                            rows="2"
+                            placeholder="Goal description..."
+                          ></textarea>
+                        </div>
+                        <div className="goal-target">
+                          <label>Target Date:</label>
+                          <input
+                            type="date"
+                            value={goal.targetDate ? goal.targetDate.slice(0, 10) : ''}
+                            onChange={(e) => handleGoalChange(index, 'targetDate', e.target.value)}
+                          />
+                        </div>
+                        <div className="goal-status">
+                          <label>Status:</label>
+                          <select
+                            value={goal.status || 'Not Started'}
+                            onChange={(e) => handleGoalChange(index, 'status', e.target.value)}
+                          >
+                            <option value="Not Started">Not Started</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Canceled">Canceled</option>
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="no-goals">
+                    <p>No goals have been set for this review yet.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="review-section">
+                <h2>Additional Comments</h2>
                 <textarea
-                  id="feedback"
-                  className="form-control"
-                  rows="5"
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  placeholder="Enter your feedback for this evaluation"
+                  name="comments"
+                  value={formData.comments || ''}
+                  onChange={handleInputChange}
+                  rows="4"
+                  placeholder="Any additional comments about the employee's performance..."
                 ></textarea>
               </div>
-              
-              <div className="form-actions">
-                <button type="button" className="btn btn-outline-secondary" onClick={handleCancel}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
-  };
+            </div>
 
-  // This component now only returns the content portion, not the full layout
-  return renderContent();
+            <div className="form-actions">
+              <button type="submit" className="btn-save">
+                <FaSave /> Save
+              </button>
+              <button type="button" className="btn-complete" onClick={handleComplete}>
+                <FaCheck /> Complete Review
+              </button>
+              <button type="button" className="btn-cancel" onClick={() => navigate('/pending-reviews')}>
+                <FaTimes /> Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="no-review">Review not found</div>
+        )}
+      </div>
+    </SidebarLayout>
+  );
 }
 
 export default ViewEvaluation;

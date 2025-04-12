@@ -5,6 +5,8 @@ import { DepartmentProvider } from './context/DepartmentContext';
 import PrivateRoute from './components/PrivateRoute';
 import AuthInitCheck from './components/AuthInitCheck';
 import EmployeeProfile from './components/EmployeeProfile';
+import PendingReviews from './components/PendingReviews';
+import ViewEvaluation from './components/ViewEvaluation';
 
 
 // Import pages
@@ -41,12 +43,18 @@ const TitleUpdater = () => {
         '/templates': 'Templates',
         '/evaluation-management': 'Evaluation Management',
         '/import-tool': 'Import Tool',
-        '/export-tool': 'Export Tool'
+        '/export-tool': 'Export Tool',
+        '/pending-reviews': 'Pending Reviews'
       };
 
       // Check if path is an employee profile page
       if (location.pathname.startsWith('/employees/')) {
         return 'Employee Profile';
+      }
+      
+      // Check if path is a review edit page
+      if (location.pathname.startsWith('/reviews/edit/')) {
+        return 'Review Editor';
       }
 
       return pathToTitleMap[location.pathname] || 'Performance Review System';
@@ -159,6 +167,24 @@ function App() {
               element={
                 <PrivateRoute allowedRoles={['admin']}>
                   <EvaluationManagement />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/pending-reviews"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin']}>
+                  <PendingReviews />
+                </PrivateRoute>
+              }
+            />
+            
+            {/* New route for editing reviews */}
+            <Route
+              path="/reviews/edit/:id"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin']}>
+                  <ViewEvaluation />
                 </PrivateRoute>
               }
             />

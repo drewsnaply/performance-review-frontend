@@ -1,355 +1,368 @@
-/* styles/EvaluationReview.css */
-/* Add this as a new file and import it in your ViewEvaluation component */
+/* ViewEvaluation.css */
 
-/* Page layout */
-.evaluation-content {
-    padding: 20px;
+.view-evaluation-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.eval-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.eval-title-section {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.eval-title-section h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  color: #333;
+}
+
+.eval-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-back {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  color: #333;
+  padding: 8px 15px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-back:hover {
+  background-color: #e0e0e0;
+}
+
+.btn-save {
+  background-color: #4c75af;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-save:hover {
+  background-color: #3a5d8b;
+}
+
+.btn-complete {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-complete:hover {
+  background-color: #3a8c3f;
+}
+
+.btn-cancel {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-cancel:hover {
+  background-color: #d32f2f;
+}
+
+.saving-status, .success-status, .error-status {
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.saving-status {
+  background-color: #f0f4fa;
+  color: #4c75af;
+}
+
+.success-status {
+  background-color: #e8f5e9;
+  color: #4caf50;
+}
+
+.error-status {
+  background-color: #ffebee;
+  color: #f44336;
+}
+
+.review-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 6px;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meta-item strong {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge.pending {
+  background-color: #fff8e1;
+  color: #ffa000;
+}
+
+.status-badge.in-progress {
+  background-color: #e1f5fe;
+  color: #0288d1;
+}
+
+.status-badge.completed {
+  background-color: #e8f5e9;
+  color: #388e3c;
+}
+
+.status-badge.cancelled {
+  background-color: #f5f5f5;
+  color: #9e9e9e;
+}
+
+.review-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.review-section {
+  background-color: white;
+  border-radius: 6px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.review-section h2 {
+  margin-top: 0;
+  font-size: 1.3rem;
+  color: #333;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 15px;
+}
+
+.ratings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 15px;
+}
+
+.rating-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rating-item label {
+  font-weight: 500;
+  color: #555;
+}
+
+.rating-item select {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+}
+
+.feedback-item {
+  margin-bottom: 15px;
+}
+
+.feedback-item label {
+  display: block;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 5px;
+}
+
+.feedback-item textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.goals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.goal-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 15px;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 15px;
+}
+
+.goal-description, .goal-target, .goal-status {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.goal-description label, .goal-target label, .goal-status label {
+  font-weight: 500;
+  color: #555;
+}
+
+.goal-description textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.goal-target input, .goal-status select {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+}
+
+.no-goals {
+  color: #757575;
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.review-section textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.form-actions {
+  margin-top: 30px;
+  display: flex;
+  gap: 15px;
+  justify-content: flex-end;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+}
+
+.spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top: 4px solid #3498db;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-container {
+  text-align: center;
+  padding: 30px;
+  background-color: #ffebee;
+  border-radius: 6px;
+  margin: 20px auto;
+  max-width: 600px;
+}
+
+.error-container h2 {
+  color: #d32f2f;
+}
+
+.error-container p {
+  margin-bottom: 20px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .eval-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
   }
   
-  .page-header {
-    display: flex;
+  .eval-actions {
+    width: 100%;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
   }
   
-  .page-title {
-    font-size: 1.8rem;
-    font-weight: 600;
-    color: #2d3748;
-    margin: 0;
+  .ratings-grid {
+    grid-template-columns: 1fr;
   }
   
-  /* Cards */
-  .card {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    border: 1px solid #e2e8f0;
-    overflow: hidden;
-    margin-bottom: 24px;
+  .goal-item {
+    grid-template-columns: 1fr;
   }
   
-  .card-header {
-    background-color: #f8fafc;
-    padding: 16px 20px;
-    border-bottom: 1px solid #e2e8f0;
+  .review-meta {
+    grid-template-columns: 1fr;
   }
-  
-  .card-title {
-    margin: 0;
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #4a5568;
-  }
-  
-  .card-body {
-    padding: 20px;
-  }
-  
-  /* Detail grid */
-  .detail-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
-  }
-  
-  .detail-row {
-    margin-bottom: 12px;
-  }
-  
-  .detail-label {
-    font-weight: 600;
-    color: #4a5568;
-    margin-bottom: 4px;
-  }
-  
-  .detail-value {
-    color: #2d3748;
-  }
-  
-  /* Status badges */
-  .status-badge {
-    display: inline-block;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    text-transform: uppercase;
-  }
-  
-  .status-badge.pending {
-    background-color: #fef3c7;
-    color: #92400e;
-  }
-  
-  .status-badge.in-progress,
-  .status-badge.inprogress {
-    background-color: #dbeafe;
-    color: #1e40af;
-  }
-  
-  .status-badge.completed {
-    background-color: #dcfce7;
-    color: #166534;
-  }
-  
-  /* Progress bar */
-  .progress-container {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  
-  .progress {
-    flex: 1;
-    height: 10px;
-    background-color: #e2e8f0;
-    border-radius: 5px;
-    overflow: hidden;
-  }
-  
-  .progress-bar {
-    height: 100%;
-    background-color: #4f46e5;
-    border-radius: 5px;
-  }
-  
-  .progress-value {
-    font-weight: 500;
-    color: #4a5568;
-    min-width: 40px;
-    text-align: right;
-  }
-  
-  /* Review sections */
-  .section-container {
-    margin-bottom: 24px;
-    padding-bottom: 24px;
-    border-bottom: 1px solid #e2e8f0;
-  }
-  
-  .section-container:last-child {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
-  }
-  
-  .section-title {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #4a5568;
-    margin-bottom: 16px;
-  }
-  
-  .question-container {
-    background-color: #f8fafc;
-    padding: 16px;
-    border-radius: 6px;
-    margin-bottom: 12px;
-  }
-  
-  .question-text {
-    font-weight: 600;
-    color: #2d3748;
-    margin-bottom: 8px;
-  }
-  
-  .answer-container {
-    color: #4a5568;
-  }
-  
-  .answer {
-    padding: 8px 12px;
-    background-color: white;
-    border-radius: 4px;
-    border: 1px solid #e2e8f0;
-  }
-  
-  .no-answer {
-    font-style: italic;
-    color: #a0aec0;
-  }
-  
-  /* Form elements */
-  .form-group {
-    margin-bottom: 20px;
-  }
-  
-  .form-label {
-    display: block;
-    font-weight: 600;
-    color: #4a5568;
-    margin-bottom: 8px;
-  }
-  
-  .form-select {
-    width: 100%;
-    max-width: 300px;
-    padding: 10px 12px;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    background-color: white;
-    color: #2d3748;
-    font-size: 0.95rem;
-  }
-  
-  .form-control {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    background-color: white;
-    color: #2d3748;
-    font-size: 0.95rem;
-    line-height: 1.5;
-    resize: vertical;
-  }
-  
-  .form-control:focus,
-  .form-select:focus {
-    outline: none;
-    border-color: #4f46e5;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-  }
-  
-  .form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    margin-top: 24px;
-  }
-  
-  /* Buttons */
-  .btn {
-    padding: 10px 16px;
-    border-radius: 6px;
-    font-weight: 500;
-    font-size: 0.95rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-  }
-  
-  .btn-primary {
-    background-color: #4f46e5;
-    color: white;
-  }
-  
-  .btn-primary:hover {
-    background-color: #4338ca;
-  }
-  
-  .btn-outline-primary {
-    background-color: transparent;
-    color: #4f46e5;
-    border: 1px solid #4f46e5;
-  }
-  
-  .btn-outline-primary:hover {
-    background-color: #f5f3ff;
-  }
-  
-  .btn-outline-secondary {
-    background-color: transparent;
-    color: #64748b;
-    border: 1px solid #cbd5e1;
-  }
-  
-  .btn-outline-secondary:hover {
-    background-color: #f8fafc;
-  }
-  
-  /* Alert messages */
-  .alert {
-    padding: 12px 16px;
-    border-radius: 6px;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-  }
-  
-  .alert-success {
-    background-color: #dcfce7;
-    color: #166534;
-    border: 1px solid #86efac;
-  }
-  
-  .success-icon {
-    font-size: 1.2rem;
-    margin-right: 8px;
-  }
-  
-  /* Loading state */
-  .loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px;
-    text-align: center;
-  }
-  
-  .loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid #e2e8f0;
-    border-top: 3px solid #4f46e5;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 16px;
-  }
-  
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  
-  /* Error and not found states */
-  .error-container,
-  .not-found-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px;
-    text-align: center;
-  }
-  
-  .error-icon,
-  .not-found-icon {
-    font-size: 36px;
-    margin-bottom: 16px;
-  }
-  
-  .error-message,
-  .not-found-message {
-    font-size: 1.1rem;
-    margin-bottom: 24px;
-    color: #4a5568;
-  }
-  
-  /* Mobile responsiveness */
-  @media (max-width: 768px) {
-    .page-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 12px;
-    }
-    
-    .detail-grid {
-      grid-template-columns: 1fr;
-    }
-    
-    .form-actions {
-      flex-direction: column-reverse;
-      gap: 8px;
-    }
-    
-    .btn {
-      width: 100%;
-    }
-  }
+}
