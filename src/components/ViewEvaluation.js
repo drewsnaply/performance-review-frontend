@@ -2,31 +2,34 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import SidebarLayout from './SidebarLayout';
 import { useAuth } from '../context/AuthContext';
-import { FaArrowLeft, FaSave, FaCheck, FaTimes, FaPlus, FaTrash, FaEdit, FaExternalLinkAlt } from 'react-icons/fa';
+import { 
+  FaArrowLeft, FaPlus, FaSave, FaCheck, FaExclamationTriangle, 
+  FaTrash, FaEdit, FaTimes, FaChartLine, FaCalendarCheck
+} from 'react-icons/fa';
+import '../styles/EvaluationReview.css';
 
 function ViewEvaluation() {
-  const { id } = useParams();
+  const { reviewId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  const [reviewData, setReviewData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [reviewData, setReviewData] = useState(null);
-  const [formData, setFormData] = useState({
-    ratings: {},
-    feedback: {},
-    goals: []
-  });
-  const [saveStatus, setSaveStatus] = useState(null);
-  const [showGoalModal, setShowGoalModal] = useState(false);
-  const [currentGoal, setCurrentGoal] = useState(null);
-  const [isEditingGoal, setIsEditingGoal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [kpis, setKpis] = useState([]);
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('questions');
+  const [checkInData, setCheckInData] = useState({
+    managerComments: '',
+    employeeComments: '',
+    date: new Date().toISOString().split('T')[0],
+    goals: [],
+    kpis: []
+  });
   
-  const API_BASE_URL = process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:5000' 
-    : 'https://performance-review-backend-ab8z.onrender.com';
-
-  // Initialize new goal form
+  // Goal form state
   const [goalForm, setGoalForm] = useState({
     title: '',
     description: '',
@@ -36,334 +39,307 @@ function ViewEvaluation() {
     progress: 0,
     notes: ''
   });
-
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+  const [currentGoal, setCurrentGoal] = useState(null);
+  
+  // API base URL
+  const API_BASE_URL = process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:5000' 
+    : 'https://performance-review-backend-ab8z.onrender.com';
+  
+  // Fetch review data
   useEffect(() => {
-    const fetchReview = async () => {
+    const fetchReviewData = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/api/reviews/${id}`, {
+        const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json'
           }
         });
-
+        
         if (!response.ok) {
-          throw new Error(`Failed to fetch review: ${response.status} ${response.statusText}`);
+          throw new Error('Failed to fetch review data');
         }
-
-        const rawData = await response.json();
-        console.log("Raw review data:", rawData);
         
-        // Create a sanitized version of the display data
-        const sanitizedData = {
-          id: rawData._id || id,
-          employeeName: extractEmployeeName(rawData.employee),
-          reviewerName: extractReviewerName(rawData.reviewer),
-          reviewPeriod: formatDateRange(rawData.reviewPeriod),
-          status: rawData.status || 'Unknown',
-          startDate: formatDate(rawData.startDate),
-          template: rawData.template || {}
-        };
+        const data = await response.json();
+        setReviewData(data);
         
-        // Set up form data structure
-        setFormData({
-          // Preserve the original structure but set defaults if missing
-          _id: rawData._id,
-          employee: rawData.employee,
-          reviewer: rawData.reviewer,
-          reviewPeriod: rawData.reviewPeriod,
-          status: rawData.status,
-          startDate: rawData.startDate,
-          assignmentId: rawData.assignmentId || rawData._id,
-          ratings: rawData.ratings || {},
-          feedback: rawData.feedback || {},
-          goals: Array.isArray(rawData.goals) ? rawData.goals : [],
-          comments: rawData.comments || '',
-          template: rawData.template || {}
-        });
+        // Fetch KPIs
+        try {
+          const kpisResponse = await fetch(`${API_BASE_URL}/api/kpis`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (kpisResponse.ok) {
+            const kpisData = await kpisResponse.json();
+            setKpis(kpisData);
+          }
+        } catch (kpiError) {
+          console.warn('Error fetching KPIs:', kpiError);
+        }
         
-        setReviewData(sanitizedData);
-        
-        // Also fetch KPIs for goal linking
-        fetchKpis();
+        // Fetch goals if not included in review data
+        if (!data.goals || !Array.isArray(data.goals) || data.goals.length === 0) {
+          try {
+            const goalsResponse = await fetch(`${API_BASE_URL}/api/goals?reviewId=${reviewId}`, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (goalsResponse.ok) {
+              const goalsData = await goalsResponse.json();
+              setReviewData(prev => ({
+                ...prev,
+                goals: goalsData
+              }));
+            }
+          } catch (goalsError) {
+            console.warn('Error fetching goals:', goalsError);
+          }
+        }
         
         setLoading(false);
-      } catch (err) {
-        console.error('Error fetching review:', err);
-        setError(err.message || 'Error fetching review data');
+      } catch (error) {
+        console.error('Error:', error);
+        setError('Failed to load review data');
         setLoading(false);
       }
     };
-
-    if (id) {
-      fetchReview();
-    }
-  }, [id, API_BASE_URL]);
+    
+    fetchReviewData();
+  }, [reviewId]);
   
-  const fetchKpis = async () => {
+  // Handle form input change
+  const handleInputChange = (e, sectionIndex, questionIndex) => {
+    const updatedReviewData = { ...reviewData };
+    updatedReviewData.sections[sectionIndex].questions[questionIndex].response = e.target.value;
+    setReviewData(updatedReviewData);
+  };
+  
+  // Handle rating change
+  const handleRatingChange = (e, ratingKey) => {
+    const updatedReviewData = { ...reviewData };
+    updatedReviewData.ratings[ratingKey] = parseInt(e.target.value);
+    setReviewData(updatedReviewData);
+  };
+  
+  // Handle feedback input change
+  const handleFeedbackChange = (e, feedbackType) => {
+    const updatedReviewData = { ...reviewData };
+    updatedReviewData.feedback[feedbackType] = e.target.value;
+    setReviewData(updatedReviewData);
+  };
+  
+  // Save review data
+  const handleSaveReview = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/kpis`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      setSubmitting(true);
       
-      if (!response.ok) {
-        // Fallback to hardcoded sample KPIs
-        console.warn('KPI API unavailable, using sample data');
-        const sampleKpis = [
-          { id: '1', _id: '1', title: 'Customer Satisfaction', target: '4.5/5 rating', category: 'Customer' },
-          { id: '2', _id: '2', title: 'Code Quality', target: 'Reduce bugs by 20%', category: 'Technical' },
-          { id: '3', _id: '3', title: 'Team Collaboration', target: 'Weekly knowledge sharing', category: 'Team' }
-        ];
-        setKpis(sampleKpis);
-        return;
-      }
-      
-      const data = await response.json();
-      setKpis(data);
-    } catch (error) {
-      console.error('Error fetching KPIs:', error);
-      // Fallback to hardcoded sample KPIs
-      const sampleKpis = [
-        { id: '1', _id: '1', title: 'Customer Satisfaction', target: '4.5/5 rating', category: 'Customer' },
-        { id: '2', _id: '2', title: 'Code Quality', target: 'Reduce bugs by 20%', category: 'Technical' },
-        { id: '3', _id: '3', title: 'Team Collaboration', target: 'Weekly knowledge sharing', category: 'Team' }
-      ];
-      setKpis(sampleKpis);
-    }
-  };
-  
-  // Helper function to extract employee name
-  const extractEmployeeName = (employee) => {
-    if (!employee) return 'Unknown Employee';
-    // If employee is just an object reference with _ property
-    if (employee._) return 'Employee #' + employee._;
-    
-    const firstName = employee.firstName || '';
-    const lastName = employee.lastName || '';
-    return `${firstName} ${lastName}`.trim() || 'Unknown Employee';
-  };
-  
-  // Helper function to extract reviewer name
-  const extractReviewerName = (reviewer) => {
-    if (!reviewer) return 'Unknown Reviewer';
-    // If reviewer is just an object reference with _ property
-    if (reviewer._) return 'Reviewer #' + reviewer._;
-    
-    const firstName = reviewer.firstName || '';
-    const lastName = reviewer.lastName || '';
-    return `${firstName} ${lastName}`.trim() || 'Unknown Reviewer';
-  };
-  
-  // Format date range specially for review period
-  const formatDateRange = (dateRange) => {
-    if (!dateRange) return 'N/A';
-    
-    try {
-      if (dateRange.start && dateRange.end) {
-        const startDate = new Date(dateRange.start).toLocaleDateString();
-        const endDate = new Date(dateRange.end).toLocaleDateString();
-        return `${startDate} to ${endDate}`;
-      }
-      // Fall back to JSON stringify with formatting
-      return JSON.stringify(dateRange, null, 2).replace(/[{}"\[\]]/g, '').replace(/,/g, ', ');
-    } catch (e) {
-      return 'Invalid Date Range';
-    }
-  };
-  
-  // Format date safely
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch (e) {
-      return 'Invalid Date';
-    }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    
-    // Handle nested fields like feedback.strengths or ratings.technicalSkillsRating
-    if (name.includes('.')) {
-      const [parent, child] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...(prev[parent] || {}),
-          [child]: value
-        }
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
-  };
-
-  const handleGoalChange = (index, field, value) => {
-    const updatedGoals = [...formData.goals];
-    if (!updatedGoals[index]) {
-      updatedGoals[index] = {};
-    }
-    
-    updatedGoals[index][field] = value;
-    
-    setFormData(prev => ({
-      ...prev,
-      goals: updatedGoals
-    }));
-  };
-  
-  const handleSubmit = async (e) => {
-    if (e && e.preventDefault) {
-      e.preventDefault();
-    }
-    
-    try {
-      setSaveStatus('saving');
-      
-      // Log the data being sent
-      console.log("Saving review with data:", formData);
-      
-      const response = await fetch(`${API_BASE_URL}/api/reviews/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(reviewData)
       });
-
+      
       if (!response.ok) {
-        // Try to get more detailed error info
-        const errorData = await response.json().catch(() => null);
-        throw new Error(`Failed to save review: ${response.status} ${response.statusText}${errorData ? ` - ${JSON.stringify(errorData)}` : ''}`);
+        throw new Error('Failed to save review');
       }
-
-      const savedData = await response.json();
-      console.log("Review saved successfully:", savedData);
       
-      setSaveStatus('success');
-      
-      // Reset status after 3 seconds
-      setTimeout(() => {
-        setSaveStatus(null);
-      }, 3000);
-      
-      return true; // Return success status for other functions to use
-    } catch (err) {
-      console.error('Error saving review:', err);
-      setSaveStatus('error');
-      setError(err.message || 'Error saving review');
-      // Reset status after 3 seconds
-      setTimeout(() => {
-        setSaveStatus(null);
-      }, 3000);
-      
-      return false; // Return failure status
+      const updatedReview = await response.json();
+      setReviewData(updatedReview);
+      alert('Review saved successfully!');
+    } catch (error) {
+      console.error('Error saving review:', error);
+      alert('Failed to save review');
+    } finally {
+      setSubmitting(false);
     }
   };
-
-  const handleComplete = async () => {
+  
+  // Submit review
+  const handleSubmitReview = async () => {
+    // Validate required fields
+    if (!validateRequiredFields()) {
+      return;
+    }
+    
+    // Confirm submission
+    if (!window.confirm('Are you sure you want to submit this review? This will change the status to "Submitted" and notify the employee.')) {
+      return;
+    }
+    
     try {
-      // First ensure the current form data is saved
-      const saveSuccessful = await handleSubmit(new Event('submit'));
+      setSubmitting(true);
       
-      if (!saveSuccessful) {
-        throw new Error('Failed to save review data before completing');
-      }
-      
-      // Add a small delay to ensure the save completed
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      setSaveStatus('saving');
-      
-      // Try to use the actual API first
-      let completedSuccessfully = false;
-      
-      try {
-        // Method 1: Try the dedicated complete endpoint
-        const completeResponse = await fetch(`${API_BASE_URL}/api/reviews/${id}/complete`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (completeResponse.ok) {
-          console.log("Successfully completed review using API endpoint");
-          completedSuccessfully = true;
-        } else {
-          // Try method 2: Update with completed status
-          const statusUpdateResponse = await fetch(`${API_BASE_URL}/api/reviews/${id}`, {
-            method: 'PUT',
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              ...formData,
-              status: 'completed'
-            })
-          });
-          
-          if (statusUpdateResponse.ok) {
-            console.log("Successfully completed review by updating status");
-            completedSuccessfully = true;
-          }
-        }
-      } catch (error) {
-        console.log("API endpoints for completion failed, using client-side completion");
-      }
-      
-      // If server-side completion failed, implement client-side "completion"
-      if (!completedSuccessfully) {
-        console.log(`Simulating completion for review ${id} since API endpoints are returning errors`);
-      }
-      
-      // Show success message either way
-      setSaveStatus('success');
-      
-      // Enhanced client-side completion tracking:
-      // 1. Store the completed review ID
-      sessionStorage.setItem('completedReviewId', id);
-      
-      // 2. Store metadata about the completed review to help sync across pages
-      const reviewMetadata = {
-        id: id,
-        assignmentId: formData.assignmentId || id, // If the assignment ID is different
-        employeeName: reviewData.employeeName,
-        reviewerName: reviewData.reviewerName,
-        completedAt: new Date().toISOString(),
-        originalStatus: formData.status
+      const reviewToSubmit = {
+        ...reviewData,
+        status: 'Submitted',
+        submissionDate: new Date().toISOString()
       };
       
-      // Store as JSON string
-      sessionStorage.setItem('completedReviewMetadata', JSON.stringify(reviewMetadata));
+      const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}/submit`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(reviewToSubmit)
+      });
       
-      // Add a small delay to show success message before navigating
-      setTimeout(() => {
-        // Navigate back to pending reviews
-        navigate('/pending-reviews', { 
-          state: { 
-            completedReview: id,
-            completedReviewMetadata: reviewMetadata,
-            message: 'Review marked as completed' 
-          } 
-        });
-      }, 1500);
-    } catch (err) {
-      console.error('Error during review completion:', err);
-      setError(err.message || 'Error completing review');
-      setSaveStatus('error');
+      if (!response.ok) {
+        throw new Error('Failed to submit review');
+      }
+      
+      const submittedReview = await response.json();
+      setReviewData(submittedReview);
+      alert('Review submitted successfully!');
+      
+      // Navigate back to reviews list
+      navigate('/reviews');
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      alert('Failed to submit review');
+    } finally {
+      setSubmitting(false);
     }
+  };
+  
+  // Complete review (final status, not monthly check-in)
+  const handleCompleteReview = async () => {
+    if (!window.confirm('Are you sure you want to complete this review? This will finalize the review period.')) {
+      return;
+    }
+    
+    try {
+      setSubmitting(true);
+      
+      const reviewToComplete = {
+        ...reviewData,
+        status: 'Completed'
+      };
+      
+      const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}/complete`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(reviewToComplete)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to complete review');
+      }
+      
+      const completedReview = await response.json();
+      setReviewData(completedReview);
+      alert('Review completed successfully!');
+      
+      // Navigate back to reviews list
+      navigate('/reviews');
+    } catch (error) {
+      console.error('Error completing review:', error);
+      alert('Failed to complete review');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  
+  // Record a monthly check-in without completing the review
+  const handleMonthlyCheckIn = async () => {
+    try {
+      setSubmitting(true);
+      
+      // Prepare progress snapshot
+      const progressSnapshot = {
+        date: checkInData.date,
+        managerComments: checkInData.managerComments,
+        employeeComments: checkInData.employeeComments,
+        goals: checkInData.goals.map(goal => ({
+          goalId: goal._id,
+          title: goal.title,
+          progress: goal.progress,
+          status: goal.status,
+          notes: goal.notes
+        })),
+        kpis: checkInData.kpis.map(kpi => ({
+          kpiId: kpi._id,
+          title: kpi.title,
+          currentValue: kpi.currentValue,
+          target: kpi.target,
+          status: kpi.status,
+          notes: kpi.notes
+        }))
+      };
+      
+      // Calculate next check-in date (default to 1 month later)
+      const nextMonth = new Date();
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      
+      const updatedReview = {
+        ...reviewData,
+        progressSnapshots: [...(reviewData.progressSnapshots || []), progressSnapshot],
+        nextCheckInDate: nextMonth.toISOString()
+      };
+      
+      const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}/checkin`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          snapshot: progressSnapshot,
+          nextCheckInDate: nextMonth.toISOString()
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to record check-in');
+      }
+      
+      const result = await response.json();
+      setReviewData(result.review);
+      setShowCheckInModal(false);
+      alert('Monthly check-in recorded successfully!');
+    } catch (error) {
+      console.error('Error recording check-in:', error);
+      alert('Failed to record check-in');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  
+  // Validate required fields
+  const validateRequiredFields = () => {
+    let isValid = true;
+    const missingFields = [];
+    
+    // Check required questions
+    reviewData.sections.forEach((section) => {
+      section.questions.forEach((question) => {
+        if (question.required && (!question.response || question.response.trim() === '')) {
+          isValid = false;
+          missingFields.push(`"${question.text}" in section "${section.title}"`);
+        }
+      });
+    });
+    
+    if (!isValid) {
+      alert(`Please complete the following required fields:\n${missingFields.join('\n')}`);
+    }
+    
+    return isValid;
   };
   
   // Goal management functions
@@ -382,9 +358,9 @@ function ViewEvaluation() {
     setShowGoalModal(true);
   };
   
-  const handleEditGoal = (goal, index) => {
+  const handleEditGoal = (goal) => {
     setIsEditingGoal(true);
-    setCurrentGoal({ ...goal, index });
+    setCurrentGoal(goal);
     
     // Format date for the form
     const targetDate = goal.targetDate 
@@ -392,10 +368,10 @@ function ViewEvaluation() {
       : '';
     
     setGoalForm({
-      title: goal.title || '',
+      title: goal.title,
       description: goal.description || '',
       targetDate,
-      linkedKpi: goal.linkedKpi || '',
+      linkedKpi: goal.linkedKpi?._id || goal.linkedKpi || '',
       status: goal.status || 'Not Started',
       progress: goal.progress || 0,
       notes: goal.notes || ''
@@ -405,10 +381,10 @@ function ViewEvaluation() {
   };
   
   const handleGoalInputChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setGoalForm({
       ...goalForm,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     });
   };
   
@@ -433,34 +409,50 @@ function ViewEvaluation() {
       // Prepare goal data
       const goalData = {
         ...goalForm,
-        progress: parseInt(goalForm.progress)
+        progress: parseInt(goalForm.progress),
+        employeeId: reviewData.employee._id,
+        reviewId: reviewId
       };
       
-      // Update formData with the new/updated goal
-      const updatedGoals = [...formData.goals];
+      // Save goal
+      const url = isEditingGoal 
+        ? `${API_BASE_URL}/api/goals/${currentGoal._id}`
+        : `${API_BASE_URL}/api/goals`;
       
-      if (isEditingGoal && currentGoal) {
-        // Update existing goal
-        updatedGoals[currentGoal.index] = {
-          ...updatedGoals[currentGoal.index],
-          ...goalData
-        };
-      } else {
-        // Add new goal
-        updatedGoals.push(goalData);
+      const method = isEditingGoal ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(goalData)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save goal');
       }
       
-      // Update form data
-      setFormData({
-        ...formData,
+      const savedGoal = await response.json();
+      
+      // Update goals in review data
+      let updatedGoals;
+      if (isEditingGoal) {
+        updatedGoals = (reviewData.goals || []).map(g => 
+          g._id === savedGoal._id ? savedGoal : g
+        );
+      } else {
+        updatedGoals = [...(reviewData.goals || []), savedGoal];
+      }
+      
+      setReviewData({
+        ...reviewData,
         goals: updatedGoals
       });
       
       // Close modal
       setShowGoalModal(false);
-      
-      // Save the review with updated goals
-      await handleSubmit();
       
     } catch (error) {
       console.error('Error saving goal:', error);
@@ -468,24 +460,30 @@ function ViewEvaluation() {
     }
   };
   
-  const handleDeleteGoal = (index) => {
+  const handleDeleteGoal = async (goal) => {
     if (!window.confirm('Are you sure you want to delete this goal?')) {
       return;
     }
     
     try {
-      // Remove the goal from the goals array
-      const updatedGoals = [...formData.goals];
-      updatedGoals.splice(index, 1);
-      
-      // Update form data
-      setFormData({
-        ...formData,
-        goals: updatedGoals
+      const response = await fetch(`${API_BASE_URL}/api/goals/${goal._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
       });
       
-      // Save the review with updated goals
-      handleSubmit();
+      if (!response.ok) {
+        throw new Error('Failed to delete goal');
+      }
+      
+      // Update goals in review data
+      const updatedGoals = (reviewData.goals || []).filter(g => g._id !== goal._id);
+      
+      setReviewData({
+        ...reviewData,
+        goals: updatedGoals
+      });
       
     } catch (error) {
       console.error('Error deleting goal:', error);
@@ -493,235 +491,156 @@ function ViewEvaluation() {
     }
   };
   
-  // Get status badge class
+  // Open monthly check-in modal
+  const handleOpenCheckInModal = () => {
+    // Prepare check-in data from current review and goals
+    setCheckInData({
+      managerComments: '',
+      employeeComments: '',
+      date: new Date().toISOString().split('T')[0],
+      goals: reviewData.goals || [],
+      kpis: (reviewData.kpis || []).map(k => ({
+        ...k,
+        currentValue: '',
+        notes: ''
+      }))
+    });
+    
+    setShowCheckInModal(true);
+  };
+  
+  // Handle check-in input change
+  const handleCheckInInputChange = (e) => {
+    const { name, value } = e.target;
+    setCheckInData({
+      ...checkInData,
+      [name]: value
+    });
+  };
+  
+  // Handle KPI value change in check-in
+  const handleKpiValueChange = (index, field, value) => {
+    const updatedKpis = [...checkInData.kpis];
+    updatedKpis[index] = {
+      ...updatedKpis[index],
+      [field]: value
+    };
+    
+    setCheckInData({
+      ...checkInData,
+      kpis: updatedKpis
+    });
+  };
+  
+  // Handle goal update in check-in
+  const handleCheckInGoalUpdate = (index, field, value) => {
+    const updatedGoals = [...checkInData.goals];
+    updatedGoals[index] = {
+      ...updatedGoals[index],
+      [field]: field === 'progress' ? parseInt(value) : value
+    };
+    
+    setCheckInData({
+      ...checkInData,
+      goals: updatedGoals
+    });
+  };
+  
+  // Helper functions
   const getStatusBadgeClass = (status) => {
     switch (status) {
-      case 'Completed': return { 
-        backgroundColor: '#dcfce7', 
-        color: '#16a34a',
-        padding: '4px 8px',
-        borderRadius: '4px',
-        fontSize: '0.875rem',
-        fontWeight: '500'
-      };
-      case 'In Progress': return { 
-        backgroundColor: '#dbeafe', 
-        color: '#2563eb',
-        padding: '4px 8px',
-        borderRadius: '4px',
-        fontSize: '0.875rem',
-        fontWeight: '500'
-      };
-      case 'Not Started': return { 
-        backgroundColor: '#f3f4f6', 
-        color: '#6b7280',
-        padding: '4px 8px',
-        borderRadius: '4px',
-        fontSize: '0.875rem',
-        fontWeight: '500'
-      };
-      case 'At Risk': return { 
-        backgroundColor: '#fee2e2', 
-        color: '#dc2626',
-        padding: '4px 8px',
-        borderRadius: '4px',
-        fontSize: '0.875rem',
-        fontWeight: '500'
-      };
-      default: return { 
-        backgroundColor: '#f3f4f6', 
-        color: '#6b7280',
-        padding: '4px 8px',
-        borderRadius: '4px',
-        fontSize: '0.875rem',
-        fontWeight: '500'
-      };
+      case 'Completed': return 'status-badge completed';
+      case 'In Progress': return 'status-badge in-progress';
+      case 'Not Started': return 'status-badge not-started';
+      case 'At Risk': return 'status-badge at-risk';
+      default: return 'status-badge';
     }
   };
   
   const getKpiName = (kpiId) => {
-    if (!kpiId) return '';
-    const kpi = kpis.find(k => k.id === kpiId || k._id === kpiId);
+    const kpi = kpis.find(k => k._id === kpiId);
     return kpi ? kpi.title : 'Unknown KPI';
   };
-
-  const renderSaveStatus = () => {
-    const baseStyle = {
-      padding: '5px 10px',
-      borderRadius: '4px',
-      marginLeft: '10px',
-      fontSize: '14px',
-      display: 'flex',
-      alignItems: 'center',
-    };
+  
+  const formatDate = (dateString) => {
+    if (!dateString) return 'No date set';
     
-    if (saveStatus === 'saving') 
-      return <span style={{...baseStyle, backgroundColor: '#e3f2fd', color: '#2196f3'}}>Saving...</span>;
-    if (saveStatus === 'success') 
-      return <span style={{...baseStyle, backgroundColor: '#e8f5e9', color: '#4caf50'}}>Saved Successfully!</span>;
-    if (saveStatus === 'error') 
-      return <span style={{...baseStyle, backgroundColor: '#ffebee', color: '#f44336'}}>Error Saving!</span>;
-    return null;
+    try {
+      return new Date(dateString).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (error) {
+      return 'Invalid date';
+    }
   };
   
   // Render goal modal
   const renderGoalModal = () => {
     if (!showGoalModal) return null;
     
-    const modalOverlayStyle = {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000
-    };
-    
-    const modalContentStyle = {
-      backgroundColor: 'white',
-      borderRadius: '8px',
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-      width: '90%',
-      maxWidth: '600px',
-      maxHeight: '90vh',
-      overflow: 'auto',
-      padding: '24px'
-    };
-    
-    const modalHeaderStyle = {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '20px',
-      paddingBottom: '10px',
-      borderBottom: '1px solid #e5e7eb'
-    };
-    
-    const modalFormStyle = {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '16px'
-    };
-    
-    const formGroupStyle = {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '4px'
-    };
-    
-    const labelStyle = {
-      fontWeight: '500',
-      color: '#374151'
-    };
-    
-    const inputStyle = {
-      padding: '8px 12px',
-      border: '1px solid #d1d5db',
-      borderRadius: '4px',
-      width: '100%'
-    };
-    
-    const formRowStyle = {
-      display: 'flex',
-      gap: '16px'
-    };
-    
-    const buttonGroupStyle = {
-      display: 'flex',
-      justifyContent: 'flex-end',
-      gap: '10px',
-      marginTop: '20px'
-    };
-    
-    const cancelButtonStyle = {
-      padding: '8px 16px',
-      backgroundColor: '#f3f4f6',
-      color: '#374151',
-      border: 'none',
-      borderRadius: '4px',
-      cursor: 'pointer'
-    };
-    
-    const saveButtonStyle = {
-      padding: '8px 16px',
-      backgroundColor: '#3b82f6',
-      color: 'white',
-      border: 'none',
-      borderRadius: '4px',
-      cursor: 'pointer'
-    };
-    
     return (
-      <div style={modalOverlayStyle}>
-        <div style={modalContentStyle}>
-          <div style={modalHeaderStyle}>
-            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>
-              {isEditingGoal ? 'Edit Goal' : 'Add New Goal'}
-            </h2>
-            <button 
-              style={{ 
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '1.25rem'
-              }}
-              onClick={() => setShowGoalModal(false)}
-            >
+      <div className="modal-overlay">
+        <div className="modal-content goal-modal">
+          <div className="modal-header">
+            <h2>{isEditingGoal ? 'Edit Goal' : 'Add New Goal'}</h2>
+            <button className="close-button" onClick={() => setShowGoalModal(false)}>
               <FaTimes />
             </button>
           </div>
           
-          <div style={modalFormStyle}>
-            <div style={formGroupStyle}>
-              <label style={labelStyle}>Goal Title <span style={{ color: '#ef4444' }}>*</span></label>
+          <div className="modal-body">
+            <div className="form-group">
+              <label htmlFor="goal-title">Goal Title <span className="required">*</span></label>
               <input
+                id="goal-title"
                 type="text"
                 name="title"
                 value={goalForm.title}
                 onChange={handleGoalInputChange}
-                style={inputStyle}
+                className="form-control"
                 required
               />
             </div>
             
-            <div style={formGroupStyle}>
-              <label style={labelStyle}>Description</label>
+            <div className="form-group">
+              <label htmlFor="goal-description">Description</label>
               <textarea
+                id="goal-description"
                 name="description"
                 value={goalForm.description}
                 onChange={handleGoalInputChange}
-                style={inputStyle}
+                className="form-control"
                 rows="3"
               />
             </div>
             
-            <div style={formRowStyle}>
-              <div style={{ ...formGroupStyle, flex: 1 }}>
-                <label style={labelStyle}>Target Date</label>
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="goal-target-date">Target Date</label>
                 <input
+                  id="goal-target-date"
                   type="date"
                   name="targetDate"
                   value={goalForm.targetDate}
                   onChange={handleGoalInputChange}
-                  style={inputStyle}
+                  className="form-control"
                 />
               </div>
               
-              <div style={{ ...formGroupStyle, flex: 1 }}>
-                <label style={labelStyle}>Linked KPI</label>
+              <div className="form-group">
+                <label htmlFor="goal-linked-kpi">Linked KPI</label>
                 <select
+                  id="goal-linked-kpi"
                   name="linkedKpi"
                   value={goalForm.linkedKpi}
                   onChange={handleGoalInputChange}
-                  style={inputStyle}
+                  className="form-control"
                 >
-                  <option value="">-- None --</option>
+                  <option value="">-- Not linked to a KPI --</option>
                   {kpis.map(kpi => (
-                    <option key={kpi.id || kpi._id} value={kpi.id || kpi._id}>
+                    <option key={kpi._id} value={kpi._id}>
                       {kpi.title}
                     </option>
                   ))}
@@ -729,14 +648,15 @@ function ViewEvaluation() {
               </div>
             </div>
             
-            <div style={formRowStyle}>
-              <div style={{ ...formGroupStyle, flex: 1 }}>
-                <label style={labelStyle}>Status</label>
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="goal-status">Status</label>
                 <select
+                  id="goal-status"
                   name="status"
                   value={goalForm.status}
                   onChange={handleGoalInputChange}
-                  style={inputStyle}
+                  className="form-control"
                 >
                   <option value="Not Started">Not Started</option>
                   <option value="In Progress">In Progress</option>
@@ -745,9 +665,12 @@ function ViewEvaluation() {
                 </select>
               </div>
               
-              <div style={{ ...formGroupStyle, flex: 1 }}>
-                <label style={labelStyle}>Progress: {goalForm.progress}%</label>
+              <div className="form-group">
+                <label htmlFor="goal-progress">
+                  Progress: {goalForm.progress}%
+                </label>
                 <input
+                  id="goal-progress"
                   type="range"
                   name="progress"
                   value={goalForm.progress}
@@ -755,605 +678,878 @@ function ViewEvaluation() {
                   min="0"
                   max="100"
                   step="5"
-                  style={inputStyle}
+                  className="form-control progress-slider"
                 />
               </div>
             </div>
             
-            <div style={formGroupStyle}>
-              <label style={labelStyle}>Notes</label>
+            <div className="form-group">
+              <label htmlFor="goal-notes">Notes</label>
               <textarea
+                id="goal-notes"
                 name="notes"
                 value={goalForm.notes}
                 onChange={handleGoalInputChange}
-                style={inputStyle}
+                className="form-control"
                 rows="3"
               />
             </div>
-            
-            <div style={buttonGroupStyle}>
-              <button
-                style={cancelButtonStyle}
-                onClick={() => setShowGoalModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                style={saveButtonStyle}
-                onClick={handleSaveGoal}
-              >
-                {isEditingGoal ? 'Update Goal' : 'Add Goal'}
-              </button>
-            </div>
+          </div>
+          
+          <div className="modal-footer">
+            <button
+              type="button"
+              className="cancel-button"
+              onClick={() => setShowGoalModal(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="save-button"
+              onClick={handleSaveGoal}
+            >
+              {isEditingGoal ? 'Update Goal' : 'Add Goal'}
+            </button>
           </div>
         </div>
       </div>
     );
   };
   
-  const content = () => {
-    if (loading) {
-      return (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '200px',
-          flexDirection: 'column',
-          gap: '15px'
-        }}>
-          <div style={{
-            width: '50px',
-            height: '50px',
-            border: '5px solid #f3f3f3',
-            borderTop: '5px solid #5a189a',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite'
-          }}></div>
-          <p>Loading review data...</p>
-          <style>
-            {`
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-            `}
-          </style>
-        </div>
-      );
-    }
-    
-    if (error) {
-      return (
-        <div style={{ 
-          padding: '20px', 
-          backgroundColor: '#ffebee', 
-          borderRadius: '5px',
-          color: '#d32f2f',
-          border: '1px solid #ffcdd2'
-        }}>
-          <h3 style={{ marginTop: 0 }}>Error</h3>
-          <p>{error}</p>
-          <button 
-            onClick={() => navigate('/pending-reviews')}
-            style={{
-              backgroundColor: '#d32f2f',
-              color: 'white',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Back to Pending Reviews
-          </button>
-        </div>
-      );
-    }
-    
-    if (!reviewData) {
-      return (
-        <div style={{ 
-          padding: '20px', 
-          backgroundColor: '#f5f5f5', 
-          borderRadius: '5px',
-          textAlign: 'center'
-        }}>
-          <p>No review data found.</p>
-        </div>
-      );
-    }
-    
-    const cardStyle = {
-      backgroundColor: 'white',
-      borderRadius: '8px',
-      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
-      padding: '20px',
-      marginBottom: '20px'
-    };
-    
-    const headingStyle = {
-      borderBottom: '2px solid #f0f0f0',
-      paddingBottom: '10px',
-      marginTop: 0,
-      color: '#333',
-      fontSize: '1.2rem'
-    };
-    
-    const fieldStyle = {
-      marginBottom: '15px'
-    };
-    
-    const labelStyle = {
-      display: 'block',
-      marginBottom: '5px',
-      fontWeight: '500',
-      color: '#555'
-    };
-    
-    const inputStyle = {
-      width: '100%',
-      padding: '10px',
-      borderRadius: '4px',
-      border: '1px solid #ddd',
-      fontSize: '14px'
-    };
-    
-    // Determine if this template has goals enabled
-    const hasGoalSetting = reviewData.template?.includesGoals || false;
-    const hasKpiTracking = reviewData.template?.includesKPIs || false;
+  // Render check-in modal
+  const renderCheckInModal = () => {
+    if (!showCheckInModal) return null;
     
     return (
-      <form onSubmit={handleSubmit}>
-        {/* Review Info Card */}
-        <div style={cardStyle}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '15px'
-          }}>
-            <div>
-              <p style={{margin: '5px 0', color: '#666'}}>Employee</p>
-              <p style={{margin: '5px 0', fontWeight: 'bold', fontSize: '16px'}}>{reviewData.employeeName}</p>
-            </div>
-            <div>
-              <p style={{margin: '5px 0', color: '#666'}}>Reviewer</p>
-              <p style={{margin: '5px 0', fontWeight: 'bold', fontSize: '16px'}}>{reviewData.reviewerName}</p>
-            </div>
-            <div>
-              <p style={{margin: '5px 0', color: '#666'}}>Review Period</p>
-              <p style={{margin: '5px 0', fontWeight: 'bold', fontSize: '16px'}}>{reviewData.reviewPeriod}</p>
-            </div>
-            <div>
-              <p style={{margin: '5px 0', color: '#666'}}>Status</p>
-              <p style={{
-                display: 'inline-block',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                backgroundColor: '#e8f5e9',
-                color: '#388e3c',
-                fontWeight: 'bold',
-                fontSize: '14px'
-              }}>{reviewData.status}</p>
-            </div>
-            <div>
-              <p style={{margin: '5px 0', color: '#666'}}>Date Started</p>
-              <p style={{margin: '5px 0', fontWeight: 'bold', fontSize: '16px'}}>{reviewData.startDate}</p>
-            </div>
+      <div className="modal-overlay">
+        <div className="modal-content checkin-modal">
+          <div className="modal-header">
+            <h2>Monthly Check-In</h2>
+            <button className="close-button" onClick={() => setShowCheckInModal(false)}>
+              <FaTimes />
+            </button>
           </div>
-        </div>
-
-        {/* Performance Ratings Card */}
-        <div style={cardStyle}>
-          <h3 style={headingStyle}>Performance Ratings</h3>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: '15px',
-            marginTop: '15px'
-          }}>
-            <div style={fieldStyle}>
-              <label htmlFor="overall-rating" style={labelStyle}>Overall Rating:</label>
-              <select 
-                id="overall-rating" 
-                name="ratings.overallRating" 
-                value={formData.ratings.overallRating || ''} 
-                onChange={handleInputChange}
-                style={inputStyle}
-              >
-                <option value="">Select Rating</option>
-                <option value="5">5 - Exceptional</option>
-                <option value="4">4 - Exceeds Expectations</option>
-                <option value="3">3 - Meets Expectations</option>
-                <option value="2">2 - Needs Improvement</option>
-                <option value="1">1 - Unsatisfactory</option>
-              </select>
-            </div>
-            <div style={fieldStyle}>
-              <label htmlFor="technical-rating" style={labelStyle}>Technical Skills:</label>
-              <select 
-                id="technical-rating" 
-                name="ratings.technicalSkillsRating" 
-                value={formData.ratings.technicalSkillsRating || ''} 
-                onChange={handleInputChange}
-                style={inputStyle}
-              >
-                <option value="">Select Rating</option>
-                <option value="5">5 - Exceptional</option>
-                <option value="4">4 - Exceeds Expectations</option>
-                <option value="3">3 - Meets Expectations</option>
-                <option value="2">2 - Needs Improvement</option>
-                <option value="1">1 - Unsatisfactory</option>
-              </select>
-            </div>
-            <div style={fieldStyle}>
-              <label htmlFor="communication-rating" style={labelStyle}>Communication:</label>
-              <select 
-                id="communication-rating" 
-                name="ratings.communicationRating" 
-                value={formData.ratings.communicationRating || ''} 
-                onChange={handleInputChange}
-                style={inputStyle}
-              >
-                <option value="">Select Rating</option>
-                <option value="5">5 - Exceptional</option>
-                <option value="4">4 - Exceeds Expectations</option>
-                <option value="3">3 - Meets Expectations</option>
-                <option value="2">2 - Needs Improvement</option>
-                <option value="1">1 - Unsatisfactory</option>
-              </select>
-            </div>
-            <div style={fieldStyle}>
-              <label htmlFor="teamwork-rating" style={labelStyle}>Teamwork:</label>
-              <select 
-                id="teamwork-rating" 
-                name="ratings.teamworkRating" 
-                value={formData.ratings.teamworkRating || ''} 
-                onChange={handleInputChange}
-                style={inputStyle}
-              >
-                <option value="">Select Rating</option>
-                <option value="5">5 - Exceptional</option>
-                <option value="4">4 - Exceeds Expectations</option>
-                <option value="3">3 - Meets Expectations</option>
-                <option value="2">2 - Needs Improvement</option>
-                <option value="1">1 - Unsatisfactory</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Feedback Section */}
-        <div style={cardStyle}>
-          <h3 style={headingStyle}>Feedback</h3>
-          <div style={fieldStyle}>
-            <label htmlFor="strengths" style={labelStyle}>Strengths:</label>
-            <textarea
-              id="strengths"
-              name="feedback.strengths"
-              value={formData.feedback.strengths || ''}
-              onChange={handleInputChange}
-              rows="4"
-              placeholder="Describe employee's strengths and accomplishments..."
-              style={inputStyle}
-            ></textarea>
-          </div>
-          <div style={fieldStyle}>
-            <label htmlFor="improvements" style={labelStyle}>Areas for Improvement:</label>
-            <textarea
-              id="improvements"
-              name="feedback.areasForImprovement"
-              value={formData.feedback.areasForImprovement || ''}
-              onChange={handleInputChange}
-              rows="4"
-              placeholder="Describe areas where the employee can improve..."
-              style={inputStyle}
-            ></textarea>
-          </div>
-        </div>
-        
-        {/* Goals Section - Only shown if template has Goals enabled */}
-        {hasGoalSetting && (
-          <div style={cardStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ ...headingStyle, marginBottom: 0, borderBottom: 'none' }}>Performance Goals</h3>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button 
-                  type="button"
-                  onClick={handleAddGoal}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '8px 12px',
-                    backgroundColor: '#10b981',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '0.875rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <FaPlus /> Add Goal
-                </button>
-                
-                <button 
-                  type="button"
-                  onClick={() => navigate(`/goals/review/${id}`)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '8px 12px',
-                    backgroundColor: '#6366f1',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '0.875rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <FaExternalLinkAlt /> Advanced Goal Tracking
-                </button>
+          
+          <div className="modal-body">
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="checkin-date">Check-In Date</label>
+                <input
+                  id="checkin-date"
+                  type="date"
+                  name="date"
+                  value={checkInData.date}
+                  onChange={handleCheckInInputChange}
+                  className="form-control"
+                />
               </div>
             </div>
             
-            {formData.goals.length === 0 ? (
-              <div style={{
-                padding: '20px',
-                backgroundColor: '#f9fafb',
-                borderRadius: '4px',
-                textAlign: 'center',
-                color: '#6b7280'
-              }}>
-                <p>No goals have been added yet. Click "Add Goal" to get started.</p>
+            <div className="form-group">
+              <label htmlFor="manager-comments">Manager Comments</label>
+              <textarea
+                id="manager-comments"
+                name="managerComments"
+                value={checkInData.managerComments}
+                onChange={handleCheckInInputChange}
+                className="form-control"
+                rows="3"
+                placeholder="Provide feedback on progress and performance this month..."
+              />
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="employee-comments">Employee Comments (Optional)</label>
+              <textarea
+                id="employee-comments"
+                name="employeeComments"
+                value={checkInData.employeeComments}
+                onChange={handleCheckInInputChange}
+                className="form-control"
+                rows="3"
+                placeholder="Employee can add comments on their progress..."
+              />
+            </div>
+            
+            {/* Goals Progress Update */}
+            {checkInData.goals && checkInData.goals.length > 0 && (
+              <div className="checkin-section">
+                <h3>Goal Progress Updates</h3>
+                
+                <div className="checkin-goals">
+                  {checkInData.goals.map((goal, index) => (
+                    <div key={goal._id} className="checkin-goal-item">
+                      <div className="goal-header">
+                        <h4>{goal.title}</h4>
+                        <span className={getStatusBadgeClass(goal.status)}>
+                          {goal.status || 'Not Started'}
+                        </span>
+                      </div>
+                      
+                      <div className="goal-progress-update">
+                        <label>Current Progress: {goal.progress}%</label>
+                        <input
+                          type="range"
+                          value={goal.progress}
+                          onChange={(e) => handleCheckInGoalUpdate(index, 'progress', e.target.value)}
+                          min="0"
+                          max="100"
+                          step="5"
+                          className="progress-slider"
+                        />
+                      </div>
+                      
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>Status:</label>
+                          <select
+                            value={goal.status}
+                            onChange={(e) => handleCheckInGoalUpdate(index, 'status', e.target.value)}
+                            className="form-control"
+                          >
+                            <option value="Not Started">Not Started</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                            <option value="At Risk">At Risk</option>
+                          </select>
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Notes on progress:</label>
+                          <input
+                            type="text"
+                            value={goal.notes || ''}
+                            onChange={(e) => handleCheckInGoalUpdate(index, 'notes', e.target.value)}
+                            className="form-control"
+                            placeholder="Notes on progress..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {formData.goals.map((goal, index) => (
-                  <div 
-                    key={index} 
-                    style={{
-                      padding: '15px',
-                      backgroundColor: '#f9fafb',
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <h4 style={{ margin: 0, fontSize: '1rem' }}>{goal.title}</h4>
-                      <span style={getStatusBadgeClass(goal.status)}>{goal.status || 'Not Started'}</span>
-                    </div>
-                    
-                    {goal.description && (
-                      <p style={{ margin: '5px 0', color: '#4b5563' }}>{goal.description}</p>
-                    )}
-                    
-                    <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', margin: '10px 0' }}>
-                      {goal.targetDate && (
-                        <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                          <strong>Target Date:</strong> {formatDate(goal.targetDate)}
-                        </div>
-                      )}
+            )}
+            
+            {/* KPIs Update */}
+            {checkInData.kpis && checkInData.kpis.length > 0 && (
+              <div className="checkin-section">
+                <h3>KPI Updates</h3>
+                
+                <div className="checkin-kpis">
+                  {checkInData.kpis.map((kpi, index) => (
+                    <div key={kpi._id} className="checkin-kpi-item">
+                      <h4>{kpi.title}</h4>
+                      <div className="kpi-target">{kpi.target}</div>
                       
-                      {goal.linkedKpi && (
-                        <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                          <strong>Linked KPI:</strong> {getKpiName(goal.linkedKpi)}
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>Current Value:</label>
+                          <input
+                            type="text"
+                            value={kpi.currentValue || ''}
+                            onChange={(e) => handleKpiValueChange(index, 'currentValue', e.target.value)}
+                            className="form-control"
+                            placeholder="Current achievement..."
+                          />
                         </div>
-                      )}
-                    </div>
-                    
-                    {/* Progress bar */}
-                    <div style={{ marginTop: '10px' }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        fontSize: '0.875rem', 
-                        color: '#6b7280',
-                        marginBottom: '5px'
-                      }}>
-                        <span>Progress: {goal.progress || 0}%</span>
+                        
+                        <div className="form-group">
+                          <label>Status:</label>
+                          <select
+                            value={kpi.status || 'In Progress'}
+                            onChange={(e) => handleKpiValueChange(index, 'status', e.target.value)}
+                            className="form-control"
+                          >
+                            <option value="On Track">On Track</option>
+                            <option value="At Risk">At Risk</option>
+                            <option value="Behind">Behind</option>
+                            <option value="Achieved">Achieved</option>
+                          </select>
+                        </div>
                       </div>
-                      <div style={{ 
-                        height: '8px', 
-                        backgroundColor: '#e5e7eb', 
-                        borderRadius: '4px',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{ 
-                          height: '100%', 
-                          width: `${goal.progress || 0}%`,
-                          backgroundColor: 
-                            goal.status === 'Completed' ? '#10b981' :
-                            goal.status === 'At Risk' ? '#f59e0b' :
-                            '#3b82f6',
-                          borderRadius: '4px'
-                        }}></div>
-                      </div>
-                    </div>
-                    
-                    {goal.notes && (
-                      <div style={{ marginTop: '10px', fontSize: '0.875rem', color: '#6b7280' }}>
-                        <strong>Notes:</strong> {goal.notes}
-                      </div>
-                    )}
-                    
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                      <button 
-                        type="button"
-                        onClick={() => handleEditGoal(goal, index)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          padding: '6px 10px',
-                          backgroundColor: '#3b82f6',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          fontSize: '0.75rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <FaEdit /> Edit
-                      </button>
                       
-                      <button 
-                        type="button"
-                        onClick={() => handleDeleteGoal(index)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          padding: '6px 10px',
-                          backgroundColor: '#ef4444',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          fontSize: '0.75rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <FaTrash /> Delete
-                      </button>
+                      <div className="form-group">
+                        <label>Notes:</label>
+                        <input
+                          type="text"
+                          value={kpi.notes || ''}
+                          onChange={(e) => handleKpiValueChange(index, 'notes', e.target.value)}
+                          className="form-control"
+                          placeholder="Notes on KPI progress..."
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </div>
-        )}
-
-        {/* Comments Section */}
-        <div style={cardStyle}>
-          <h3 style={headingStyle}>Additional Comments</h3>
-          <textarea
-            name="comments"
-            value={formData.comments || ''}
-            onChange={handleInputChange}
-            rows="4"
-            placeholder="Any additional comments about the employee's performance..."
-            style={inputStyle}
-          ></textarea>
+          
+          <div className="modal-footer">
+            <button
+              type="button"
+              className="cancel-button"
+              onClick={() => setShowCheckInModal(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="save-button"
+              onClick={handleMonthlyCheckIn}
+              disabled={submitting}
+            >
+              {submitting ? 'Saving...' : 'Record Check-In'}
+            </button>
+          </div>
         </div>
-
-        {/* Action Buttons */}
-        <div style={{
-          display: 'flex',
-          gap: '10px',
-          marginTop: '20px',
-          alignItems: 'center'
-        }}>
-          <button 
-            type="submit" 
-            style={{ 
-              padding: '10px 20px',
-              backgroundColor: '#5a189a',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              fontWeight: '500'
-            }}
-          >
-            <FaSave /> Save
-          </button>
-          <button 
-            type="button" 
-            onClick={handleComplete} 
-            style={{ 
-              padding: '10px 20px',
-              backgroundColor: '#4caf50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              fontWeight: '500'
-            }}
-          >
-            <FaCheck /> Complete Review
-          </button>
-          <button 
-            type="button" 
-            onClick={() => navigate('/pending-reviews')} 
-            style={{ 
-              padding: '10px 20px',
-              backgroundColor: '#f5f5f5',
-              color: '#333',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              fontWeight: '500'
-            }}
-          >
-            <FaTimes /> Cancel
-          </button>
-          {renderSaveStatus()}
-        </div>
-      </form>
+      </div>
     );
   };
-
-  // Safe user data to prevent undefined undefined
-  const safeUser = user || {
-    firstName: '',
-    lastName: '',
-    role: user?.role || 'employee'
+  
+  // Render previous check-ins
+  const renderProgressHistory = () => {
+    if (!reviewData.progressSnapshots || reviewData.progressSnapshots.length === 0) {
+      return (
+        <div className="empty-history">
+          <p>No check-ins recorded yet. Use the "Monthly Check-In" button to record progress.</p>
+        </div>
+      );
+    }
+    
+    // Sort snapshots by date, most recent first
+    const sortedSnapshots = [...reviewData.progressSnapshots].sort((a, b) => 
+      new Date(b.date) - new Date(a.date)
+    );
+    
+    return (
+      <div className="progress-history">
+        {sortedSnapshots.map((snapshot, index) => (
+          <div key={index} className="progress-snapshot">
+            <div className="snapshot-header">
+              <h4>Check-In: {formatDate(snapshot.date)}</h4>
+            </div>
+            
+            <div className="snapshot-comments">
+              <div className="manager-comments">
+                <strong>Manager Comments:</strong>
+                <p>{snapshot.managerComments || 'No comments provided'}</p>
+              </div>
+              
+              {snapshot.employeeComments && (
+                <div className="employee-comments">
+                  <strong>Employee Comments:</strong>
+                  <p>{snapshot.employeeComments}</p>
+                </div>
+              )}
+            </div>
+            
+            {snapshot.goals && snapshot.goals.length > 0 && (
+              <div className="snapshot-goals">
+                <h5>Goals Progress</h5>
+                <div className="snapshot-goals-grid">
+                  {snapshot.goals.map((goal, idx) => (
+                    <div key={idx} className="snapshot-goal">
+                      <div className="snapshot-goal-header">
+                        <span className="goal-title">{goal.title}</span>
+                        <span className={getStatusBadgeClass(goal.status)}>
+                          {goal.status}
+                        </span>
+                      </div>
+                      <div className="progress-bar-container">
+                        <div 
+                          className="progress-bar" 
+                          style={{ width: `${goal.progress}%` }}
+                        ></div>
+                        <span className="progress-text">{goal.progress}%</span>
+                      </div>
+                      {goal.notes && <div className="goal-notes">{goal.notes}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {snapshot.kpis && snapshot.kpis.length > 0 && (
+              <div className="snapshot-kpis">
+                <h5>KPI Updates</h5>
+                <div className="snapshot-kpis-grid">
+                  {snapshot.kpis.map((kpi, idx) => (
+                    <div key={idx} className="snapshot-kpi">
+                      <div className="snapshot-kpi-header">
+                        <span className="kpi-title">{kpi.title}</span>
+                        <span className={`kpi-status-badge ${kpi.status?.toLowerCase().replace(' ', '-')}`}>
+                          {kpi.status}
+                        </span>
+                      </div>
+                      <div className="kpi-values">
+                        <div><strong>Target:</strong> {kpi.target}</div>
+                        <div><strong>Current:</strong> {kpi.currentValue || 'Not recorded'}</div>
+                      </div>
+                      {kpi.notes && <div className="kpi-notes">{kpi.notes}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
   };
   
-  console.log("Current user data:", safeUser);
-
+  // Render main component UI
+  if (loading) {
+    return (
+      <SidebarLayout user={user}>
+        <div className="loading-container">
+          <p>Loading review data...</p>
+        </div>
+      </SidebarLayout>
+    );
+  }
+  
+  if (error) {
+    return (
+      <SidebarLayout user={user}>
+        <div className="error-container">
+          <p>{error}</p>
+          <button onClick={() => navigate('/reviews')}>Back to Reviews</button>
+        </div>
+      </SidebarLayout>
+    );
+  }
+  
   return (
-    <SidebarLayout 
-      user={safeUser} 
-      activeView="my-reviews"
-    >
-      <div style={{ 
-        padding: '20px',
-        maxWidth: '1000px',
-        margin: '0 auto',
-        backgroundColor: '#f9f9f9',
-        minHeight: 'calc(100vh - 40px)'
-      }}>
-        <div style={{ 
-          marginBottom: '20px', 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center' 
-        }}>
-          <h1 style={{ margin: 0, color: '#333', fontSize: '1.8rem' }}>Review Editor</h1>
+    <SidebarLayout user={user}>
+      <div className="review-container">
+        <div className="review-header">
           <button 
-            onClick={() => navigate('/pending-reviews')}
-            style={{ 
-              padding: '8px 16px', 
-              backgroundColor: '#f5f5f5',
-              color: '#333',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
+            className="back-button"
+            onClick={() => navigate('/reviews')}
           >
-            <FaArrowLeft /> Back to Pending Reviews
+            <FaArrowLeft /> Back to Reviews
           </button>
+          
+          <div className="review-title">
+            <h1>
+              {reviewData.reviewType} Review: {reviewData.employee?.firstName} {reviewData.employee?.lastName}
+            </h1>
+            <div className="review-meta">
+              <span className={`status-badge ${reviewData.status.toLowerCase()}`}>
+                {reviewData.status}
+              </span>
+              <span className="review-period">
+                {formatDate(reviewData.reviewPeriod?.start)} - {formatDate(reviewData.reviewPeriod?.end)}
+              </span>
+              {reviewData.nextCheckInDate && (
+                <span className="next-checkin">
+                  Next check-in: {formatDate(reviewData.nextCheckInDate)}
+                </span>
+              )}
+            </div>
+          </div>
+          
+          <div className="review-actions">
+            {reviewData.status !== 'Completed' && reviewData.status !== 'Acknowledged' && (
+              <>
+                <button
+                  className="save-button"
+                  onClick={handleSaveReview}
+                  disabled={submitting}
+                >
+                  <FaSave /> {submitting ? 'Saving...' : 'Save'}
+                </button>
+                
+                <button
+                  className="month-checkin-button"
+                  onClick={handleOpenCheckInModal}
+                  disabled={submitting}
+                >
+                  <FaCalendarCheck /> Monthly Check-In
+                </button>
+                
+                {reviewData.status === 'Draft' && (
+                  <button
+                    className="submit-button"
+                    onClick={handleSubmitReview}
+                    disabled={submitting}
+                  >
+                    <FaCheck /> Submit Review
+                  </button>
+                )}
+                
+                {reviewData.status === 'InProgress' && (
+                  <button
+                    className="complete-button"
+                    onClick={handleCompleteReview}
+                    disabled={submitting}
+                  >
+                    <FaCheck /> Complete Review Cycle
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
         
-        {content()}
-        {renderGoalModal()}
+        <div className="review-content">
+          <div className="review-tabs">
+            <button 
+              className={`tab-button ${activeTab === 'questions' ? 'active' : ''}`}
+              onClick={() => setActiveTab('questions')}
+            >
+              Review Questions
+            </button>
+            <button 
+              className={`tab-button ${activeTab === 'goals' ? 'active' : ''}`}
+              onClick={() => setActiveTab('goals')}
+            >
+              Goals Tracking
+            </button>
+            <button 
+              className={`tab-button ${activeTab === 'kpis' ? 'active' : ''}`}
+              onClick={() => setActiveTab('kpis')}
+            >
+              KPIs
+            </button>
+            <button 
+              className={`tab-button ${activeTab === 'history' ? 'active' : ''}`}
+              onClick={() => setActiveTab('history')}
+            >
+              Check-In History
+            </button>
+          </div>
+          
+          {/* Questions Tab */}
+          {activeTab === 'questions' && (
+            <div className="questions-tab">
+              {reviewData.sections.map((section, sectionIndex) => (
+                <div key={sectionIndex} className="review-section">
+                  <h2 className="section-title">{section.title}</h2>
+                  {section.description && (
+                    <p className="section-description">{section.description}</p>
+                  )}
+                  
+                  <div className="section-questions">
+                    {section.questions.map((question, questionIndex) => (
+                      <div key={questionIndex} className="question-item">
+                        <label className="question-text">
+                          {question.text}
+                          {question.required && <span className="required">*</span>}
+                        </label>
+                        
+                        {question.type === 'text' && (
+                          <textarea
+                            value={question.response || ''}
+                            onChange={(e) => handleInputChange(e, sectionIndex, questionIndex)}
+                            className="question-response"
+                            rows="3"
+                            disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                          />
+                        )}
+                        
+                        {question.type === 'rating' && (
+                          <div className="rating-input">
+                            {[1, 2, 3, 4, 5].map((rating) => (
+                              <label key={rating} className="rating-label">
+                                <input
+                                  type="radio"
+                                  name={`question-${sectionIndex}-${questionIndex}`}
+                                  value={rating}
+                                  checked={question.response === rating.toString()}
+                                  onChange={(e) => handleInputChange(e, sectionIndex, questionIndex)}
+                                  disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                                />
+                                {rating}
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {question.type === 'yesno' && (
+                          <div className="yesno-input">
+                            <label className="yesno-label">
+                              <input
+                                type="radio"
+                                name={`question-${sectionIndex}-${questionIndex}`}
+                                value="Yes"
+                                checked={question.response === 'Yes'}
+                                onChange={(e) => handleInputChange(e, sectionIndex, questionIndex)}
+                                disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                              />
+                              Yes
+                            </label>
+                            <label className="yesno-label">
+                              <input
+                                type="radio"
+                                name={`question-${sectionIndex}-${questionIndex}`}
+                                value="No"
+                                checked={question.response === 'No'}
+                                onChange={(e) => handleInputChange(e, sectionIndex, questionIndex)}
+                                disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                              />
+                              No
+                            </label>
+                          </div>
+                        )}
+                        
+                        {question.type === 'multiple-choice' && (
+                          <select
+                            value={question.response || ''}
+                            onChange={(e) => handleInputChange(e, sectionIndex, questionIndex)}
+                            className="question-response select"
+                            disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                          >
+                            <option value="">-- Select an option --</option>
+                            {question.options.map((option, optionIndex) => (
+                              <option key={optionIndex} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              
+              <div className="review-section ratings-section">
+                <h2 className="section-title">Performance Ratings</h2>
+                
+                <div className="ratings-grid">
+                  <div className="rating-item">
+                    <label>Overall Performance</label>
+                    <div className="rating-input">
+                      {[1, 2, 3, 4, 5].map((rating) => (
+                        <label key={rating} className="rating-label">
+                          <input
+                            type="radio"
+                            name="overallRating"
+                            value={rating}
+                            checked={reviewData.ratings?.overallRating === rating}
+                            onChange={(e) => handleRatingChange(e, 'overallRating')}
+                            disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                          />
+                          {rating}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="rating-item">
+                    <label>Communication</label>
+                    <div className="rating-input">
+                      {[1, 2, 3, 4, 5].map((rating) => (
+                        <label key={rating} className="rating-label">
+                          <input
+                            type="radio"
+                            name="communicationRating"
+                            value={rating}
+                            checked={reviewData.ratings?.communicationRating === rating}
+                            onChange={(e) => handleRatingChange(e, 'communicationRating')}
+                            disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                          />
+                          {rating}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="rating-item">
+                    <label>Teamwork</label>
+                    <div className="rating-input">
+                      {[1, 2, 3, 4, 5].map((rating) => (
+                        <label key={rating} className="rating-label">
+                          <input
+                            type="radio"
+                            name="teamworkRating"
+                            value={rating}
+                            checked={reviewData.ratings?.teamworkRating === rating}
+                            onChange={(e) => handleRatingChange(e, 'teamworkRating')}
+                            disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                          />
+                          {rating}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="rating-item">
+                    <label>Technical Skills</label>
+                    <div className="rating-input">
+                      {[1, 2, 3, 4, 5].map((rating) => (
+                        <label key={rating} className="rating-label">
+                          <input
+                            type="radio"
+                            name="technicalSkillsRating"
+                            value={rating}
+                            checked={reviewData.ratings?.technicalSkillsRating === rating}
+                            onChange={(e) => handleRatingChange(e, 'technicalSkillsRating')}
+                            disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                          />
+                          {rating}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="rating-item">
+                    <label>Leadership</label>
+                    <div className="rating-input">
+                      {[1, 2, 3, 4, 5].map((rating) => (
+                        <label key={rating} className="rating-label">
+                          <input
+                            type="radio"
+                            name="leadershipRating"
+                            value={rating}
+                            checked={reviewData.ratings?.leadershipRating === rating}
+                            onChange={(e) => handleRatingChange(e, 'leadershipRating')}
+                            disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                          />
+                          {rating}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="review-section feedback-section">
+                <h2 className="section-title">Feedback</h2>
+                
+                <div className="feedback-form">
+                  <div className="form-group">
+                    <label htmlFor="strengths">Strengths</label>
+                    <textarea
+                      id="strengths"
+                      value={reviewData.feedback?.strengths || ''}
+                      onChange={(e) => handleFeedbackChange(e, 'strengths')}
+                      className="form-control"
+                      rows="4"
+                      placeholder="Describe the employee's key strengths and accomplishments..."
+                      disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="areasForImprovement">Areas for Improvement</label>
+                    <textarea
+                      id="areasForImprovement"
+                      value={reviewData.feedback?.areasForImprovement || ''}
+                      onChange={(e) => handleFeedbackChange(e, 'areasForImprovement')}
+                      className="form-control"
+                      rows="4"
+                      placeholder="Describe areas where the employee can improve..."
+                      disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="comments">Additional Comments</label>
+                    <textarea
+                      id="comments"
+                      value={reviewData.feedback?.comments || ''}
+                      onChange={(e) => handleFeedbackChange(e, 'comments')}
+                      className="form-control"
+                      rows="4"
+                      placeholder="Any additional comments or feedback..."
+                      disabled={reviewData.status === 'Completed' || reviewData.status === 'Acknowledged'}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Goals Tab */}
+          {activeTab === 'goals' && (
+            <div className="goals-tab">
+              <div className="goals-header">
+                <h2 className="tab-title">Goals</h2>
+                
+                {reviewData.status !== 'Completed' && reviewData.status !== 'Acknowledged' && (
+                  <div className="goals-actions">
+                    <button 
+                      className="add-goal-button"
+                      onClick={handleAddGoal}
+                    >
+                      <FaPlus /> Add Goal
+                    </button>
+                    
+                    <button 
+                      className="advanced-tracking-button"
+                      onClick={() => navigate(`/goals/tracking/${reviewId}`)}
+                    >
+                      <FaChartLine /> Advanced Goal Tracking
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              {(!reviewData.goals || reviewData.goals.length === 0) ? (
+                <div className="empty-goals">
+                  <p>No goals have been set for this review period.</p>
+                  {reviewData.status !== 'Completed' && reviewData.status !== 'Acknowledged' && (
+                    <p>Click "Add Goal" to set goals for this employee.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="goals-grid">
+                  {reviewData.goals.map(goal => (
+                    <div key={goal._id} className="goal-card">
+                      <div className="goal-header">
+                        <h3 className="goal-title">{goal.title}</h3>
+                        <span className={getStatusBadgeClass(goal.status)}>
+                          {goal.status || 'Not Started'}
+                        </span>
+                      </div>
+                      
+                      <p className="goal-description">{goal.description}</p>
+                      
+                      <div className="goal-meta">
+                        <div className="goal-date">
+                          <strong>Target:</strong> {formatDate(goal.targetDate)}
+                        </div>
+                        {goal.linkedKpi && (
+                          <div className="goal-kpi">
+                            <strong>KPI:</strong> {typeof goal.linkedKpi === 'object' ? goal.linkedKpi.title : getKpiName(goal.linkedKpi)}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="goal-progress-container">
+                        <div 
+                          className="goal-progress-bar" 
+                          style={{ 
+                            width: `${goal.progress}%`,
+                            backgroundColor: 
+                              goal.status === 'Completed' ? '#4caf50' : 
+                              goal.status === 'At Risk' ? '#ff9800' : 
+                              goal.progress < 30 ? '#ff5722' : 
+                              goal.progress < 70 ? '#2196f3' : '#4caf50'
+                          }}
+                        ></div>
+                      </div>
+                      <div className="goal-progress-text">{goal.progress}% complete</div>
+                      
+                      {goal.notes && (
+                        <div className="goal-notes">
+                          <strong>Notes:</strong> {goal.notes}
+                        </div>
+                      )}
+                      
+                      {reviewData.status !== 'Completed' && reviewData.status !== 'Acknowledged' && (
+                        <div className="goal-actions">
+                          <button 
+                            className="edit-button"
+                            onClick={() => handleEditGoal(goal)}
+                          >
+                            <FaEdit /> Edit
+                          </button>
+                          <button 
+                            className="delete-button"
+                            onClick={() => handleDeleteGoal(goal)}
+                          >
+                            <FaTrash /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* KPIs Tab */}
+          {activeTab === 'kpis' && (
+            <div className="kpis-tab">
+              <div className="kpis-header">
+                <h2 className="tab-title">Key Performance Indicators</h2>
+                
+                {reviewData.status !== 'Completed' && reviewData.status !== 'Acknowledged' && (
+                  <div className="kpis-actions">
+                    <button 
+                      className="manage-kpis-button"
+                      onClick={() => navigate('/kpis')}
+                    >
+                      <FaChartLine /> Manage KPIs
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              {kpis.length === 0 ? (
+                <div className="empty-kpis">
+                  <p>No KPIs have been defined yet.</p>
+                  {reviewData.status !== 'Completed' && reviewData.status !== 'Acknowledged' && (
+                    <p>Click "Manage KPIs" to set up KPIs for tracking.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="kpis-grid">
+                  {kpis.map(kpi => (
+                    <div key={kpi._id} className="kpi-card">
+                      <h3 className="kpi-title">{kpi.title}</h3>
+                      <div className="kpi-category">{kpi.category}</div>
+                      <div className="kpi-target">{kpi.target}</div>
+                      
+                      {kpi.description && (
+                        <div className="kpi-description">{kpi.description}</div>
+                      )}
+                      
+                      <div className="kpi-meta">
+                        <div>Frequency: {kpi.frequency}</div>
+                        {kpi.department && (
+                          <div>Department: {typeof kpi.department === 'object' ? kpi.department.name : 'Department'}</div>
+                        )}
+                      </div>
+                      
+                      {/* Show latest value if available in progress snapshots */}
+                      {reviewData.progressSnapshots && reviewData.progressSnapshots.length > 0 && (
+                        reviewData.progressSnapshots[0].kpis && 
+                        reviewData.progressSnapshots[0].kpis.find(k => k.kpiId === kpi._id) && (
+                          <div className="kpi-current-value">
+                            <div className="current-value">
+                              <strong>Current Value:</strong> {
+                                reviewData.progressSnapshots[0].kpis.find(k => k.kpiId === kpi._id).currentValue || 'Not recorded'
+                              }
+                            </div>
+                            <div className="kpi-status">
+                              <strong>Status:</strong> {
+                                reviewData.progressSnapshots[0].kpis.find(k => k.kpiId === kpi._id).status || 'Not evaluated'
+                              }
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Check-In History Tab */}
+          {activeTab === 'history' && (
+            <div className="history-tab">
+              <div className="history-header">
+                <h2 className="tab-title">Monthly Check-In History</h2>
+              </div>
+              
+              {renderProgressHistory()}
+            </div>
+          )}
+        </div>
       </div>
+      
+      {/* Modals */}
+      {renderGoalModal()}
+      {renderCheckInModal()}
     </SidebarLayout>
   );
 }

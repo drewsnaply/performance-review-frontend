@@ -9,6 +9,7 @@ import PendingReviews from './components/PendingReviews';
 import ViewEvaluation from './components/ViewEvaluation';
 import TemplateBuilder from './components/TemplateBuilder';
 import MonthlyGoalTracking from './components/MonthlyGoalTracking';
+import KpiManager from './components/KpiManager';
 
 // Import pages
 import Login from './pages/Login';
@@ -47,7 +48,8 @@ const TitleUpdater = () => {
         '/import-tool': 'Import Tool',
         '/export-tool': 'Export Tool',
         '/pending-reviews': 'Pending Reviews',
-        '/goals': 'Monthly Goal Tracking'
+        '/goals': 'Monthly Goal Tracking',
+        '/kpis': 'KPI Management'
       };
 
       // Check if path is an employee profile page
@@ -236,6 +238,16 @@ function App() {
               element={
                 <PrivateRoute>
                   <MonthlyGoalTracking />
+                </PrivateRoute>
+              }
+            />
+            
+            {/* New route for KPI management */}
+            <Route
+              path="/kpis"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin']}>
+                  <KpiManager />
                 </PrivateRoute>
               }
             />
