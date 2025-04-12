@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/ReviewTemplates.css';
 
@@ -24,6 +24,10 @@ function ReviewTemplates() {
   });
   const navigate = useNavigate();
   
+  // Request tracking to prevent duplicate API calls
+  const isRequestPendingRef = useRef(false);
+  const timeoutRef = useRef(null);
+  
   // Get completed review ID from session storage for client-side status tracking
   const completedReviewId = sessionStorage.getItem('completedReviewId');
   
@@ -32,17 +36,42 @@ function ReviewTemplates() {
     ? 'http://localhost:5000' 
     : 'https://performance-review-backend-ab8z.onrender.com';
 
-  // Fetch appropriate data when active tab changes
+  // Initial data fetch on component mount
   useEffect(() => {
-    if (activeTab === 'templates') {
-      fetchTemplates();
-    } else if (activeTab === 'assignments') {
-      fetchAssignments();
-    }
+    let isMounted = true;
     
-    // Cleanup function to ensure we never leave the component with loading=true
+    const fetchInitialData = async () => {
+      if (isRequestPendingRef.current) return;
+      
+      isRequestPendingRef.current = true;
+      
+      try {
+        if (activeTab === 'templates') {
+          await fetchTemplates();
+        } else if (activeTab === 'assignments') {
+          await fetchAssignments();
+        }
+      } catch (err) {
+        console.error('Error during initial data fetch:', err);
+      } finally {
+        if (isMounted) {
+          isRequestPendingRef.current = false;
+        }
+      }
+    };
+    
+    fetchInitialData();
+    
+    // Cleanup function
     return () => {
+      isMounted = false;
       setLoading(false);
+      
+      // Clear any pending timeouts
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     };
   }, [activeTab]);
 
@@ -55,15 +84,24 @@ function ReviewTemplates() {
 
   // Fetch templates with timeout safeguard
   const fetchTemplates = async () => {
+    // If a request is already in progress, don't start a new one
+    if (isRequestPendingRef.current) return;
+    
     try {
       setLoading(true);
+      isRequestPendingRef.current = true;
       
       // Set a timeout to prevent infinite loading
-      const loadingTimeoutId = setTimeout(() => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      timeoutRef.current = setTimeout(() => {
         console.log('Template loading timeout triggered');
         if (loading) {
           setLoading(false);
           setError('Request timed out. Please try again.');
+          isRequestPendingRef.current = false;
         }
       }, 10000);
       
@@ -76,7 +114,8 @@ function ReviewTemplates() {
       });
       
       // Clear the timeout since we got a response
-      clearTimeout(loadingTimeoutId);
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
       
       if (!response.ok) {
         throw new Error(`Failed to fetch templates (Status: ${response.status})`);
@@ -96,20 +135,38 @@ function ReviewTemplates() {
       setLoading(false);
       // Provide an empty array to ensure the component can render properly
       setTemplates([]);
+    } finally {
+      // Always reset the isRequestPending flag when the request completes
+      isRequestPendingRef.current = false;
+      
+      // Clear any remaining timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     }
   };
 
   // Fetch assignments with timeout safeguard
   const fetchAssignments = async () => {
+    // If a request is already in progress, don't start a new one
+    if (isRequestPendingRef.current) return;
+    
     try {
       setLoading(true);
+      isRequestPendingRef.current = true;
       
       // Set a timeout to prevent infinite loading
-      const loadingTimeoutId = setTimeout(() => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      timeoutRef.current = setTimeout(() => {
         console.log('Assignments loading timeout triggered');
         if (loading) {
           setLoading(false);
           setError('Request timed out. Please try again.');
+          isRequestPendingRef.current = false;
         }
       }, 10000);
       
@@ -122,7 +179,8 @@ function ReviewTemplates() {
       });
       
       // Clear the timeout since we got a response
-      clearTimeout(loadingTimeoutId);
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
       
       if (!response.ok) {
         throw new Error(`Failed to fetch assignments (Status: ${response.status})`);
@@ -159,6 +217,15 @@ function ReviewTemplates() {
       setLoading(false);
       // Provide an empty array to ensure the component can render properly
       setAssignments([]);
+    } finally {
+      // Always reset the isRequestPending flag when the request completes
+      isRequestPendingRef.current = false;
+      
+      // Clear any remaining timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     }
   };
 
