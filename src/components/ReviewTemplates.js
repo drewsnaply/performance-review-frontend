@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/ReviewTemplates.css';
+import ApiService from '../ApiService';
 
 function ReviewTemplates() {
   const [activeTab, setActiveTab] = useState('templates');
@@ -24,56 +25,71 @@ function ReviewTemplates() {
   });
   const navigate = useNavigate();
   
-  // Request tracking to prevent duplicate API calls
-  const isRequestPendingRef = useRef(false);
-  const timeoutRef = useRef(null);
-  
   // Get completed review ID from session storage for client-side status tracking
   const completedReviewId = sessionStorage.getItem('completedReviewId');
-  
-  // API base URL
-  const API_BASE_URL = process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:5000' 
-    : 'https://performance-review-backend-ab8z.onrender.com';
 
-  // Initial data fetch on component mount
+  // Fetch appropriate data when active tab changes
   useEffect(() => {
     let isMounted = true;
     
-    const fetchInitialData = async () => {
-      if (isRequestPendingRef.current) return;
-      
-      isRequestPendingRef.current = true;
-      
+    const fetchData = async () => {
       try {
+        setLoading(true);
+        
         if (activeTab === 'templates') {
-          await fetchTemplates();
+          const data = await ApiService.get('/api/templates');
+          if (isMounted) {
+            setTemplates(Array.isArray(data) ? data : []);
+            setError(null);
+          }
         } else if (activeTab === 'assignments') {
-          await fetchAssignments();
+          const data = await ApiService.get('/api/templates/assignments');
+          if (isMounted) {
+            // Update assignment status if it matches the completed review ID
+            if (completedReviewId && Array.isArray(data)) {
+              const updatedAssignments = data.map(assignment => {
+                if (assignment._id === completedReviewId || 
+                    assignment.createdReview === completedReviewId) {
+                  return {
+                    ...assignment,
+                    status: 'Completed'
+                  };
+                }
+                return assignment;
+              });
+              
+              setAssignments(updatedAssignments);
+            } else {
+              setAssignments(Array.isArray(data) ? data : []);
+            }
+            setError(null);
+          }
         }
       } catch (err) {
-        console.error('Error during initial data fetch:', err);
+        console.error(`Error fetching ${activeTab}:`, err);
+        if (isMounted) {
+          setError(err.message || `An error occurred while fetching ${activeTab}`);
+          // Set empty arrays to ensure the component can render properly
+          if (activeTab === 'templates') {
+            setTemplates([]);
+          } else {
+            setAssignments([]);
+          }
+        }
       } finally {
         if (isMounted) {
-          isRequestPendingRef.current = false;
+          setLoading(false);
         }
       }
     };
     
-    fetchInitialData();
+    fetchData();
     
     // Cleanup function
     return () => {
       isMounted = false;
-      setLoading(false);
-      
-      // Clear any pending timeouts
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
     };
-  }, [activeTab]);
+  }, [activeTab, completedReviewId]);
 
   // Fetch employees when assignment form is shown
   useEffect(() => {
@@ -82,168 +98,24 @@ function ReviewTemplates() {
     }
   }, [showAssignmentForm]);
 
-  // Fetch templates with timeout safeguard
-  const fetchTemplates = async () => {
-    // If a request is already in progress, don't start a new one
-    if (isRequestPendingRef.current) return;
-    
-    try {
-      setLoading(true);
-      isRequestPendingRef.current = true;
-      
-      // Set a timeout to prevent infinite loading
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      
-      timeoutRef.current = setTimeout(() => {
-        console.log('Template loading timeout triggered');
-        if (loading) {
-          setLoading(false);
-          setError('Request timed out. Please try again.');
-          isRequestPendingRef.current = false;
-        }
-      }, 10000);
-      
-      console.log('Fetching templates from API');
-      const response = await fetch(`${API_BASE_URL}/api/templates`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      // Clear the timeout since we got a response
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch templates (Status: ${response.status})`);
-      }
-      
-      const data = await response.json();
-      console.log('Templates fetched successfully:', data);
-      
-      // Make sure we have an array (even if empty) to avoid rendering issues
-      setTemplates(Array.isArray(data) ? data : []);
-      setError(null);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching templates:', err);
-      setError(err.message || 'An error occurred while fetching templates');
-      // Critical: Always set loading to false, even on error
-      setLoading(false);
-      // Provide an empty array to ensure the component can render properly
-      setTemplates([]);
-    } finally {
-      // Always reset the isRequestPending flag when the request completes
-      isRequestPendingRef.current = false;
-      
-      // Clear any remaining timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    }
+  // Helper function to retry fetching templates
+  const fetchTemplates = () => {
+    setActiveTab('templates');
+    // Force cache reset to get fresh data
+    ApiService.clearCache('/api/templates');
   };
 
-  // Fetch assignments with timeout safeguard
-  const fetchAssignments = async () => {
-    // If a request is already in progress, don't start a new one
-    if (isRequestPendingRef.current) return;
-    
-    try {
-      setLoading(true);
-      isRequestPendingRef.current = true;
-      
-      // Set a timeout to prevent infinite loading
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      
-      timeoutRef.current = setTimeout(() => {
-        console.log('Assignments loading timeout triggered');
-        if (loading) {
-          setLoading(false);
-          setError('Request timed out. Please try again.');
-          isRequestPendingRef.current = false;
-        }
-      }, 10000);
-      
-      console.log('Fetching assignments from API');
-      const response = await fetch(`${API_BASE_URL}/api/templates/assignments`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      // Clear the timeout since we got a response
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch assignments (Status: ${response.status})`);
-      }
-      
-      const data = await response.json();
-      console.log('Assignments fetched successfully:', data);
-      
-      // Update assignment status if it matches the completed review ID
-      if (completedReviewId && Array.isArray(data)) {
-        const updatedAssignments = data.map(assignment => {
-          if (assignment._id === completedReviewId || 
-              assignment.createdReview === completedReviewId) {
-            return {
-              ...assignment,
-              status: 'Completed'
-            };
-          }
-          return assignment;
-        });
-        
-        setAssignments(updatedAssignments);
-      } else {
-        // Make sure we have an array (even if empty) to avoid rendering issues
-        setAssignments(Array.isArray(data) ? data : []);
-      }
-      
-      setError(null);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching assignments:', err);
-      setError(err.message || 'An error occurred while fetching assignments');
-      // Critical: Always set loading to false, even on error
-      setLoading(false);
-      // Provide an empty array to ensure the component can render properly
-      setAssignments([]);
-    } finally {
-      // Always reset the isRequestPending flag when the request completes
-      isRequestPendingRef.current = false;
-      
-      // Clear any remaining timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    }
+  // Helper function to retry fetching assignments
+  const fetchAssignments = () => {
+    setActiveTab('assignments');
+    // Force cache reset to get fresh data
+    ApiService.clearCache('/api/templates/assignments');
   };
 
   // Fetch employees for the assignment form
   const fetchEmployees = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/employees`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch employees');
-      }
-      
-      const data = await response.json();
+      const data = await ApiService.get('/api/employees');
       setEmployees(data);
     } catch (err) {
       console.error('Error fetching employees:', err);
@@ -258,21 +130,10 @@ function ReviewTemplates() {
     }
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/templates/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to delete template (Status: ${response.status})`);
-      }
-      
-      // Refresh the templates list
+      await ApiService.delete(`/api/templates/${id}`);
+      // Clear cache and refresh templates
+      ApiService.clearCache('/api/templates');
       fetchTemplates();
-      
     } catch (err) {
       console.error('Error deleting template:', err);
       setError(err.message || 'An error occurred while deleting the template');
@@ -288,19 +149,7 @@ function ReviewTemplates() {
   // Start new review
   const handleStartReview = async (assignmentId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/templates/assignments/${assignmentId}/start`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to start review (Status: ${response.status})`);
-      }
-      
-      const data = await response.json();
+      const data = await ApiService.post(`/api/templates/assignments/${assignmentId}/start`, {});
       navigate(`/reviews/edit/${data.review._id}`);
     } catch (err) {
       console.error('Error starting review:', err);
@@ -356,18 +205,7 @@ function ReviewTemplates() {
         assignedBy: newAssignment.assignedBy || currentUser._id,
       };
       
-      const response = await fetch(`${API_BASE_URL}/api/templates/assignments`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(assignmentData)
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create assignment');
-      }
+      await ApiService.post('/api/templates/assignments', assignmentData);
       
       // Reset form and fetch updated assignments
       setNewAssignment({
@@ -381,7 +219,11 @@ function ReviewTemplates() {
           end: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0]
         }
       });
+      
       setShowAssignmentForm(false);
+      
+      // Clear cache and refresh assignments
+      ApiService.clearCache('/api/templates/assignments');
       fetchAssignments();
     } catch (err) {
       console.error('Error creating assignment:', err);
