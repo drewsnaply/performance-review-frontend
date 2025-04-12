@@ -51,6 +51,7 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
       '/settings': 'settings',
       '/review-cycles': 'review-cycles',
       '/templates': 'templates',
+      '/kpis': 'kpis',
       '/evaluation-management': 'evaluation-management',
       '/import-tool': 'tools-imports',
       '/export-tool': 'tools-exports'
@@ -209,6 +210,12 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
                   >
                     Templates
                   </button>
+                  <button 
+                    className={currentActiveView === 'kpis' ? 'active' : ''}
+                    onClick={() => navigateTo('/kpis')}
+                  >
+                    KPI Management
+                  </button>
                 </>
               )}
 
@@ -325,6 +332,13 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
                     title="Templates"
                   >
                     📝
+                  </button>
+                  <button 
+                    className={currentActiveView === 'kpis' ? 'active' : ''}
+                    onClick={() => navigateTo('/kpis')}
+                    title="KPI Management"
+                  >
+                    📊
                   </button>
                 </>
               )}

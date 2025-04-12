@@ -11,6 +11,7 @@ const TeamReviews = lazy(() => import('../components/TeamReviews'));
 const Employees = lazy(() => import('./Employees'));
 const ReviewCycles = lazy(() => import('../components/ReviewCycles'));
 const ReviewTemplates = lazy(() => import('../components/ReviewTemplates'));
+const KpiManager = lazy(() => import('../components/KpiManager')); // Add KPI Manager import
 const ImportTool = lazy(() => import('../components/ImportTool'));
 const ExportTool = lazy(() => import('../components/ExportTool'));
 const EvaluationManagement = lazy(() => import('../components/EvaluationManagement'));
@@ -278,6 +279,7 @@ function Dashboard({ initialView = 'dashboard' }) {
       case 'settings': return renderComponent(Settings);
       case 'review-cycles': return renderComponent(ReviewCycles);
       case 'templates': return renderComponent(ReviewTemplates);
+      case 'kpis': return renderComponent(KpiManager); // Added KPI Manager case
       case 'tools-imports': return renderComponent(ImportTool);
       case 'tools-exports': return renderComponent(ExportTool);
       case 'evaluation-management': return renderComponent(EvaluationManagement, { initialActiveTab: "active-evaluations" });
@@ -496,6 +498,15 @@ function Dashboard({ initialView = 'dashboard' }) {
                   onClick={() => setView('templates')}
                 >
                   Templates
+                </button>
+                <button 
+                  className={activeView === 'kpis' ? 'active' : ''}
+                  onClick={() => {
+                    setView('kpis');
+                    navigate('/kpis');
+                  }}
+                >
+                  KPI Management
                 </button>
                 <button 
                   className={activeView === 'evaluation-management' ? 'active' : ''}
