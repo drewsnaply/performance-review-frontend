@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import { useDepartments } from '../context/DepartmentContext';
@@ -31,6 +31,7 @@ function Dashboard({ initialView = 'dashboard' }) {
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingAssignments, setIsFetchingAssignments] = useState(false);
   const navigate = useNavigate();
   const params = useParams();
   
@@ -52,7 +53,7 @@ function Dashboard({ initialView = 'dashboard' }) {
     ? 'http://localhost:5000' 
     : 'https://performance-review-backend-ab8z.onrender.com';
 
-  // Check if we're coming from a completed review
+  // Check if we're coming from a completed review - run only once
   useEffect(() => {
     const locationState = window.history.state?.state;
     const fromPendingWithCompleted = locationState?.completedReview;
@@ -68,13 +69,16 @@ function Dashboard({ initialView = 'dashboard' }) {
         sessionStorage.setItem('completedReviewMetadata', JSON.stringify(reviewMetadata));
       }
     }
-  }, []);
+  }, []); // Empty dependency array to run only once
 
-  // Function to fetch assignments from the API
-  const fetchAssignments = async () => {
+  // Function to fetch assignments from the API - memoized to prevent recreation on every render
+  const fetchAssignments = useCallback(async () => {
+    // Prevent multiple concurrent fetches
+    if (isFetchingAssignments) return;
+    
     try {
       console.log('Fetching assignments from API');
-      setIsLoading(true);
+      setIsFetchingAssignments(true);
       
       const response = await fetch(`${API_BASE_URL}/api/templates/assignments`, {
         headers: {
@@ -158,6 +162,7 @@ function Dashboard({ initialView = 'dashboard' }) {
       });
       
       setIsLoading(false);
+      setIsFetchingAssignments(false);
     } catch (error) {
       console.error('Error fetching assignments:', error);
       
@@ -234,12 +239,15 @@ function Dashboard({ initialView = 'dashboard' }) {
       }
       
       setIsLoading(false);
+      setIsFetchingAssignments(false);
     }
-  };
+  }, [API_BASE_URL, completedReviewId, isFetchingAssignments]);
   
+  // Main initialization effect - combined to reduce multiple state updates
   useEffect(() => {
-    console.log('Dashboard useEffect triggered');
+    console.log('Dashboard main useEffect triggered');
     
+    // Handle user initialization only once when currentUser changes
     if (!currentUser) {
       console.warn('No user found - redirecting to login');
       setIsLoading(false);
@@ -256,179 +264,65 @@ function Dashboard({ initialView = 'dashboard' }) {
     
     setUser(normalizedUser);
     
-    // Fetch assignments from the API
-    fetchAssignments();
-  }, [currentUser, navigate]);
-  
-  // Set initial view based on prop
-  useEffect(() => {
-    setActiveView(initialView);
-  }, [initialView]);
-  
-  // Refetch data when component becomes visible again
-  useEffect(() => {
-    if (activeView === 'dashboard' && user) {
-      fetchAssignments();
+    // Set initial view (if different from current state)
+    if (activeView !== initialView) {
+      setActiveView(initialView);
     }
-  }, [activeView, user]);
+    
+    // Only fetch assignments if we're on the dashboard view
+    if (activeView === 'dashboard') {
+      setIsLoading(true);
+      fetchAssignments();
+    } else {
+      setIsLoading(false);
+    }
+  }, [currentUser, navigate, initialView, activeView, fetchAssignments]);
   
-  const handleLogout = () => {
+  // Calculate active employees count with memoization
+  const activeEmployeesCount = useMemo(() => {
+    return employees.filter(employee => 
+      employee.isActive === true || 
+      employee.status?.toLowerCase() === 'active'
+    ).length;
+  }, [employees]);
+  
+  // Logout handlers
+  const handleLogout = useCallback(() => {
     try {
       logout();
     } catch (error) {
       console.error('Logout failed:', error);
       navigate('/login');
     }
-  };
+  }, [logout, navigate]);
 
-  const confirmLogout = () => setShowLogoutConfirm(true);
-  const cancelLogout = () => setShowLogoutConfirm(false);
-  const proceedLogout = () => handleLogout();
+  const confirmLogout = useCallback(() => setShowLogoutConfirm(true), []);
+  const cancelLogout = useCallback(() => setShowLogoutConfirm(false), []);
+  const proceedLogout = useCallback(() => handleLogout(), [handleLogout]);
   
-  const toggleToolsDropdown = () => {
-    setToolsDropdownOpen(!toolsDropdownOpen);
-  };
+  // Navigation handlers
+  const toggleToolsDropdown = useCallback(() => {
+    setToolsDropdownOpen(prev => !prev);
+  }, []);
 
-  const setView = (view) => {
+  const setView = useCallback((view) => {
     setActiveView(view);
     setToolsDropdownOpen(false);
-  };
+    
+    // If switching to dashboard view, refresh assignments
+    if (view === 'dashboard' && user) {
+      setIsLoading(true);
+      fetchAssignments();
+    }
+  }, [fetchAssignments, user]);
   
-  const handlePendingReviewsClick = () => {
+  const handlePendingReviewsClick = useCallback(() => {
     setActiveView('pending-reviews');
     navigate('/pending-reviews');
-  };
+  }, [navigate]);
   
-  const renderActiveView = () => {
-    console.log('Rendering active view:', activeView);
-    switch (activeView) {
-      case 'my-reviews':
-        return <MyReviews />;
-      case 'team-reviews':
-        return <TeamReviews />;
-      case 'employees':
-        return <Employees />;
-      case 'settings':
-        return <Settings />;
-      case 'review-cycles':
-        return <ReviewCycles />;
-      case 'templates':
-        return <ReviewTemplates />;
-      case 'tools-imports':
-        return <ImportTool />;
-      case 'tools-exports':
-        return <ExportTool />;
-      case 'evaluation-management':
-        return <EvaluationManagement initialActiveTab="active-evaluations" />;
-      case 'evaluation-detail':
-        return <ViewEvaluation />;
-      case 'pending-reviews':
-        return <PendingReviews />;
-      default:
-        return renderDashboardDefault();
-    }
-  };
-
-  const renderDashboardDefault = () => {
-    console.log('Rendering default dashboard view');
-    // Filter for active employees
-    const activeEmployeesCount = employees.filter(employee => 
-      employee.isActive === true || 
-      employee.status?.toLowerCase() === 'active'
-    ).length;
-
-    return (
-      <>
-        <h1 className="page-title">Dashboard Overview</h1>
-        
-        <div className="dashboard-overview">
-          <div 
-            className="overview-card clickable" 
-            onClick={() => setView('employees')}
-          >
-            <h3>Active Employees</h3>
-            <div className="value">{activeEmployeesCount}</div>
-            <div className="status positive">View Employee List</div>
-          </div>
-
-          <div 
-            className="overview-card clickable" 
-            onClick={handlePendingReviewsClick}
-          >
-            <h3>Pending Reviews</h3>
-            <div className="value">{reviewData.pending}</div>
-            <div className="status">Due this month</div>
-          </div>
-          
-          <div 
-            className="overview-card clickable" 
-            onClick={() => setView('my-reviews')}
-          >
-            <h3>Completed Reviews</h3>
-            <div className="value">{reviewData.completed}</div>
-            <div className="status positive">+3 from last cycle</div>
-          </div>
-          
-          <div 
-            className="overview-card clickable" 
-            onClick={() => setView('my-reviews')}
-          >
-            <h3>Upcoming Reviews</h3>
-            <div className="value">{reviewData.upcoming}</div>
-            <div className="status">Starting next month</div>
-          </div>
-        </div>
-        
-        <div className="dashboard-recent">
-          <h2>Recent Reviews</h2>
-          {reviewData.recentReviews.length > 0 ? (
-            <table className="review-list">
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Review Cycle</th>
-                  <th>Due Date</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reviewData.recentReviews.map((review) => (
-                  <tr key={review.id}>
-                    <td className="employee-name">{review.employee}</td>
-                    <td>{review.cycle}</td>
-                    <td>{review.dueDate}</td>
-                    <td>{review.reviewType}</td>
-                    <td>
-                      <span className={`status-badge ${review.status}`}>
-                        {review.status.charAt(0).toUpperCase() + review.status.slice(1)}
-                      </span>
-                    </td>
-                    <td>
-                      <button 
-                        className="action-button"
-                        onClick={() => handleReviewAction(review)}
-                      >
-                        {review.status === 'completed' ? 'View' : 'Review'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="empty-state">
-              <p>No reviews found. Create a review cycle to get started.</p>
-            </div>
-          )}
-        </div>
-      </>
-    );
-  };
-
   // Fixed function to handle review actions
-  const handleReviewAction = (review) => {
+  const handleReviewAction = useCallback((review) => {
     console.log('Handling review action for:', review);
 
     if (review.status === 'completed') {
@@ -474,7 +368,133 @@ function Dashboard({ initialView = 'dashboard' }) {
       navigate(`/evaluation-management`);
       setActiveView('evaluation-management');
     }
-  };
+  }, [navigate, API_BASE_URL]);
+  
+  // Memoize the renderActiveView function to prevent unnecessary recalculations
+  const renderActiveView = useCallback(() => {
+    console.log('Rendering active view:', activeView);
+    switch (activeView) {
+      case 'my-reviews':
+        return <MyReviews />;
+      case 'team-reviews':
+        return <TeamReviews />;
+      case 'employees':
+        return <Employees />;
+      case 'settings':
+        return <Settings />;
+      case 'review-cycles':
+        return <ReviewCycles />;
+      case 'templates':
+        return <ReviewTemplates />;
+      case 'tools-imports':
+        return <ImportTool />;
+      case 'tools-exports':
+        return <ExportTool />;
+      case 'evaluation-management':
+        return <EvaluationManagement initialActiveTab="active-evaluations" />;
+      case 'evaluation-detail':
+        return <ViewEvaluation />;
+      case 'pending-reviews':
+        return <PendingReviews />;
+      default:
+        // For the dashboard view, we return a memoized version
+        return (
+          <>
+            <h1 className="page-title">Dashboard Overview</h1>
+            
+            <div className="dashboard-overview">
+              <div 
+                className="overview-card clickable" 
+                onClick={() => setView('employees')}
+              >
+                <h3>Active Employees</h3>
+                <div className="value">{activeEmployeesCount}</div>
+                <div className="status positive">View Employee List</div>
+              </div>
+
+              <div 
+                className="overview-card clickable" 
+                onClick={handlePendingReviewsClick}
+              >
+                <h3>Pending Reviews</h3>
+                <div className="value">{reviewData.pending}</div>
+                <div className="status">Due this month</div>
+              </div>
+              
+              <div 
+                className="overview-card clickable" 
+                onClick={() => setView('my-reviews')}
+              >
+                <h3>Completed Reviews</h3>
+                <div className="value">{reviewData.completed}</div>
+                <div className="status positive">+3 from last cycle</div>
+              </div>
+              
+              <div 
+                className="overview-card clickable" 
+                onClick={() => setView('my-reviews')}
+              >
+                <h3>Upcoming Reviews</h3>
+                <div className="value">{reviewData.upcoming}</div>
+                <div className="status">Starting next month</div>
+              </div>
+            </div>
+            
+            <div className="dashboard-recent">
+              <h2>Recent Reviews</h2>
+              {reviewData.recentReviews.length > 0 ? (
+                <table className="review-list">
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th>Review Cycle</th>
+                      <th>Due Date</th>
+                      <th>Type</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reviewData.recentReviews.map((review) => (
+                      <tr key={review.id}>
+                        <td className="employee-name">{review.employee}</td>
+                        <td>{review.cycle}</td>
+                        <td>{review.dueDate}</td>
+                        <td>{review.reviewType}</td>
+                        <td>
+                          <span className={`status-badge ${review.status}`}>
+                            {review.status.charAt(0).toUpperCase() + review.status.slice(1)}
+                          </span>
+                        </td>
+                        <td>
+                          <button 
+                            className="action-button"
+                            onClick={() => handleReviewAction(review)}
+                          >
+                            {review.status === 'completed' ? 'View' : 'Review'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="empty-state">
+                  <p>No reviews found. Create a review cycle to get started.</p>
+                </div>
+              )}
+            </div>
+          </>
+        );
+    }
+  }, [
+    activeView, 
+    activeEmployeesCount, 
+    reviewData, 
+    setView, 
+    handlePendingReviewsClick, 
+    handleReviewAction
+  ]);
   
   // Show loading state while checking for user data
   if (isLoading) {
