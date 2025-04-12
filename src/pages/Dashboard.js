@@ -38,6 +38,10 @@ function Dashboard({ initialView = 'dashboard' }) {
   const [completedReviewId, setCompletedReviewId] = useState(
     sessionStorage.getItem('completedReviewId')
   );
+  const [completedReviewMetadata, setCompletedReviewMetadata] = useState(() => {
+    const storedMetadata = sessionStorage.getItem('completedReviewMetadata');
+    return storedMetadata ? JSON.parse(storedMetadata) : null;
+  });
   
   // Get auth state directly from context - simplified approach
   const { currentUser, logout } = useAuth();
@@ -52,11 +56,17 @@ function Dashboard({ initialView = 'dashboard' }) {
   useEffect(() => {
     const locationState = window.history.state?.state;
     const fromPendingWithCompleted = locationState?.completedReview;
+    const reviewMetadata = locationState?.completedReviewMetadata;
     
     if (fromPendingWithCompleted) {
       setCompletedReviewId(fromPendingWithCompleted);
       // Store in session storage to persist across page refreshes
       sessionStorage.setItem('completedReviewId', fromPendingWithCompleted);
+      
+      if (reviewMetadata) {
+        setCompletedReviewMetadata(reviewMetadata);
+        sessionStorage.setItem('completedReviewMetadata', JSON.stringify(reviewMetadata));
+      }
     }
   }, []);
 
@@ -86,11 +96,11 @@ function Dashboard({ initialView = 'dashboard' }) {
       const currentYear = now.getFullYear();
       const nextMonth = new Date(currentYear, currentMonth + 1, 1);
       
-      const pendingCount = assignments.filter(a => 
+      let pendingCount = assignments.filter(a => 
         a.status === 'Pending' || a.status === 'InProgress'
       ).length;
       
-      const completedCount = assignments.filter(a => 
+      let completedCount = assignments.filter(a => 
         a.status === 'Completed'
       ).length;
       
@@ -98,6 +108,23 @@ function Dashboard({ initialView = 'dashboard' }) {
         const dueDate = new Date(a.dueDate);
         return dueDate >= nextMonth && a.status !== 'Completed' && a.status !== 'Canceled';
       }).length;
+      
+      // Adjust counts for client-side completed reviews
+      if (completedReviewId) {
+        // Find if any pending reviews match the completed review ID
+        const hasCompletedPendingReview = assignments.some(a => 
+          (a._id === completedReviewId || a.createdReview === completedReviewId) && 
+          (a.status === 'Pending' || a.status === 'InProgress')
+        );
+        
+        // If we found a pending review that should be marked as completed
+        if (hasCompletedPendingReview) {
+          // Decrease pending count by 1
+          pendingCount = Math.max(0, pendingCount - 1);
+          // Increase completed count by 1
+          completedCount += 1;
+        }
+      }
       
       // Map assignments to recent reviews for display
       let recentReviews = assignments.slice(0, 5).map(assignment => ({
@@ -141,18 +168,35 @@ function Dashboard({ initialView = 'dashboard' }) {
           const parsedReviews = JSON.parse(storedReviews);
           
           // Calculate review statistics from localStorage
-          const pendingCount = parsedReviews.filter(r => 
+          let pendingCount = parsedReviews.filter(r => 
             r.status?.toLowerCase() === 'pending' || 
             r.status?.toLowerCase() === 'pending manager review'
           ).length;
           
-          const completedCount = parsedReviews.filter(r => 
+          let completedCount = parsedReviews.filter(r => 
             r.status?.toLowerCase() === 'completed'
           ).length;
           
           const upcomingCount = parsedReviews.filter(r => 
             r.status?.toLowerCase() === 'upcoming'
           ).length;
+          
+          // Adjust counts for client-side completed reviews
+          if (completedReviewId) {
+            // Find if any pending reviews match the completed review ID
+            const hasCompletedPendingReview = parsedReviews.some(r => 
+              (r.id === completedReviewId || r.reviewId === completedReviewId) && 
+              (r.status?.toLowerCase() === 'pending' || r.status?.toLowerCase() === 'pending manager review')
+            );
+            
+            // If we found a pending review that should be marked as completed
+            if (hasCompletedPendingReview) {
+              // Decrease pending count by 1
+              pendingCount = Math.max(0, pendingCount - 1);
+              // Increase completed count by 1
+              completedCount += 1;
+            }
+          }
           
           // Map local reviews for display
           let recentReviews = parsedReviews.slice(0, 5).map(review => ({

@@ -59,6 +59,7 @@ function ViewEvaluation() {
           reviewPeriod: rawData.reviewPeriod,
           status: rawData.status,
           startDate: rawData.startDate,
+          assignmentId: rawData.assignmentId || rawData._id,
           ratings: rawData.ratings || {},
           feedback: rawData.feedback || {},
           goals: Array.isArray(rawData.goals) ? rawData.goals : [],
@@ -274,8 +275,22 @@ function ViewEvaluation() {
       // Show success message either way
       setSaveStatus('success');
       
-      // Store the completed review ID in sessionStorage for dashboard to pick up
+      // Enhanced client-side completion tracking:
+      // 1. Store the completed review ID
       sessionStorage.setItem('completedReviewId', id);
+      
+      // 2. Store metadata about the completed review to help sync across pages
+      const reviewMetadata = {
+        id: id,
+        assignmentId: formData.assignmentId || id, // If the assignment ID is different
+        employeeName: reviewData.employeeName,
+        reviewerName: reviewData.reviewerName,
+        completedAt: new Date().toISOString(),
+        originalStatus: formData.status
+      };
+      
+      // Store as JSON string
+      sessionStorage.setItem('completedReviewMetadata', JSON.stringify(reviewMetadata));
       
       // Add a small delay to show success message before navigating
       setTimeout(() => {
@@ -283,6 +298,7 @@ function ViewEvaluation() {
         navigate('/pending-reviews', { 
           state: { 
             completedReview: id,
+            completedReviewMetadata: reviewMetadata,
             message: 'Review marked as completed' 
           } 
         });
