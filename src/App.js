@@ -10,6 +10,7 @@ import ViewEvaluation from './components/ViewEvaluation';
 import TemplateBuilder from './components/TemplateBuilder';
 import MonthlyGoalTracking from './components/MonthlyGoalTracking';
 import KpiManager from './components/KpiManager';
+import './DebugFetch';
 
 // Import pages
 import Login from './pages/Login';

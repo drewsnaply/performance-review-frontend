@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import { useDepartments } from '../context/DepartmentContext';
@@ -31,7 +31,11 @@ function Dashboard({ initialView = 'dashboard' }) {
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [dataFetchStarted, setDataFetchStarted] = useState(false);
+  
+  // Use a ref to prevent duplicate API calls
+  const fetchInProgressRef = useRef(false);
+  const hasFetchedDataRef = useRef(false);
+  
   const navigate = useNavigate();
   const params = useParams();
   
@@ -70,8 +74,10 @@ function Dashboard({ initialView = 'dashboard' }) {
   // Function to fetch assignments - separate from the rendering cycle
   const fetchAssignments = useCallback(async () => {
     // Prevent multiple fetches
-    if (dataFetchStarted) return;
-    setDataFetchStarted(true);
+    if (fetchInProgressRef.current || hasFetchedDataRef.current) return;
+    
+    // Set fetch in progress
+    fetchInProgressRef.current = true;
     
     try {
       console.log('Fetching assignments from API');
@@ -151,6 +157,10 @@ function Dashboard({ initialView = 'dashboard' }) {
         upcoming: upcomingCount,
         recentReviews
       });
+      
+      // Mark that we've successfully fetched data
+      hasFetchedDataRef.current = true;
+      
     } catch (error) {
       console.error('Error fetching assignments:', error);
       
@@ -181,22 +191,33 @@ function Dashboard({ initialView = 'dashboard' }) {
               createdReview: review.reviewId || null
             }))
           });
+          
+          // Consider data fetched even if from localStorage
+          hasFetchedDataRef.current = true;
         } catch (localStorageError) {
           console.error('Error parsing reviews from localStorage:', localStorageError);
         }
       }
     } finally {
-      // Always mark data fetch as complete
-      setDataFetchStarted(false);
+      // Always reset the fetch in progress flag
+      fetchInProgressRef.current = false;
     }
   }, [API_BASE_URL, completedReviewId]);
   
-  // Fetch data if on dashboard view and user is available
+  // Fetch data if on dashboard view and user is available - only once
   useEffect(() => {
-    if (activeView === 'dashboard' && user && !dataFetchStarted) {
+    if (activeView === 'dashboard' && user && !fetchInProgressRef.current && !hasFetchedDataRef.current) {
       fetchAssignments();
     }
-  }, [activeView, user, fetchAssignments, dataFetchStarted]);
+  }, [activeView, user, fetchAssignments]);
+  
+  // Clear fetch flag when changing away from dashboard
+  useEffect(() => {
+    if (activeView !== 'dashboard') {
+      // When returning to dashboard later, allow a fresh fetch
+      hasFetchedDataRef.current = false;
+    }
+  }, [activeView]);
   
   // Handle logout
   const handleLogout = () => {
