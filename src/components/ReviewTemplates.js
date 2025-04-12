@@ -9,6 +9,19 @@ function ReviewTemplates() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('All Status');
+  const [showAssignmentForm, setShowAssignmentForm] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [newAssignment, setNewAssignment] = useState({
+    template: '',
+    employee: '',
+    reviewer: '',
+    assignedBy: '',
+    dueDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+    reviewPeriod: {
+      start: new Date().toISOString().split('T')[0],
+      end: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0]
+    }
+  });
   const navigate = useNavigate();
   
   // Get completed review ID from session storage for client-side status tracking
@@ -32,6 +45,13 @@ function ReviewTemplates() {
       setLoading(false);
     };
   }, [activeTab]);
+
+  // Fetch employees when assignment form is shown
+  useEffect(() => {
+    if (showAssignmentForm) {
+      fetchEmployees();
+    }
+  }, [showAssignmentForm]);
 
   // Fetch templates with timeout safeguard
   const fetchTemplates = async () => {
@@ -142,6 +162,28 @@ function ReviewTemplates() {
     }
   };
 
+  // Fetch employees for the assignment form
+  const fetchEmployees = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/employees`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch employees');
+      }
+      
+      const data = await response.json();
+      setEmployees(data);
+    } catch (err) {
+      console.error('Error fetching employees:', err);
+      alert(`Error fetching employees: ${err.message}`);
+    }
+  };
+
   // Delete template
   const handleDeleteTemplate = async (id) => {
     if (!window.confirm('Are you sure you want to delete this template?')) {
@@ -211,6 +253,75 @@ function ReviewTemplates() {
   // Navigate to template builder
   const handleCreateTemplate = () => {
     navigate('/templates/builder');
+  };
+
+  // Handle assignment form input changes
+  const handleAssignmentInputChange = (e) => {
+    const { name, value } = e.target;
+    if (name.startsWith('reviewPeriod.')) {
+      const field = name.split('.')[1];
+      setNewAssignment({
+        ...newAssignment,
+        reviewPeriod: {
+          ...newAssignment.reviewPeriod,
+          [field]: value
+        }
+      });
+    } else {
+      setNewAssignment({
+        ...newAssignment,
+        [name]: value
+      });
+    }
+  };
+
+  // Create new assignment
+  const handleCreateAssignment = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      console.log('Creating new assignment:', newAssignment);
+      
+      // Get current user ID for assignedBy field if not specified
+      const currentUser = JSON.parse(localStorage.getItem('user')) || {};
+      const assignmentData = {
+        ...newAssignment,
+        assignedBy: newAssignment.assignedBy || currentUser._id,
+      };
+      
+      const response = await fetch(`${API_BASE_URL}/api/templates/assignments`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(assignmentData)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create assignment');
+      }
+      
+      // Reset form and fetch updated assignments
+      setNewAssignment({
+        template: '',
+        employee: '',
+        reviewer: '',
+        assignedBy: '',
+        dueDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+        reviewPeriod: {
+          start: new Date().toISOString().split('T')[0],
+          end: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0]
+        }
+      });
+      setShowAssignmentForm(false);
+      fetchAssignments();
+    } catch (err) {
+      console.error('Error creating assignment:', err);
+      alert(`Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Extract person name
@@ -433,6 +544,65 @@ function ReviewTemplates() {
       borderRadius: '4px',
       cursor: 'pointer',
       marginTop: '12px'
+    },
+    modal: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000
+    },
+    modalContent: {
+      backgroundColor: 'white',
+      padding: '24px',
+      borderRadius: '8px',
+      width: '500px',
+      maxWidth: '90%'
+    },
+    formGroup: {
+      marginBottom: '16px'
+    },
+    label: {
+      display: 'block',
+      marginBottom: '8px',
+      fontWeight: '500',
+      color: '#64748b'
+    },
+    input: {
+      width: '100%',
+      padding: '8px 12px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '4px',
+      fontSize: '0.9rem'
+    },
+    formActions: {
+      display: 'flex',
+      justifyContent: 'flex-end',
+      gap: '16px',
+      marginTop: '24px'
+    },
+    cancelButton: {
+      backgroundColor: '#f1f5f9',
+      color: '#64748b',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '8px 16px',
+      cursor: 'pointer',
+      fontWeight: '500'
+    },
+    saveButton: {
+      backgroundColor: '#4CAF50',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '8px 16px',
+      cursor: 'pointer',
+      fontWeight: '500'
     }
   };
 
@@ -563,7 +733,19 @@ function ReviewTemplates() {
   const renderAssignmentsTab = () => {
     return (
       <div>
-        <h2 style={styles.heading}>Template Assignments</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h2 style={styles.heading}>Template Assignments</h2>
+          <button 
+            style={styles.createButton}
+            onClick={() => setShowAssignmentForm(true)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Assign Template
+          </button>
+        </div>
         
         <div style={styles.filterContainer}>
           <label style={styles.filterLabel}>Status:</label>
@@ -647,6 +829,116 @@ function ReviewTemplates() {
               ))}
             </tbody>
           </table>
+        )}
+        
+        {showAssignmentForm && (
+          <div style={styles.modal}>
+            <div style={styles.modalContent}>
+              <h3 style={{ ...styles.heading, marginBottom: '16px' }}>Assign Template</h3>
+              <form onSubmit={handleCreateAssignment}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Template:</label>
+                  <select 
+                    name="template" 
+                    value={newAssignment.template} 
+                    onChange={handleAssignmentInputChange} 
+                    style={styles.input}
+                    required 
+                  >
+                    <option value="">Select Template</option>
+                    {templates.map(template => (
+                      <option key={template._id} value={template._id}>
+                        {template.name} ({template.frequency})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Employee:</label>
+                  <select 
+                    name="employee" 
+                    value={newAssignment.employee} 
+                    onChange={handleAssignmentInputChange} 
+                    style={styles.input}
+                    required 
+                  >
+                    <option value="">Select Employee</option>
+                    {employees.map(employee => (
+                      <option key={employee._id} value={employee._id}>
+                        {employee.firstName} {employee.lastName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Reviewer:</label>
+                  <select 
+                    name="reviewer" 
+                    value={newAssignment.reviewer} 
+                    onChange={handleAssignmentInputChange} 
+                    style={styles.input}
+                    required 
+                  >
+                    <option value="">Select Reviewer</option>
+                    {employees.filter(emp => emp.role === 'manager' || emp.role === 'admin').map(employee => (
+                      <option key={employee._id} value={employee._id}>
+                        {employee.firstName} {employee.lastName} ({employee.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Due Date:</label>
+                  <input 
+                    type="date" 
+                    name="dueDate" 
+                    value={newAssignment.dueDate} 
+                    onChange={handleAssignmentInputChange} 
+                    style={styles.input}
+                    required 
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Review Period Start:</label>
+                  <input 
+                    type="date" 
+                    name="reviewPeriod.start" 
+                    value={newAssignment.reviewPeriod.start} 
+                    onChange={handleAssignmentInputChange} 
+                    style={styles.input}
+                    required 
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Review Period End:</label>
+                  <input 
+                    type="date" 
+                    name="reviewPeriod.end" 
+                    value={newAssignment.reviewPeriod.end} 
+                    onChange={handleAssignmentInputChange} 
+                    style={styles.input}
+                    required 
+                  />
+                </div>
+                <div style={styles.formActions}>
+                  <button 
+                    type="button" 
+                    style={styles.cancelButton}
+                    onClick={() => setShowAssignmentForm(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    style={styles.saveButton}
+                    disabled={loading}
+                  >
+                    {loading ? 'Saving...' : 'Assign'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
       </div>
     );
