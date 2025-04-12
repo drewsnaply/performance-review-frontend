@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import '../styles/ReviewTemplates.css';
 
 function ReviewTemplates() {
   const [activeTab, setActiveTab] = useState('templates');
@@ -206,6 +207,11 @@ function ReviewTemplates() {
     }
   };
 
+  // Navigate to template builder
+  const handleAdvancedTemplateBuilder = () => {
+    navigate('/templates/builder');
+  };
+
   // Extract person name
   const extractName = (person) => {
     if (!person) return 'Unknown';
@@ -267,6 +273,20 @@ function ReviewTemplates() {
       borderRadius: '4px',
       padding: '8px 16px',
       marginBottom: '20px',
+      cursor: 'pointer',
+      fontWeight: '500'
+    },
+    buttonContainer: {
+      display: 'flex',
+      gap: '10px',
+      marginBottom: '20px'
+    },
+    advancedButton: {
+      backgroundColor: '#3B82F6',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '8px 16px',
       cursor: 'pointer',
       fontWeight: '500'
     },
@@ -399,6 +419,16 @@ function ReviewTemplates() {
       border: '1px solid #e2e8f0',
       borderRadius: '4px',
       backgroundColor: 'white'
+    },
+    templateFeature: {
+      display: 'inline-block',
+      padding: '2px 6px',
+      backgroundColor: '#f3f4f6',
+      borderRadius: '4px',
+      fontSize: '0.75rem',
+      color: '#4b5563',
+      marginRight: '6px',
+      marginTop: '6px'
     }
   };
 
@@ -425,12 +455,22 @@ function ReviewTemplates() {
     return (
       <div>
         <h2 style={styles.heading}>Review Templates</h2>
-        <button 
-          style={styles.newButton}
-          onClick={() => setShowNewTemplateForm(true)}
-        >
-          + New Template
-        </button>
+        
+        <div style={styles.buttonContainer}>
+          <button 
+            style={styles.newButton}
+            onClick={() => setShowNewTemplateForm(true)}
+          >
+            + New Template
+          </button>
+          
+          <button 
+            style={styles.advancedButton}
+            onClick={handleAdvancedTemplateBuilder}
+          >
+            Advanced Template Builder
+          </button>
+        </div>
         
         {loading ? (
           <p>Loading templates...</p>
@@ -443,6 +483,7 @@ function ReviewTemplates() {
                 <th style={styles.th}>Template Name</th>
                 <th style={styles.th}>Description</th>
                 <th style={styles.th}>Frequency</th>
+                <th style={styles.th}>Features</th>
                 <th style={styles.th}>Status</th>
                 <th style={styles.th}>Actions</th>
               </tr>
@@ -454,13 +495,28 @@ function ReviewTemplates() {
                   <td style={styles.td}>{template.description || 'No description'}</td>
                   <td style={styles.td}>{template.frequency}</td>
                   <td style={styles.td}>
+                    {template.includesSelfReview && 
+                      <span style={styles.templateFeature}>Self Review</span>}
+                    {template.includes360Review && 
+                      <span style={styles.templateFeature}>360° Review</span>}
+                    {template.includesGoals && 
+                      <span style={styles.templateFeature}>Goal Setting</span>}
+                    {template.includesKPIs && 
+                      <span style={styles.templateFeature}>KPI Tracking</span>}
+                  </td>
+                  <td style={styles.td}>
                     <span style={getStatusBadgeStyle(template.active ? 'Active' : 'Inactive')}>
                       {template.active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td style={styles.td}>
                     <div style={styles.actionsContainer}>
-                      <button style={styles.editButton}>Edit</button>
+                      <button 
+                        style={styles.editButton}
+                        onClick={() => navigate(`/templates/builder/${template._id}`)}
+                      >
+                        Edit
+                      </button>
                       <button 
                         style={styles.deleteButton}
                         onClick={() => handleDeleteTemplate(template._id)}
@@ -509,7 +565,6 @@ function ReviewTemplates() {
                     style={styles.input}
                   >
                     <option value="Annual">Annual</option>
-                    <option value="Semi-Annual">Semi-Annual</option>
                     <option value="Quarterly">Quarterly</option>
                     <option value="Monthly">Monthly</option>
                   </select>
@@ -525,6 +580,9 @@ function ReviewTemplates() {
                     />
                     <span style={{ color: '#64748b' }}>Active</span>
                   </label>
+                </div>
+                <div style={{ marginTop: '12px', color: '#6b7280', fontSize: '0.9rem' }}>
+                  <p>For more advanced template options like sections, questions, and goal tracking, use the Advanced Template Builder.</p>
                 </div>
                 <div style={styles.formActions}>
                   <button 

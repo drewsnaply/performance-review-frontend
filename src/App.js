@@ -7,7 +7,8 @@ import AuthInitCheck from './components/AuthInitCheck';
 import EmployeeProfile from './components/EmployeeProfile';
 import PendingReviews from './components/PendingReviews';
 import ViewEvaluation from './components/ViewEvaluation';
-
+import TemplateBuilder from './components/TemplateBuilder';
+import MonthlyGoalTracking from './components/MonthlyGoalTracking';
 
 // Import pages
 import Login from './pages/Login';
@@ -41,10 +42,12 @@ const TitleUpdater = () => {
         '/settings': 'Settings',
         '/review-cycles': 'Review Cycles',
         '/templates': 'Templates',
+        '/templates/builder': 'Template Builder',
         '/evaluation-management': 'Evaluation Management',
         '/import-tool': 'Import Tool',
         '/export-tool': 'Export Tool',
-        '/pending-reviews': 'Pending Reviews'
+        '/pending-reviews': 'Pending Reviews',
+        '/goals': 'Monthly Goal Tracking'
       };
 
       // Check if path is an employee profile page
@@ -55,6 +58,16 @@ const TitleUpdater = () => {
       // Check if path is a review edit page
       if (location.pathname.startsWith('/reviews/edit/')) {
         return 'Review Editor';
+      }
+      
+      // Check if path is editing a specific template
+      if (location.pathname.startsWith('/templates/builder/')) {
+        return 'Edit Template';
+      }
+      
+      // Check if path is goal tracking for a specific review
+      if (location.pathname.startsWith('/goals/review/')) {
+        return 'Review Goals';
       }
 
       return pathToTitleMap[location.pathname] || 'Performance Review System';
@@ -146,6 +159,24 @@ function App() {
                 </PrivateRoute>
               }
             />
+            {/* New route for template builder */}
+            <Route
+              path="/templates/builder"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin']}>
+                  <TemplateBuilder />
+                </PrivateRoute>
+              }
+            />
+            {/* New route for editing existing templates */}
+            <Route
+              path="/templates/builder/:id"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin']}>
+                  <TemplateBuilder />
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/import-tool"
               element={
@@ -185,6 +216,26 @@ function App() {
               element={
                 <PrivateRoute allowedRoles={['manager', 'admin']}>
                   <ViewEvaluation />
+                </PrivateRoute>
+              }
+            />
+            
+            {/* New route for goal tracking */}
+            <Route
+              path="/goals"
+              element={
+                <PrivateRoute>
+                  <MonthlyGoalTracking />
+                </PrivateRoute>
+              }
+            />
+            
+            {/* New route for goal tracking for a specific review */}
+            <Route
+              path="/goals/review/:reviewId"
+              element={
+                <PrivateRoute>
+                  <MonthlyGoalTracking />
                 </PrivateRoute>
               }
             />
