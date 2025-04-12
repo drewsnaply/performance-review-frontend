@@ -11,7 +11,7 @@ const TeamReviews = lazy(() => import('../components/TeamReviews'));
 const Employees = lazy(() => import('./Employees'));
 const ReviewCycles = lazy(() => import('../components/ReviewCycles'));
 const ReviewTemplates = lazy(() => import('../components/ReviewTemplates'));
-const KpiManager = lazy(() => import('../components/KpiManager')); // Add KPI Manager import
+const KpiManager = lazy(() => import('../components/KpiManager')); 
 const ImportTool = lazy(() => import('../components/ImportTool'));
 const ExportTool = lazy(() => import('../components/ExportTool'));
 const EvaluationManagement = lazy(() => import('../components/EvaluationManagement'));
@@ -32,9 +32,11 @@ function Dashboard({ initialView = 'dashboard' }) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Use a ref to prevent duplicate API calls
+  // Use refs for tracking fetch state to prevent race conditions
+  const isMountedRef = useRef(true);
   const fetchInProgressRef = useRef(false);
   const hasFetchedDataRef = useRef(false);
+  const fetchTimeoutRef = useRef(null);
   
   const navigate = useNavigate();
   const params = useParams();
@@ -52,8 +54,20 @@ function Dashboard({ initialView = 'dashboard' }) {
     ? 'http://localhost:5000' 
     : 'https://performance-review-backend-ab8z.onrender.com';
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Initialize user - run only when currentUser changes
   useEffect(() => {
+    if (!isMountedRef.current) return;
+    
     if (!currentUser) {
       setIsLoading(false);
       navigate('/login');
@@ -73,148 +87,191 @@ function Dashboard({ initialView = 'dashboard' }) {
 
   // Function to fetch assignments - separate from the rendering cycle
   const fetchAssignments = useCallback(async () => {
-    // Prevent multiple fetches
-    if (fetchInProgressRef.current || hasFetchedDataRef.current) return;
+    // Don't fetch if component is unmounted or fetch is already in progress
+    if (!isMountedRef.current || fetchInProgressRef.current) return;
+    
+    // If we already have data, don't fetch again
+    if (hasFetchedDataRef.current) return;
     
     // Set fetch in progress
     fetchInProgressRef.current = true;
     
     try {
-      console.log('Fetching assignments from API');
+      // Use an AbortController to handle request cancellation
+      const controller = new AbortController();
+      const signal = controller.signal;
+      
+      // Set a timeout to abort the request if it takes too long
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 10000); // 10 second timeout
+      
+      // Store timeout ID to clear it later
+      fetchTimeoutRef.current = timeoutId;
       
       const response = await fetch(`${API_BASE_URL}/api/templates/assignments`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json'
-        }
+        },
+        signal
       });
 
+      // Clear the timeout since we got a response
+      clearTimeout(timeoutId);
+      fetchTimeoutRef.current = null;
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch assignments');
+        throw new Error(`Failed to fetch assignments: ${response.status}`);
       }
 
       const assignments = await response.json();
       
-      // Process assignments in a more efficient way
-      let pendingCount = 0;
-      let completedCount = 0;
-      let upcomingCount = 0;
-      
-      // Current and next month for filtering
-      const now = new Date();
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      
-      // Process all assignments in a single loop
-      assignments.forEach(a => {
-        // Count pending/in-progress
-        if (a.status === 'Pending' || a.status === 'InProgress') {
-          // If this is a completed review (client-side), don't count as pending
-          if (completedReviewId && 
-             (a._id === completedReviewId || a.createdReview === completedReviewId)) {
-            completedCount++;
-          } else {
-            pendingCount++;
+      // Only process data if the component is still mounted
+      if (isMountedRef.current) {
+        // Process assignments in a more efficient way
+        let pendingCount = 0;
+        let completedCount = 0;
+        let upcomingCount = 0;
+        
+        // Current and next month for filtering
+        const now = new Date();
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        
+        // Process all assignments in a single loop
+        assignments.forEach(a => {
+          // Count pending/in-progress
+          if (a.status === 'Pending' || a.status === 'InProgress') {
+            // If this is a completed review (client-side), don't count as pending
+            if (completedReviewId && 
+               (a._id === completedReviewId || a.createdReview === completedReviewId)) {
+              completedCount++;
+            } else {
+              pendingCount++;
+            }
           }
-        }
-        // Count completed
-        else if (a.status === 'Completed') {
-          completedCount++;
-        }
-        
-        // Count upcoming
-        const dueDate = new Date(a.dueDate);
-        if (dueDate >= nextMonth && a.status !== 'Completed' && a.status !== 'Canceled') {
-          upcomingCount++;
-        }
-      });
-      
-      // Map only the first 5 assignments for display
-      const recentReviews = assignments.slice(0, 5).map(assignment => {
-        // Build the basic review object
-        const review = {
-          id: assignment._id,
-          employee: `${assignment.employee?.firstName || ''} ${assignment.employee?.lastName || ''}`.trim() || 'Unknown',
-          cycle: assignment.template?.name || 'Performance Review',
-          dueDate: new Date(assignment.dueDate).toLocaleDateString(),
-          reviewType: assignment.template?.frequency || 'Performance',
-          status: assignment.status?.toLowerCase() || 'pending',
-          createdReview: assignment.createdReview || null
-        };
-        
-        // Update status if this is a completed review
-        if (completedReviewId && 
-           (assignment._id === completedReviewId || assignment.createdReview === completedReviewId)) {
-          review.status = 'completed';
-        }
-        
-        return review;
-      });
-      
-      // Update state once with all data
-      setReviewData({
-        pending: pendingCount,
-        completed: completedCount,
-        upcoming: upcomingCount,
-        recentReviews
-      });
-      
-      // Mark that we've successfully fetched data
-      hasFetchedDataRef.current = true;
-      
-    } catch (error) {
-      console.error('Error fetching assignments:', error);
-      
-      // Attempt to use localStorage as fallback
-      const storedReviews = localStorage.getItem('reviews');
-      if (storedReviews) {
-        try {
-          const parsedReviews = JSON.parse(storedReviews);
-          // Process localStorage data (simplified)
-          setReviewData({
-            pending: parsedReviews.filter(r => 
-              r.status?.toLowerCase() === 'pending' || 
-              r.status?.toLowerCase() === 'pending manager review'
-            ).length,
-            completed: parsedReviews.filter(r => 
-              r.status?.toLowerCase() === 'completed'
-            ).length,
-            upcoming: parsedReviews.filter(r => 
-              r.status?.toLowerCase() === 'upcoming'
-            ).length,
-            recentReviews: parsedReviews.slice(0, 5).map(review => ({
-              id: review.id,
-              employee: review.employeeName || 'Unknown',
-              cycle: review.reviewCycle || 'Annual Review',
-              dueDate: review.submissionDate || 'N/A',
-              reviewType: 'Performance',
-              status: review.status?.toLowerCase() || 'pending',
-              createdReview: review.reviewId || null
-            }))
-          });
+          // Count completed
+          else if (a.status === 'Completed') {
+            completedCount++;
+          }
           
-          // Consider data fetched even if from localStorage
-          hasFetchedDataRef.current = true;
-        } catch (localStorageError) {
-          console.error('Error parsing reviews from localStorage:', localStorageError);
+          // Count upcoming
+          const dueDate = new Date(a.dueDate);
+          if (dueDate >= nextMonth && a.status !== 'Completed' && a.status !== 'Canceled') {
+            upcomingCount++;
+          }
+        });
+        
+        // Map only the first 5 assignments for display
+        const recentReviews = assignments.slice(0, 5).map(assignment => {
+          // Build the basic review object
+          const review = {
+            id: assignment._id,
+            employee: `${assignment.employee?.firstName || ''} ${assignment.employee?.lastName || ''}`.trim() || 'Unknown',
+            cycle: assignment.template?.name || 'Performance Review',
+            dueDate: new Date(assignment.dueDate).toLocaleDateString(),
+            reviewType: assignment.template?.frequency || 'Performance',
+            status: assignment.status?.toLowerCase() || 'pending',
+            createdReview: assignment.createdReview || null
+          };
+          
+          // Update status if this is a completed review
+          if (completedReviewId && 
+             (assignment._id === completedReviewId || assignment.createdReview === completedReviewId)) {
+            review.status = 'completed';
+          }
+          
+          return review;
+        });
+        
+        // Update state once with all data
+        setReviewData({
+          pending: pendingCount,
+          completed: completedCount,
+          upcoming: upcomingCount,
+          recentReviews
+        });
+        
+        // Mark that we've successfully fetched data
+        hasFetchedDataRef.current = true;
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('Fetch request was aborted due to timeout');
+      } else {
+        console.error('Error fetching assignments:', error);
+        
+        // Only try localStorage fallback if the component is still mounted
+        if (isMountedRef.current) {
+          // Attempt to use localStorage as fallback
+          const storedReviews = localStorage.getItem('reviews');
+          if (storedReviews) {
+            try {
+              const parsedReviews = JSON.parse(storedReviews);
+              // Process localStorage data (simplified)
+              setReviewData({
+                pending: parsedReviews.filter(r => 
+                  r.status?.toLowerCase() === 'pending' || 
+                  r.status?.toLowerCase() === 'pending manager review'
+                ).length,
+                completed: parsedReviews.filter(r => 
+                  r.status?.toLowerCase() === 'completed'
+                ).length,
+                upcoming: parsedReviews.filter(r => 
+                  r.status?.toLowerCase() === 'upcoming'
+                ).length,
+                recentReviews: parsedReviews.slice(0, 5).map(review => ({
+                  id: review.id,
+                  employee: review.employeeName || 'Unknown',
+                  cycle: review.reviewCycle || 'Annual Review',
+                  dueDate: review.submissionDate || 'N/A',
+                  reviewType: 'Performance',
+                  status: review.status?.toLowerCase() || 'pending',
+                  createdReview: review.reviewId || null
+                }))
+              });
+              
+              // Consider data fetched even if from localStorage
+              hasFetchedDataRef.current = true;
+            } catch (localStorageError) {
+              console.error('Error parsing reviews from localStorage:', localStorageError);
+            }
+          }
         }
       }
     } finally {
-      // Always reset the fetch in progress flag
-      fetchInProgressRef.current = false;
+      // Reset fetch in progress flag if component is still mounted
+      if (isMountedRef.current) {
+        fetchInProgressRef.current = false;
+      }
     }
   }, [API_BASE_URL, completedReviewId]);
   
-  // Fetch data if on dashboard view and user is available - only once
+  // Fetch data ONLY when these specific conditions are met
   useEffect(() => {
-    if (activeView === 'dashboard' && user && !fetchInProgressRef.current && !hasFetchedDataRef.current) {
+    // Only fetch data if all these conditions are true:
+    // 1. Component is mounted
+    // 2. We're on the dashboard view
+    // 3. We have a user
+    // 4. No fetch is in progress
+    // 5. We haven't already fetched data successfully
+    if (
+      isMountedRef.current && 
+      activeView === 'dashboard' && 
+      user && 
+      !fetchInProgressRef.current && 
+      !hasFetchedDataRef.current
+    ) {
       fetchAssignments();
     }
+    
+    // This effect should only run when these dependencies change
   }, [activeView, user, fetchAssignments]);
   
-  // Clear fetch flag when changing away from dashboard
+  // Clear fetch flag when navigating away from dashboard
+  // This allows us to re-fetch when returning to dashboard
   useEffect(() => {
     if (activeView !== 'dashboard') {
-      // When returning to dashboard later, allow a fresh fetch
       hasFetchedDataRef.current = false;
     }
   }, [activeView]);
@@ -253,6 +310,9 @@ function Dashboard({ initialView = 'dashboard' }) {
       if (review.createdReview) {
         navigate(`/reviews/edit/${review.createdReview}`);
       } else {
+        // Don't make this fetch if we're unmounting
+        if (!isMountedRef.current) return;
+        
         fetch(`${API_BASE_URL}/api/templates/assignments/${review.id}/start`, {
           method: 'POST',
           headers: {
@@ -265,11 +325,15 @@ function Dashboard({ initialView = 'dashboard' }) {
           return response.json();
         })
         .then(data => {
-          navigate(`/reviews/edit/${data.review._id}`);
+          if (isMountedRef.current) {
+            navigate(`/reviews/edit/${data.review._id}`);
+          }
         })
         .catch(error => {
           console.error('Error starting review:', error);
-          alert(`Error starting review: ${error.message}`);
+          if (isMountedRef.current) {
+            alert(`Error starting review: ${error.message}`);
+          }
         });
       }
     } else {
@@ -278,11 +342,13 @@ function Dashboard({ initialView = 'dashboard' }) {
     }
   };
   
-  // Calculate active employees count
-  const activeEmployeesCount = employees.filter(employee => 
-    employee.isActive === true || 
-    employee.status?.toLowerCase() === 'active'
-  ).length;
+  // Calculate active employees count safely
+  const activeEmployeesCount = Array.isArray(employees) 
+    ? employees.filter(employee => 
+        employee && (employee.isActive === true || 
+        employee.status?.toLowerCase() === 'active')
+      ).length 
+    : 0;
   
   // Render the active view with Suspense for lazy-loaded components
   const renderActiveView = () => {
@@ -300,7 +366,7 @@ function Dashboard({ initialView = 'dashboard' }) {
       case 'settings': return renderComponent(Settings);
       case 'review-cycles': return renderComponent(ReviewCycles);
       case 'templates': return renderComponent(ReviewTemplates);
-      case 'kpis': return renderComponent(KpiManager); // Added KPI Manager case
+      case 'kpis': return renderComponent(KpiManager);
       case 'tools-imports': return renderComponent(ImportTool);
       case 'tools-exports': return renderComponent(ExportTool);
       case 'evaluation-management': return renderComponent(EvaluationManagement, { initialActiveTab: "active-evaluations" });
