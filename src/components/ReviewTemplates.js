@@ -8,13 +8,6 @@ function ReviewTemplates() {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showNewTemplateForm, setShowNewTemplateForm] = useState(false);
-  const [newTemplate, setNewTemplate] = useState({
-    name: '',
-    description: '',
-    frequency: 'Annual',
-    active: true
-  });
   const [statusFilter, setStatusFilter] = useState('All Status');
   const navigate = useNavigate();
   
@@ -103,47 +96,6 @@ function ReviewTemplates() {
     }
   };
 
-  // Handle template input change
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setNewTemplate(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-  };
-
-  // Create new template
-  const handleCreateTemplate = async (e) => {
-    e.preventDefault();
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/templates`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newTemplate)
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create template');
-      }
-      
-      fetchTemplates();
-      setShowNewTemplateForm(false);
-      setNewTemplate({
-        name: '',
-        description: '',
-        frequency: 'Annual',
-        active: true
-      });
-    } catch (err) {
-      console.error('Error creating template:', err);
-      setError(err.message);
-    }
-  };
-
   // Delete template
   const handleDeleteTemplate = async (id) => {
     if (!window.confirm('Are you sure you want to delete this template?')) {
@@ -208,7 +160,7 @@ function ReviewTemplates() {
   };
 
   // Navigate to template builder
-  const handleAdvancedTemplateBuilder = () => {
+  const handleCreateTemplate = () => {
     navigate('/templates/builder');
   };
 
@@ -266,29 +218,33 @@ function ReviewTemplates() {
       fontWeight: '500',
       color: '#333'
     },
-    newButton: {
+    createButton: {
       backgroundColor: '#4CAF50',
       color: 'white',
       border: 'none',
       borderRadius: '4px',
-      padding: '8px 16px',
+      padding: '12px 20px',
       marginBottom: '20px',
       cursor: 'pointer',
-      fontWeight: '500'
-    },
-    buttonContainer: {
+      fontWeight: '500',
       display: 'flex',
-      gap: '10px',
-      marginBottom: '20px'
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      fontSize: '1rem',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
     },
-    advancedButton: {
-      backgroundColor: '#3B82F6',
-      color: 'white',
-      border: 'none',
-      borderRadius: '4px',
-      padding: '8px 16px',
-      cursor: 'pointer',
-      fontWeight: '500'
+    emptyState: {
+      backgroundColor: '#f9fafb',
+      borderRadius: '8px',
+      padding: '40px',
+      textAlign: 'center',
+      color: '#6b7280',
+      marginTop: '20px'
+    },
+    emptyStateMessage: {
+      fontSize: '1.1rem',
+      marginBottom: '20px'
     },
     table: {
       width: '100%',
@@ -345,65 +301,6 @@ function ReviewTemplates() {
       cursor: 'pointer',
       fontSize: '0.85rem'
     },
-    modal: {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000
-    },
-    modalContent: {
-      backgroundColor: 'white',
-      padding: '24px',
-      borderRadius: '8px',
-      width: '500px',
-      maxWidth: '90%'
-    },
-    formGroup: {
-      marginBottom: '16px'
-    },
-    label: {
-      display: 'block',
-      marginBottom: '8px',
-      fontWeight: '500',
-      color: '#64748b'
-    },
-    input: {
-      width: '100%',
-      padding: '8px 12px',
-      border: '1px solid #e2e8f0',
-      borderRadius: '4px',
-      fontSize: '0.9rem'
-    },
-    formActions: {
-      display: 'flex',
-      justifyContent: 'flex-end',
-      gap: '16px',
-      marginTop: '24px'
-    },
-    cancelButton: {
-      backgroundColor: '#f1f5f9',
-      color: '#64748b',
-      border: 'none',
-      borderRadius: '4px',
-      padding: '8px 16px',
-      cursor: 'pointer',
-      fontWeight: '500'
-    },
-    saveButton: {
-      backgroundColor: '#4CAF50',
-      color: 'white',
-      border: 'none',
-      borderRadius: '4px',
-      padding: '8px 16px',
-      cursor: 'pointer',
-      fontWeight: '500'
-    },
     filterContainer: {
       marginBottom: '20px',
       display: 'flex',
@@ -429,6 +326,48 @@ function ReviewTemplates() {
       color: '#4b5563',
       marginRight: '6px',
       marginTop: '6px'
+    },
+    templateCard: {
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      padding: '20px',
+      marginBottom: '20px',
+      backgroundColor: 'white',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+    },
+    templateHeader: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '12px'
+    },
+    templateTitle: {
+      fontSize: '1.2rem',
+      fontWeight: '600',
+      color: '#111827',
+      margin: 0
+    },
+    templateDescription: {
+      color: '#6b7280',
+      marginBottom: '16px',
+      fontSize: '0.95rem'
+    },
+    templateMeta: {
+      display: 'flex',
+      gap: '16px',
+      marginBottom: '12px',
+      flexWrap: 'wrap'
+    },
+    templateMetaItem: {
+      display: 'flex',
+      alignItems: 'center',
+      color: '#6b7280',
+      fontSize: '0.9rem'
+    },
+    templateGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+      gap: '20px'
     }
   };
 
@@ -454,153 +393,89 @@ function ReviewTemplates() {
   const renderTemplatesTab = () => {
     return (
       <div>
-        <h2 style={styles.heading}>Review Templates</h2>
-        
-        <div style={styles.buttonContainer}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h2 style={styles.heading}>Review Templates</h2>
           <button 
-            style={styles.newButton}
-            onClick={() => setShowNewTemplateForm(true)}
+            style={styles.createButton}
+            onClick={handleCreateTemplate}
           >
-            + New Template
-          </button>
-          
-          <button 
-            style={styles.advancedButton}
-            onClick={handleAdvancedTemplateBuilder}
-          >
-            Advanced Template Builder
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Create Template
           </button>
         </div>
         
         {loading ? (
-          <p>Loading templates...</p>
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <div className="loading-spinner">Loading...</div>
+          </div>
         ) : error ? (
-          <p style={{ color: '#EF4444' }}>{error}</p>
+          <p style={{ color: '#EF4444', textAlign: 'center', padding: '20px' }}>{error}</p>
+        ) : templates.length === 0 ? (
+          <div style={styles.emptyState}>
+            <p style={styles.emptyStateMessage}>No templates found. Create your first template to get started.</p>
+            <button 
+              style={styles.createButton}
+              onClick={handleCreateTemplate}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Create Template
+            </button>
+          </div>
         ) : (
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Template Name</th>
-                <th style={styles.th}>Description</th>
-                <th style={styles.th}>Frequency</th>
-                <th style={styles.th}>Features</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {templates.map(template => (
-                <tr key={template._id}>
-                  <td style={styles.td}>{template.name}</td>
-                  <td style={styles.td}>{template.description || 'No description'}</td>
-                  <td style={styles.td}>{template.frequency}</td>
-                  <td style={styles.td}>
-                    {template.includesSelfReview && 
-                      <span style={styles.templateFeature}>Self Review</span>}
-                    {template.includes360Review && 
-                      <span style={styles.templateFeature}>360° Review</span>}
-                    {template.includesGoals && 
-                      <span style={styles.templateFeature}>Goal Setting</span>}
-                    {template.includesKPIs && 
-                      <span style={styles.templateFeature}>KPI Tracking</span>}
-                  </td>
-                  <td style={styles.td}>
-                    <span style={getStatusBadgeStyle(template.active ? 'Active' : 'Inactive')}>
-                      {template.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={styles.actionsContainer}>
-                      <button 
-                        style={styles.editButton}
-                        onClick={() => navigate(`/templates/builder/${template._id}`)}
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        style={styles.deleteButton}
-                        onClick={() => handleDeleteTemplate(template._id)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        
-        {showNewTemplateForm && (
-          <div style={styles.modal}>
-            <div style={styles.modalContent}>
-              <h3 style={{ ...styles.heading, marginBottom: '16px' }}>Create New Template</h3>
-              <form onSubmit={handleCreateTemplate}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Name:</label>
-                  <input 
-                    type="text" 
-                    name="name" 
-                    value={newTemplate.name} 
-                    onChange={handleInputChange} 
-                    style={styles.input}
-                    required 
-                  />
+          <div style={styles.templateGrid}>
+            {templates.map(template => (
+              <div key={template._id} style={styles.templateCard}>
+                <div style={styles.templateHeader}>
+                  <h3 style={styles.templateTitle}>{template.name}</h3>
+                  <span style={getStatusBadgeStyle(template.active ? 'Active' : 'Inactive')}>
+                    {template.active ? 'Active' : 'Inactive'}
+                  </span>
                 </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Description:</label>
-                  <textarea 
-                    name="description" 
-                    value={newTemplate.description} 
-                    onChange={handleInputChange} 
-                    style={{ ...styles.input, height: '100px', resize: 'vertical' }}
-                  />
+                <p style={styles.templateDescription}>{template.description || 'No description'}</p>
+                <div style={styles.templateMeta}>
+                  <div style={styles.templateMetaItem}>
+                    <span style={{ marginRight: '4px' }}>Frequency:</span>
+                    <strong>{template.frequency}</strong>
+                  </div>
+                  <div style={styles.templateMetaItem}>
+                    <span style={{ marginRight: '4px' }}>Sections:</span>
+                    <strong>{template.sections?.length || 0}</strong>
+                  </div>
                 </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Frequency:</label>
-                  <select 
-                    name="frequency" 
-                    value={newTemplate.frequency} 
-                    onChange={handleInputChange}
-                    style={styles.input}
-                  >
-                    <option value="Annual">Annual</option>
-                    <option value="Quarterly">Quarterly</option>
-                    <option value="Monthly">Monthly</option>
-                  </select>
+                <div style={{ marginBottom: '16px' }}>
+                  {template.includesSelfReview && 
+                    <span style={styles.templateFeature}>Self Review</span>}
+                  {template.includes360Review && 
+                    <span style={styles.templateFeature}>360° Review</span>}
+                  {template.includesManagerReview && 
+                    <span style={styles.templateFeature}>Manager Review</span>}
+                  {template.includesGoals && 
+                    <span style={styles.templateFeature}>Goal Setting</span>}
+                  {template.includesKPIs && 
+                    <span style={styles.templateFeature}>KPI Tracking</span>}
                 </div>
-                <div style={styles.formGroup}>
-                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      name="active" 
-                      checked={newTemplate.active} 
-                      onChange={handleInputChange} 
-                      style={{ marginRight: '8px' }}
-                    />
-                    <span style={{ color: '#64748b' }}>Active</span>
-                  </label>
-                </div>
-                <div style={{ marginTop: '12px', color: '#6b7280', fontSize: '0.9rem' }}>
-                  <p>For more advanced template options like sections, questions, and goal tracking, use the Advanced Template Builder.</p>
-                </div>
-                <div style={styles.formActions}>
+                <div style={styles.actionsContainer}>
                   <button 
-                    type="button" 
-                    style={styles.cancelButton}
-                    onClick={() => setShowNewTemplateForm(false)}
+                    style={styles.editButton}
+                    onClick={() => navigate(`/templates/builder/${template._id}`)}
                   >
-                    Cancel
+                    Edit
                   </button>
                   <button 
-                    type="submit"
-                    style={styles.saveButton}
+                    style={styles.deleteButton}
+                    onClick={() => handleDeleteTemplate(template._id)}
                   >
-                    Save
+                    Delete
                   </button>
                 </div>
-              </form>
-            </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -629,9 +504,19 @@ function ReviewTemplates() {
         </div>
         
         {loading ? (
-          <p>Loading assignments...</p>
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <div className="loading-spinner">Loading...</div>
+          </div>
         ) : error ? (
-          <p style={{ color: '#EF4444' }}>{error}</p>
+          <p style={{ color: '#EF4444', textAlign: 'center', padding: '20px' }}>{error}</p>
+        ) : filteredAssignments.length === 0 ? (
+          <div style={styles.emptyState}>
+            <p style={styles.emptyStateMessage}>
+              {statusFilter === 'All Status' 
+                ? 'No assignments found.' 
+                : `No assignments with status "${statusFilter}" found.`}
+            </p>
+          </div>
         ) : (
           <table style={styles.table}>
             <thead>

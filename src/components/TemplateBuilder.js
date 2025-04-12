@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import QuestionEditor from './QuestionEditor';
+import { useNavigate, useParams } from 'react-router-dom';
+import '../styles/TemplateBuilder.css';
 
 function TemplateBuilder() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const [currentStep, setCurrentStep] = useState(1);
   const [templates, setTemplates] = useState([]);
   const [currentTemplate, setCurrentTemplate] = useState(null);
-  const [showEditor, setShowEditor] = useState(false);
   const [currentSection, setCurrentSection] = useState(null);
   const [showSectionEditor, setShowSectionEditor] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [previewMode, setPreviewMode] = useState(false);
   
   // API base URL
   const API_BASE_URL = process.env.NODE_ENV === 'development' 
@@ -35,6 +37,35 @@ function TemplateBuilder() {
         
         const data = await response.json();
         setTemplates(data);
+        
+        // If editing existing template
+        if (id) {
+          const template = data.find(t => t._id === id);
+          if (template) {
+            const formattedTemplate = {
+              ...template,
+              sections: template.sections || []
+            };
+            setCurrentTemplate(formattedTemplate);
+          } else {
+            throw new Error('Template not found');
+          }
+        } else {
+          // Create a new template with default values
+          setCurrentTemplate({
+            name: '',
+            description: '',
+            frequency: 'Annual',
+            sections: [],
+            includesSelfReview: false,
+            includes360Review: false,
+            includesManagerReview: true,
+            includesGoals: false,
+            includesKPIs: false,
+            status: 'Active'
+          });
+        }
+        
         setLoading(false);
       } catch (err) {
         console.error('Error fetching templates:', err);
@@ -44,40 +75,7 @@ function TemplateBuilder() {
     };
     
     fetchTemplates();
-  }, []);
-  
-  // Sample template structure
-  const newTemplateStructure = {
-    name: '',
-    description: '',
-    frequency: 'Annual',
-    sections: [],
-    includesSelfReview: false,
-    includes360Review: false,
-    includesManagerReview: true,
-    includesGoals: false,
-    includesKPIs: false,
-    status: 'Active'
-  };
-  
-  // Create new template
-  const createNewTemplate = () => {
-    setCurrentTemplate({
-      ...newTemplateStructure
-    });
-    setShowEditor(true);
-  };
-  
-  // Edit existing template
-  const editTemplate = (template) => {
-    // Ensure template has sections array
-    const formattedTemplate = {
-      ...template,
-      sections: template.sections || []
-    };
-    setCurrentTemplate(formattedTemplate);
-    setShowEditor(true);
-  };
+  }, [id]);
   
   // Save template
   const saveTemplate = async () => {
@@ -120,60 +118,15 @@ function TemplateBuilder() {
       }
       
       setLoading(false);
-      setShowEditor(false);
-      
       alert(`Template ${currentTemplate._id ? 'updated' : 'created'} successfully`);
+      navigate('/templates');
+      
     } catch (err) {
       console.error('Error saving template:', err);
       setError(err.message);
       setLoading(false);
       alert(`Error: ${err.message}`);
     }
-  };
-  
-  // Delete template
-  const deleteTemplate = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this template?')) {
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      
-      const response = await fetch(`${API_BASE_URL}/api/templates/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete template');
-      }
-      
-      setTemplates(templates.filter(t => t._id !== id));
-      setLoading(false);
-      
-      alert('Template deleted successfully');
-    } catch (err) {
-      console.error('Error deleting template:', err);
-      setError(err.message);
-      setLoading(false);
-      alert(`Error: ${err.message}`);
-    }
-  };
-  
-  // Duplicate template
-  const duplicateTemplate = (template) => {
-    const duplicated = {
-      ...template,
-      _id: null,
-      name: `${template.name} (Copy)`,
-    };
-    
-    setCurrentTemplate(duplicated);
-    setShowEditor(true);
   };
   
   // Add section to template
@@ -215,6 +168,12 @@ function TemplateBuilder() {
   
   // Save section
   const saveSection = () => {
+    // Validate section
+    if (!currentSection.title) {
+      alert('Section title is required');
+      return;
+    }
+    
     const section = { ...currentSection };
     const updatedSections = [...currentTemplate.sections];
     
@@ -494,11 +453,34 @@ function TemplateBuilder() {
       }
     }
     
+    // Normalize weights to ensure they sum to 100%
+    const totalWeight = defaultSections.reduce((sum, section) => sum + section.weight, 0);
+    if (totalWeight !== 100 && defaultSections.length > 0) {
+      // Adjust weights proportionally
+      defaultSections = defaultSections.map(section => ({
+        ...section,
+        weight: Math.round((section.weight / totalWeight) * 100)
+      }));
+      
+      // Handle any rounding errors by adjusting the last section
+      const newTotalWeight = defaultSections.reduce((sum, section) => sum + section.weight, 0);
+      if (newTotalWeight !== 100 && defaultSections.length > 0) {
+        const diff = 100 - newTotalWeight;
+        defaultSections[defaultSections.length - 1].weight += diff;
+      }
+    }
+    
     // Update template with default sections
     setCurrentTemplate({
       ...currentTemplate,
       sections: defaultSections
     });
+  };
+  
+  // Calculate total weight of all sections
+  const calculateTotalWeight = () => {
+    if (!currentTemplate || !currentTemplate.sections) return 0;
+    return currentTemplate.sections.reduce((sum, section) => sum + (section.weight || 0), 0);
   };
   
   // Render section editor
@@ -511,7 +493,7 @@ function TemplateBuilder() {
           <h3>{currentSection.index !== undefined ? 'Edit Section' : 'Add Section'}</h3>
           
           <div className="form-group">
-            <label>Section Title</label>
+            <label>Section Title <span className="required">*</span></label>
             <input
               type="text"
               className="form-control"
@@ -527,90 +509,110 @@ function TemplateBuilder() {
               className="form-control"
               value={currentSection.description}
               onChange={(e) => setCurrentSection({...currentSection, description: e.target.value})}
+              placeholder="Provide a brief description of this section"
             />
           </div>
           
           <div className="form-group">
-            <label>Weight (%)</label>
-            <input
-              type="number"
-              className="form-control"
-              value={currentSection.weight}
-              onChange={(e) => setCurrentSection({...currentSection, weight: Number(e.target.value)})}
-              min="0"
-              max="100"
-            />
+            <label>Weight (%) <span className="required">*</span></label>
+            <div className="weight-input-container">
+              <input
+                type="number"
+                className="form-control"
+                value={currentSection.weight}
+                onChange={(e) => setCurrentSection({...currentSection, weight: Number(e.target.value)})}
+                min="0"
+                max="100"
+              />
+              <div className="weight-info">
+                <small>The combined weight of all sections should equal 100%</small>
+              </div>
+            </div>
           </div>
           
-          <h4>Questions</h4>
-          
-          {currentSection.questions.map((question, index) => (
-            <div key={index} className="question-item">
-              <div className="question-header">
-                <h5>Question {index + 1}</h5>
-                <button 
-                  onClick={() => deleteQuestion(index)}
-                  className="delete-button"
-                >
-                  Delete
-                </button>
-              </div>
-              
-              <div className="form-group">
-                <label>Question Text</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={question.text}
-                  onChange={(e) => updateQuestion(index, 'text', e.target.value)}
-                />
-              </div>
-              
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Question Type</label>
-                  <select
-                    className="form-control"
-                    value={question.type}
-                    onChange={(e) => updateQuestion(index, 'type', e.target.value)}
-                  >
-                    <option value="text">Text Response</option>
-                    <option value="rating">Rating Scale</option>
-                    <option value="yesno">Yes/No</option>
-                    <option value="multiple-choice">Multiple Choice</option>
-                  </select>
-                </div>
-                
-                <div className="form-group checkbox-group">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={question.required}
-                      onChange={(e) => updateQuestion(index, 'required', e.target.checked)}
-                    />
-                    Required
-                  </label>
-                </div>
-              </div>
-              
-              {question.type === 'multiple-choice' && (
-                <div className="form-group">
-                  <label>Options (comma-separated)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={question.options.join(', ')}
-                    onChange={(e) => updateQuestion(index, 'options', e.target.value.split(',').map(opt => opt.trim()))}
-                    placeholder="Option 1, Option 2, Option 3"
-                  />
-                </div>
-              )}
+          <div className="questions-container">
+            <div className="questions-header">
+              <h4>Questions</h4>
+              <button onClick={addQuestion} className="add-question-button">
+                <span className="button-icon">+</span> Add Question
+              </button>
             </div>
-          ))}
-          
-          <button onClick={addQuestion} className="add-button">
-            Add Question
-          </button>
+            
+            {currentSection.questions.length === 0 ? (
+              <div className="no-questions">
+                <p>No questions added yet. Add questions to build your section.</p>
+              </div>
+            ) : (
+              <div className="questions-list">
+                {currentSection.questions.map((question, index) => (
+                  <div key={index} className="question-item">
+                    <div className="question-header">
+                      <h5>Question {index + 1}</h5>
+                      <button 
+                        onClick={() => deleteQuestion(index)}
+                        className="delete-button"
+                        title="Delete Question"
+                      >
+                        <span className="button-icon">×</span>
+                      </button>
+                    </div>
+                    
+                    <div className="form-group">
+                      <label>Question Text <span className="required">*</span></label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={question.text}
+                        onChange={(e) => updateQuestion(index, 'text', e.target.value)}
+                        placeholder="Enter question text"
+                      />
+                    </div>
+                    
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Question Type</label>
+                        <select
+                          className="form-control"
+                          value={question.type}
+                          onChange={(e) => updateQuestion(index, 'type', e.target.value)}
+                        >
+                          <option value="text">Text Response</option>
+                          <option value="rating">Rating Scale</option>
+                          <option value="yesno">Yes/No</option>
+                          <option value="multiple-choice">Multiple Choice</option>
+                        </select>
+                      </div>
+                      
+                      <div className="form-group checkbox-group">
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={question.required}
+                            onChange={(e) => updateQuestion(index, 'required', e.target.checked)}
+                          />
+                          Required
+                        </label>
+                      </div>
+                    </div>
+                    
+                    {question.type === 'multiple-choice' && (
+                      <div className="form-group">
+                        <label>Options (comma-separated)</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={question.options.join(', ')}
+                          onChange={(e) => updateQuestion(index, 'options', e.target.value.split(',').map(opt => opt.trim()))}
+                          placeholder="Option 1, Option 2, Option 3"
+                        />
+                        <small>Enter multiple options separated by commas</small>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           
           <div className="button-group">
             <button onClick={() => setShowSectionEditor(false)} className="cancel-button">
@@ -624,212 +626,486 @@ function TemplateBuilder() {
       </div>
     );
   };
-
-  return (
-    <div className="template-builder">
-      <div className="template-header">
-        <h2>Evaluation Templates</h2>
-        <button className="action-button" onClick={createNewTemplate}>Create New Template</button>
+  
+  // Step navigation
+  const goToNextStep = () => {
+    if (currentStep < 3) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+  
+  const goToPreviousStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+  
+  // Step 1: Template Details
+  const renderStep1 = () => {
+    return (
+      <div className="step-content">
+        <div className="form-group">
+          <label>Template Name <span className="required">*</span></label>
+          <input 
+            type="text" 
+            value={currentTemplate.name} 
+            onChange={(e) => setCurrentTemplate({...currentTemplate, name: e.target.value})}
+            className="form-control"
+            placeholder="e.g. Annual Performance Review"
+            required
+          />
+        </div>
+        
+        <div className="form-group">
+          <label>Description</label>
+          <textarea 
+            value={currentTemplate.description} 
+            onChange={(e) => setCurrentTemplate({...currentTemplate, description: e.target.value})}
+            className="form-control"
+            placeholder="Provide a brief description of this template"
+            rows="3"
+          />
+        </div>
+        
+        <div className="form-row">
+          <div className="form-group">
+            <label>Frequency <span className="required">*</span></label>
+            <select
+              className="form-control"
+              value={currentTemplate.frequency}
+              onChange={(e) => setCurrentTemplate({...currentTemplate, frequency: e.target.value})}
+            >
+              <option value="Annual">Annual</option>
+              <option value="Quarterly">Quarterly</option>
+              <option value="Monthly">Monthly</option>
+            </select>
+          </div>
+          
+          <div className="form-group">
+            <label>Status</label>
+            <select
+              className="form-control"
+              value={currentTemplate.status}
+              onChange={(e) => setCurrentTemplate({...currentTemplate, status: e.target.value})}
+            >
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+        
+        <div className="step-actions">
+          <button onClick={() => navigate('/templates')} className="cancel-button">
+            Cancel
+          </button>
+          <button 
+            onClick={goToNextStep} 
+            className="next-button"
+            disabled={!currentTemplate.name}
+          >
+            Next: Review Components
+          </button>
+        </div>
       </div>
-      
-      {loading && <div className="loading-spinner">Loading...</div>}
-      {error && <div className="error-message">{error}</div>}
-      
-      {showEditor ? (
-        <div className="template-editor">
-          <h3>{currentTemplate._id ? "Edit Template" : "New Template"}</h3>
+    );
+  };
+  
+  // Step 2: Review Components
+  const renderStep2 = () => {
+    return (
+      <div className="step-content">
+        <div className="review-components-container">
+          <p className="step-description">
+            Select which components to include in your review template. 
+            These components will determine the structure and capabilities of your reviews.
+          </p>
           
-          <div className="form-group">
-            <label>Title</label>
-            <input 
-              type="text" 
-              value={currentTemplate.name} 
-              onChange={(e) => setCurrentTemplate({...currentTemplate, name: e.target.value})}
-              className="form-control"
-              required
-            />
-          </div>
-          
-          <div className="form-group">
-            <label>Description</label>
-            <textarea 
-              value={currentTemplate.description} 
-              onChange={(e) => setCurrentTemplate({...currentTemplate, description: e.target.value})}
-              className="form-control"
-            />
-          </div>
-          
-          <div className="form-row">
-            <div className="form-group">
-              <label>Frequency</label>
-              <select
-                className="form-control"
-                value={currentTemplate.frequency}
-                onChange={(e) => setCurrentTemplate({...currentTemplate, frequency: e.target.value})}
-              >
-                <option value="Annual">Annual</option>
-                <option value="Quarterly">Quarterly</option>
-                <option value="Monthly">Monthly</option>
-              </select>
+          <div className="component-grid">
+            <div className={`component-card ${currentTemplate.includesManagerReview ? 'selected' : ''}`}>
+              <div className="component-header">
+                <h4>Manager Review</h4>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={currentTemplate.includesManagerReview}
+                    onChange={(e) => setCurrentTemplate({...currentTemplate, includesManagerReview: e.target.checked})}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+              <p>Standard manager evaluation of employee performance.</p>
             </div>
             
-            <div className="form-group">
-              <label>Status</label>
-              <select
-                className="form-control"
-                value={currentTemplate.status}
-                onChange={(e) => setCurrentTemplate({...currentTemplate, status: e.target.value})}
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
-          
-          <div className="review-components">
-            <h4>Review Components</h4>
-            
-            <div className="checkbox-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={currentTemplate.includesSelfReview}
-                  onChange={(e) => setCurrentTemplate({...currentTemplate, includesSelfReview: e.target.checked})}
-                />
-                Include Self Review
-              </label>
+            <div className={`component-card ${currentTemplate.includesSelfReview ? 'selected' : ''}`}>
+              <div className="component-header">
+                <h4>Self Review</h4>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={currentTemplate.includesSelfReview}
+                    onChange={(e) => setCurrentTemplate({...currentTemplate, includesSelfReview: e.target.checked})}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+              <p>Allows employees to evaluate their own performance.</p>
             </div>
             
-            <div className="checkbox-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={currentTemplate.includes360Review}
-                  onChange={(e) => setCurrentTemplate({...currentTemplate, includes360Review: e.target.checked})}
-                />
-                Include 360° Peer Review
-              </label>
+            <div className={`component-card ${currentTemplate.includes360Review ? 'selected' : ''}`}>
+              <div className="component-header">
+                <h4>360° Peer Review</h4>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={currentTemplate.includes360Review}
+                    onChange={(e) => setCurrentTemplate({...currentTemplate, includes360Review: e.target.checked})}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+              <p>Collect feedback from colleagues and team members.</p>
             </div>
             
-            <div className="checkbox-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={currentTemplate.includesManagerReview}
-                  onChange={(e) => setCurrentTemplate({...currentTemplate, includesManagerReview: e.target.checked})}
-                />
-                Include Manager Review
-              </label>
-            </div>
-            
-            <div className="checkbox-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={currentTemplate.includesGoals}
-                  onChange={(e) => setCurrentTemplate({...currentTemplate, includesGoals: e.target.checked})}
-                />
-                Include Goal Setting
-              </label>
+            <div className={`component-card ${currentTemplate.includesGoals ? 'selected' : ''}`}>
+              <div className="component-header">
+                <h4>Goal Setting</h4>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={currentTemplate.includesGoals}
+                    onChange={(e) => setCurrentTemplate({...currentTemplate, includesGoals: e.target.checked})}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+              <p>Set, track, and evaluate goals over the review period.</p>
             </div>
             
             {currentTemplate.includesGoals && (
-              <div className="checkbox-group">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={currentTemplate.includesKPIs}
-                    onChange={(e) => setCurrentTemplate({...currentTemplate, includesKPIs: e.target.checked})}
-                  />
-                  Link Goals to KPIs
-                </label>
+              <div className={`component-card ${currentTemplate.includesKPIs ? 'selected' : ''}`}>
+                <div className="component-header">
+                  <h4>KPI Tracking</h4>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={currentTemplate.includesKPIs}
+                      onChange={(e) => setCurrentTemplate({...currentTemplate, includesKPIs: e.target.checked})}
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+                <p>Link goals to key performance indicators for measurable outcomes.</p>
               </div>
             )}
           </div>
+        </div>
+        
+        <div className="step-actions">
+          <button onClick={goToPreviousStep} className="back-button">
+            Back
+          </button>
+          <button onClick={goToNextStep} className="next-button">
+            Next: Sections
+          </button>
+        </div>
+      </div>
+    );
+  };
+  
+  // Step 3: Sections
+  const renderStep3 = () => {
+    const totalWeight = calculateTotalWeight();
+    const isWeightValid = totalWeight === 100;
+    
+    return (
+      <div className="step-content">
+        <div className="sections-header">
+          <div>
+            <h4>Template Sections</h4>
+            <p className="step-description">
+              Sections organize your review into meaningful groups of questions. 
+              Each section can have a different weight toward the overall review score.
+            </p>
+          </div>
           
-          <div className="sections-area">
-            <div className="sections-header">
-              <h4>Sections</h4>
-              <button 
-                onClick={generateDefaultSections}
-                className="generate-button"
-              >
-                Generate Default Sections
-              </button>
-            </div>
-            
-            {currentTemplate.sections && currentTemplate.sections.length > 0 ? (
-              <div className="sections-list">
-                {currentTemplate.sections.map((section, index) => (
-                  <div key={index} className="section-item">
-                    <div className="section-header">
-                      <h5>{section.title || `Section ${index + 1}`}</h5>
-                      <span className="section-weight">Weight: {section.weight}%</span>
-                    </div>
-                    <p className="section-description">{section.description}</p>
-                    <p className="section-questions">{section.questions.length} questions</p>
-                    <div className="section-actions">
-                      <button onClick={() => editSection(index)} className="edit-button">Edit</button>
-                      <button onClick={() => deleteSection(index)} className="delete-button">Delete</button>
-                    </div>
+          <button 
+            onClick={generateDefaultSections}
+            className="generate-button"
+            title="Create suggested sections based on the template settings"
+          >
+            Generate Default Sections
+          </button>
+        </div>
+        
+        <div className="weight-summary">
+          <div className="weight-meter">
+            <div 
+              className={`weight-progress ${isWeightValid ? 'valid' : 'invalid'}`} 
+              style={{ width: `${Math.min(totalWeight, 100)}%` }}
+            ></div>
+          </div>
+          <div className="weight-text">
+            Total Weight: <span className={isWeightValid ? 'valid' : 'invalid'}>{totalWeight}%</span>
+            {!isWeightValid && (
+              <span className="weight-error">
+                {totalWeight < 100 ? `(${100 - totalWeight}% remaining)` : `(${totalWeight - 100}% excess)`}
+              </span>
+            )}
+          </div>
+        </div>
+        
+        {currentTemplate.sections && currentTemplate.sections.length > 0 ? (
+          <div className="sections-list">
+            {currentTemplate.sections.map((section, index) => (
+              <div key={index} className="section-item">
+                <div className="section-main">
+                  <div className="section-header">
+                    <h5>{section.title || `Section ${index + 1}`}</h5>
+                    <span className="section-weight">Weight: {section.weight}%</span>
                   </div>
-                ))}
+                  <p className="section-description">{section.description || 'No description provided'}</p>
+                  <p className="section-questions">{section.questions.length} question{section.questions.length !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="section-actions">
+                  <button onClick={() => editSection(index)} className="edit-button">Edit</button>
+                  <button onClick={() => deleteSection(index)} className="delete-button">Delete</button>
+                </div>
               </div>
-            ) : (
-              <div className="no-sections">
-                <p>No sections added. Add sections to build your template.</p>
-              </div>
-            )}
-            
-            <button onClick={addSection} className="add-section-btn">Add Section</button>
+            ))}
+          </div>
+        ) : (
+          <div className="no-sections">
+            <div className="empty-state-message">
+              <p>No sections added. Add sections to build your template or use Generate Default Sections.</p>
+              <button onClick={addSection} className="add-section-btn">Add First Section</button>
+            </div>
+          </div>
+        )}
+        
+        {currentTemplate.sections.length > 0 && (
+          <button onClick={addSection} className="add-section-btn">Add Section</button>
+        )}
+        
+        <div className="step-actions">
+          <div className="left-actions">
+            <button onClick={goToPreviousStep} className="back-button">
+              Back
+            </button>
           </div>
           
-          <div className="template-actions">
-            <button onClick={saveTemplate} className="save-button">Save Template</button>
-            <button onClick={() => setShowEditor(false)} className="cancel-button">Cancel</button>
+          <div className="right-actions">
+            <button 
+              onClick={() => setPreviewMode(!previewMode)} 
+              className="preview-button"
+            >
+              {previewMode ? 'Close Preview' : 'Preview'}
+            </button>
+            <button 
+              onClick={saveTemplate} 
+              className="save-button"
+              disabled={!isWeightValid || currentTemplate.sections.length === 0}
+            >
+              Save Template
+            </button>
           </div>
         </div>
-      ) : (
-        <div className="templates-list">
-          {templates.length > 0 ? (
-            templates.map(template => (
-              <div key={template._id} className="template-card">
-                <div className="template-header">
-                  <h3>{template.name}</h3>
-                  <span className={`template-status ${template.status === 'Active' ? 'active' : 'inactive'}`}>
-                    {template.status}
-                  </span>
-                </div>
-                <p className="template-description">{template.description}</p>
-                <div className="template-meta">
-                  <span className="template-frequency">{template.frequency}</span>
-                  <span className="template-sections">{template.sections?.length || 0} sections</span>
-                  <span className="template-date">
-                    Created: {new Date(template.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <div className="template-features">
-                  {template.includesSelfReview && <span className="template-feature">Self Review</span>}
-                  {template.includes360Review && <span className="template-feature">360° Review</span>}
-                  {template.includesGoals && <span className="template-feature">Goal Setting</span>}
-                  {template.includesKPIs && <span className="template-feature">KPI Tracking</span>}
-                </div>
-                <div className="template-actions">
-                  <button onClick={() => editTemplate(template)} className="edit-button">Edit</button>
-                  <button onClick={() => duplicateTemplate(template)} className="duplicate-button">Duplicate</button>
-                  <button onClick={() => deleteTemplate(template._id)} className="delete-button">Delete</button>
-                </div>
+        
+        {!isWeightValid && currentTemplate.sections.length > 0 && (
+          <div className="warning-message">
+            Total section weight must equal 100% to save the template.
+          </div>
+        )}
+        
+        {currentTemplate.sections.length === 0 && (
+          <div className="warning-message">
+            At least one section is required to save the template.
+          </div>
+        )}
+      </div>
+    );
+  };
+  
+  // Preview mode
+  const renderPreview = () => {
+    if (!previewMode) return null;
+    
+    return (
+      <div className="preview-overlay">
+        <div className="preview-content">
+          <div className="preview-header">
+            <h3>Template Preview: {currentTemplate.name}</h3>
+            <button onClick={() => setPreviewMode(false)} className="close-preview-button">×</button>
+          </div>
+          
+          <div className="preview-body">
+            <div className="preview-meta">
+              <p><strong>Type:</strong> {currentTemplate.frequency} Review</p>
+              <p><strong>Description:</strong> {currentTemplate.description || 'No description provided'}</p>
+              
+              <div className="preview-features">
+                <p><strong>Features:</strong></p>
+                <ul>
+                  {currentTemplate.includesManagerReview && <li>Manager Review</li>}
+                  {currentTemplate.includesSelfReview && <li>Self Review</li>}
+                  {currentTemplate.includes360Review && <li>360° Peer Review</li>}
+                  {currentTemplate.includesGoals && <li>Goal Setting</li>}
+                  {currentTemplate.includesKPIs && <li>KPI Tracking</li>}
+                </ul>
               </div>
-            ))
-          ) : (
-            <div className="no-templates">
-              <p>No templates found. Create your first template to get started.</p>
             </div>
-          )}
+            
+            <div className="preview-sections">
+              <h4>Sections</h4>
+              
+              {currentTemplate.sections.map((section, index) => (
+                <div key={index} className="preview-section">
+                  <div className="preview-section-header">
+                    <h5>{section.title} ({section.weight}%)</h5>
+                  </div>
+                  <p>{section.description}</p>
+                  
+                  <div className="preview-questions">
+                    {section.questions.map((question, qIndex) => (
+                      <div key={qIndex} className="preview-question">
+                        <div className="question-label">
+                          {question.text} {question.required && <span className="required">*</span>}
+                        </div>
+                        
+                        {question.type === 'text' && (
+                          <div className="question-preview-input">
+                            <textarea className="form-control" disabled placeholder="Text response..." rows="2" />
+                          </div>
+                        )}
+                        
+                        {question.type === 'rating' && (
+                          <div className="rating-preview">
+                            <div className="rating-options">
+                              <span>1</span>
+                              <span>2</span>
+                              <span>3</span>
+                              <span>4</span>
+                              <span>5</span>
+                            </div>
+                            <div className="rating-labels">
+                              <span>Poor</span>
+                              <span>Excellent</span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {question.type === 'yesno' && (
+                          <div className="yesno-preview">
+                            <label className="radio-label">
+                              <input type="radio" name={`yesno-${index}-${qIndex}`} disabled /> Yes
+                            </label>
+                            <label className="radio-label">
+                              <input type="radio" name={`yesno-${index}-${qIndex}`} disabled /> No
+                            </label>
+                          </div>
+                        )}
+                        
+                        {question.type === 'multiple-choice' && (
+                          <div className="multiple-choice-preview">
+                            {question.options.length > 0 ? (
+                              question.options.map((option, oIndex) => (
+                                <label key={oIndex} className="radio-label">
+                                  <input type="radio" name={`mc-${index}-${qIndex}`} disabled /> {option}
+                                </label>
+                              ))
+                            ) : (
+                              <p className="no-options">No options defined</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      )}
+      </div>
+    );
+  };
+  
+  // Main render
+  if (loading && !currentTemplate) {
+    return (
+      <div className="template-builder loading-state">
+        <div className="loading-spinner">Loading...</div>
+      </div>
+    );
+  }
+  
+  if (error && !currentTemplate) {
+    return (
+      <div className="template-builder error-state">
+        <div className="error-message">
+          <h3>Error</h3>
+          <p>{error}</p>
+          <button onClick={() => navigate('/templates')} className="cancel-button">
+            Back to Templates
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!currentTemplate) {
+    return (
+      <div className="template-builder error-state">
+        <div className="error-message">
+          <h3>Template Not Found</h3>
+          <p>Unable to load template data.</p>
+          <button onClick={() => navigate('/templates')} className="cancel-button">
+            Back to Templates
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="template-builder">
+      <div className="template-builder-header">
+        <h2>{currentTemplate._id ? "Edit Template" : "Create New Template"}</h2>
+        <button onClick={() => navigate('/templates')} className="back-to-templates">
+          Back to Templates
+        </button>
+      </div>
+      
+      <div className="template-steps">
+        <div className={`step ${currentStep === 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}>
+          <div className="step-number">1</div>
+          <div className="step-label">Template Details</div>
+        </div>
+        <div className="step-connector"></div>
+        <div className={`step ${currentStep === 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}>
+          <div className="step-number">2</div>
+          <div className="step-label">Review Components</div>
+        </div>
+        <div className="step-connector"></div>
+        <div className={`step ${currentStep === 3 ? 'active' : ''}`}>
+          <div className="step-number">3</div>
+          <div className="step-label">Sections & Questions</div>
+        </div>
+      </div>
+      
+      <div className="template-builder-content">
+        {currentStep === 1 && renderStep1()}
+        {currentStep === 2 && renderStep2()}
+        {currentStep === 3 && renderStep3()}
+      </div>
       
       {renderSectionEditor()}
+      {renderPreview()}
+      
+      {loading && (
+        <div className="loading-overlay">
+          <div className="loading-spinner">Saving...</div>
+        </div>
+      )}
     </div>
   );
 }
