@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import SidebarLayout from './SidebarLayout';
 import '../styles/ViewEvaluation.css';
 import { FaArrowLeft, FaSave, FaCheck, FaTimes } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext'; // Import useAuth hook instead of AuthContext
+import { useAuth } from '../context/AuthContext'; // Import useAuth hook
 
 function ViewEvaluation() {
   const { id } = useParams();
@@ -13,7 +13,7 @@ function ViewEvaluation() {
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({});
   const [saveStatus, setSaveStatus] = useState(null);
-  const { user } = useAuth(); // Use the useAuth hook
+  const { user } = useAuth(); // Use the useAuth hook to get user
   
   const API_BASE_URL = process.env.NODE_ENV === 'development' 
     ? 'http://localhost:5000' 
@@ -189,254 +189,268 @@ function ViewEvaluation() {
     }
   };
 
-  // Check what props SidebarLayout actually needs
-  // If we don't have a user prop but your component structure might need other props
-  // replace `user={user}` with whatever props your SidebarLayout actually expects
-  return (
-    <SidebarLayout>
-      <div className="view-evaluation-container">
-        {loading ? (
-          <div className="loading-container">
-            <div className="spinner"></div>
-            <p>Loading review data...</p>
-          </div>
-        ) : error ? (
-          <div className="error-container">
-            <h2>Error</h2>
-            <p>{error}</p>
+  // Create content separately to avoid rendering objects directly
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="loading-container">
+          <div className="spinner"></div>
+          <p>Loading review data...</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="error-container">
+          <h2>Error</h2>
+          <p>{error}</p>
+          <button onClick={() => navigate('/pending-reviews')} className="btn-back">
+            <FaArrowLeft /> Back to Pending Reviews
+          </button>
+        </div>
+      );
+    }
+
+    if (!review) {
+      return (
+        <div className="error-container">
+          <h2>Review Not Found</h2>
+          <p>The requested review could not be found.</p>
+          <button onClick={() => navigate('/pending-reviews')} className="btn-back">
+            <FaArrowLeft /> Back to Pending Reviews
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <div className="eval-header">
+          <div className="eval-title-section">
             <button onClick={() => navigate('/pending-reviews')} className="btn-back">
-              <FaArrowLeft /> Back to Pending Reviews
+              <FaArrowLeft /> Back
+            </button>
+            <h1>Review Editor</h1>
+            {renderSaveStatus()}
+          </div>
+          
+          <div className="eval-actions">
+            <button className="btn-save" onClick={handleSubmit}>
+              <FaSave /> Save
+            </button>
+            <button className="btn-complete" onClick={handleComplete}>
+              <FaCheck /> Complete Review
             </button>
           </div>
-        ) : !review ? (
-          <div className="error-container">
-            <h2>Review Not Found</h2>
-            <p>The requested review could not be found.</p>
-            <button onClick={() => navigate('/pending-reviews')} className="btn-back">
-              <FaArrowLeft /> Back to Pending Reviews
-            </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="review-form">
+          <div className="review-meta">
+            <div className="meta-item">
+              <strong>Employee:</strong> {getEmployeeName()}
+            </div>
+            <div className="meta-item">
+              <strong>Review Period:</strong> {review.reviewPeriod || 'N/A'}
+            </div>
+            <div className="meta-item">
+              <strong>Status:</strong> 
+              <span className={`status-badge ${(review.status || '').replace(/\s+/g, '-').toLowerCase()}`}>
+                {review.status || 'Unknown'}
+              </span>
+            </div>
+            <div className="meta-item">
+              <strong>Started:</strong> {formatDate(review.startDate)}
+            </div>
           </div>
-        ) : (
-          <>
-            <div className="eval-header">
-              <div className="eval-title-section">
-                <button onClick={() => navigate('/pending-reviews')} className="btn-back">
-                  <FaArrowLeft /> Back
-                </button>
-                <h1>Review Editor</h1>
-                {renderSaveStatus()}
-              </div>
-              
-              <div className="eval-actions">
-                <button className="btn-save" onClick={handleSubmit}>
-                  <FaSave /> Save
-                </button>
-                <button className="btn-complete" onClick={handleComplete}>
-                  <FaCheck /> Complete Review
-                </button>
+
+          <div className="review-sections">
+            <div className="review-section">
+              <h2>Performance Ratings</h2>
+              <div className="ratings-grid">
+                <div className="rating-item">
+                  <label htmlFor="overall-rating">Overall Rating:</label>
+                  <select 
+                    id="overall-rating" 
+                    name="ratings.overallRating" 
+                    value={formData.ratings?.overallRating || ''} 
+                    onChange={handleInputChange}
+                  >
+                    <option value="">Select Rating</option>
+                    <option value="5">5 - Exceptional</option>
+                    <option value="4">4 - Exceeds Expectations</option>
+                    <option value="3">3 - Meets Expectations</option>
+                    <option value="2">2 - Needs Improvement</option>
+                    <option value="1">1 - Unsatisfactory</option>
+                  </select>
+                </div>
+                <div className="rating-item">
+                  <label htmlFor="technical-rating">Technical Skills:</label>
+                  <select 
+                    id="technical-rating" 
+                    name="ratings.technicalSkillsRating" 
+                    value={formData.ratings?.technicalSkillsRating || ''} 
+                    onChange={handleInputChange}
+                  >
+                    <option value="">Select Rating</option>
+                    <option value="5">5 - Exceptional</option>
+                    <option value="4">4 - Exceeds Expectations</option>
+                    <option value="3">3 - Meets Expectations</option>
+                    <option value="2">2 - Needs Improvement</option>
+                    <option value="1">1 - Unsatisfactory</option>
+                  </select>
+                </div>
+                <div className="rating-item">
+                  <label htmlFor="communication-rating">Communication:</label>
+                  <select 
+                    id="communication-rating" 
+                    name="ratings.communicationRating" 
+                    value={formData.ratings?.communicationRating || ''} 
+                    onChange={handleInputChange}
+                  >
+                    <option value="">Select Rating</option>
+                    <option value="5">5 - Exceptional</option>
+                    <option value="4">4 - Exceeds Expectations</option>
+                    <option value="3">3 - Meets Expectations</option>
+                    <option value="2">2 - Needs Improvement</option>
+                    <option value="1">1 - Unsatisfactory</option>
+                  </select>
+                </div>
+                <div className="rating-item">
+                  <label htmlFor="teamwork-rating">Teamwork:</label>
+                  <select 
+                    id="teamwork-rating" 
+                    name="ratings.teamworkRating" 
+                    value={formData.ratings?.teamworkRating || ''} 
+                    onChange={handleInputChange}
+                  >
+                    <option value="">Select Rating</option>
+                    <option value="5">5 - Exceptional</option>
+                    <option value="4">4 - Exceeds Expectations</option>
+                    <option value="3">3 - Meets Expectations</option>
+                    <option value="2">2 - Needs Improvement</option>
+                    <option value="1">1 - Unsatisfactory</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="review-form">
-              <div className="review-meta">
-                <div className="meta-item">
-                  <strong>Employee:</strong> {getEmployeeName()}
-                </div>
-                <div className="meta-item">
-                  <strong>Review Period:</strong> {review.reviewPeriod || 'N/A'}
-                </div>
-                <div className="meta-item">
-                  <strong>Status:</strong> 
-                  <span className={`status-badge ${(review.status || '').replace(/\s+/g, '-').toLowerCase()}`}>
-                    {review.status || 'Unknown'}
-                  </span>
-                </div>
-                <div className="meta-item">
-                  <strong>Started:</strong> {formatDate(review.startDate)}
-                </div>
+            <div className="review-section">
+              <h2>Feedback</h2>
+              <div className="feedback-item">
+                <label htmlFor="strengths">Strengths:</label>
+                <textarea
+                  id="strengths"
+                  name="feedback.strengths"
+                  value={formData.feedback?.strengths || ''}
+                  onChange={handleInputChange}
+                  rows="4"
+                  placeholder="Describe employee's strengths and accomplishments..."
+                ></textarea>
               </div>
-
-              <div className="review-sections">
-                <div className="review-section">
-                  <h2>Performance Ratings</h2>
-                  <div className="ratings-grid">
-                    <div className="rating-item">
-                      <label htmlFor="overall-rating">Overall Rating:</label>
-                      <select 
-                        id="overall-rating" 
-                        name="ratings.overallRating" 
-                        value={formData.ratings?.overallRating || ''} 
-                        onChange={handleInputChange}
-                      >
-                        <option value="">Select Rating</option>
-                        <option value="5">5 - Exceptional</option>
-                        <option value="4">4 - Exceeds Expectations</option>
-                        <option value="3">3 - Meets Expectations</option>
-                        <option value="2">2 - Needs Improvement</option>
-                        <option value="1">1 - Unsatisfactory</option>
-                      </select>
-                    </div>
-                    <div className="rating-item">
-                      <label htmlFor="technical-rating">Technical Skills:</label>
-                      <select 
-                        id="technical-rating" 
-                        name="ratings.technicalSkillsRating" 
-                        value={formData.ratings?.technicalSkillsRating || ''} 
-                        onChange={handleInputChange}
-                      >
-                        <option value="">Select Rating</option>
-                        <option value="5">5 - Exceptional</option>
-                        <option value="4">4 - Exceeds Expectations</option>
-                        <option value="3">3 - Meets Expectations</option>
-                        <option value="2">2 - Needs Improvement</option>
-                        <option value="1">1 - Unsatisfactory</option>
-                      </select>
-                    </div>
-                    <div className="rating-item">
-                      <label htmlFor="communication-rating">Communication:</label>
-                      <select 
-                        id="communication-rating" 
-                        name="ratings.communicationRating" 
-                        value={formData.ratings?.communicationRating || ''} 
-                        onChange={handleInputChange}
-                      >
-                        <option value="">Select Rating</option>
-                        <option value="5">5 - Exceptional</option>
-                        <option value="4">4 - Exceeds Expectations</option>
-                        <option value="3">3 - Meets Expectations</option>
-                        <option value="2">2 - Needs Improvement</option>
-                        <option value="1">1 - Unsatisfactory</option>
-                      </select>
-                    </div>
-                    <div className="rating-item">
-                      <label htmlFor="teamwork-rating">Teamwork:</label>
-                      <select 
-                        id="teamwork-rating" 
-                        name="ratings.teamworkRating" 
-                        value={formData.ratings?.teamworkRating || ''} 
-                        onChange={handleInputChange}
-                      >
-                        <option value="">Select Rating</option>
-                        <option value="5">5 - Exceptional</option>
-                        <option value="4">4 - Exceeds Expectations</option>
-                        <option value="3">3 - Meets Expectations</option>
-                        <option value="2">2 - Needs Improvement</option>
-                        <option value="1">1 - Unsatisfactory</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="review-section">
-                  <h2>Feedback</h2>
-                  <div className="feedback-item">
-                    <label htmlFor="strengths">Strengths:</label>
-                    <textarea
-                      id="strengths"
-                      name="feedback.strengths"
-                      value={formData.feedback?.strengths || ''}
-                      onChange={handleInputChange}
-                      rows="4"
-                      placeholder="Describe employee's strengths and accomplishments..."
-                    ></textarea>
-                  </div>
-                  <div className="feedback-item">
-                    <label htmlFor="improvements">Areas for Improvement:</label>
-                    <textarea
-                      id="improvements"
-                      name="feedback.areasForImprovement"
-                      value={formData.feedback?.areasForImprovement || ''}
-                      onChange={handleInputChange}
-                      rows="4"
-                      placeholder="Describe areas where the employee can improve..."
-                    ></textarea>
-                  </div>
-                  <div className="feedback-item">
-                    <label htmlFor="development">Development Plan:</label>
-                    <textarea
-                      id="development"
-                      name="feedback.developmentPlan"
-                      value={formData.feedback?.developmentPlan || ''}
-                      onChange={handleInputChange}
-                      rows="4"
-                      placeholder="Outline a plan for the employee's professional development..."
-                    ></textarea>
-                  </div>
-                </div>
-
-                <div className="review-section">
-                  <h2>Goals</h2>
-                  {Array.isArray(formData.goals) && formData.goals.length > 0 ? (
-                    <div className="goals-list">
-                      {formData.goals.map((goal, index) => (
-                        <div key={index} className="goal-item">
-                          <div className="goal-description">
-                            <label>Description:</label>
-                            <textarea
-                              value={goal?.description || ''}
-                              onChange={(e) => handleGoalChange(index, 'description', e.target.value)}
-                              rows="2"
-                              placeholder="Goal description..."
-                            ></textarea>
-                          </div>
-                          <div className="goal-target">
-                            <label>Target Date:</label>
-                            <input
-                              type="date"
-                              value={goal?.targetDate ? 
-                                (typeof goal.targetDate === 'string' ? goal.targetDate.slice(0, 10) : '') : 
-                                ''}
-                              onChange={(e) => handleGoalChange(index, 'targetDate', e.target.value)}
-                            />
-                          </div>
-                          <div className="goal-status">
-                            <label>Status:</label>
-                            <select
-                              value={goal?.status || 'Not Started'}
-                              onChange={(e) => handleGoalChange(index, 'status', e.target.value)}
-                            >
-                              <option value="Not Started">Not Started</option>
-                              <option value="In Progress">In Progress</option>
-                              <option value="Completed">Completed</option>
-                              <option value="Canceled">Canceled</option>
-                            </select>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="no-goals">
-                      <p>No goals have been set for this review yet.</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="review-section">
-                  <h2>Additional Comments</h2>
-                  <textarea
-                    name="comments"
-                    value={formData.comments || ''}
-                    onChange={handleInputChange}
-                    rows="4"
-                    placeholder="Any additional comments about the employee's performance..."
-                  ></textarea>
-                </div>
+              <div className="feedback-item">
+                <label htmlFor="improvements">Areas for Improvement:</label>
+                <textarea
+                  id="improvements"
+                  name="feedback.areasForImprovement"
+                  value={formData.feedback?.areasForImprovement || ''}
+                  onChange={handleInputChange}
+                  rows="4"
+                  placeholder="Describe areas where the employee can improve..."
+                ></textarea>
               </div>
-
-              <div className="form-actions">
-                <button type="submit" className="btn-save">
-                  <FaSave /> Save
-                </button>
-                <button type="button" className="btn-complete" onClick={handleComplete}>
-                  <FaCheck /> Complete Review
-                </button>
-                <button type="button" className="btn-cancel" onClick={() => navigate('/pending-reviews')}>
-                  <FaTimes /> Cancel
-                </button>
+              <div className="feedback-item">
+                <label htmlFor="development">Development Plan:</label>
+                <textarea
+                  id="development"
+                  name="feedback.developmentPlan"
+                  value={formData.feedback?.developmentPlan || ''}
+                  onChange={handleInputChange}
+                  rows="4"
+                  placeholder="Outline a plan for the employee's professional development..."
+                ></textarea>
               </div>
-            </form>
-          </>
-        )}
+            </div>
+
+            <div className="review-section">
+              <h2>Goals</h2>
+              {Array.isArray(formData.goals) && formData.goals.length > 0 ? (
+                <div className="goals-list">
+                  {formData.goals.map((goal, index) => (
+                    <div key={index} className="goal-item">
+                      <div className="goal-description">
+                        <label>Description:</label>
+                        <textarea
+                          value={goal?.description || ''}
+                          onChange={(e) => handleGoalChange(index, 'description', e.target.value)}
+                          rows="2"
+                          placeholder="Goal description..."
+                        ></textarea>
+                      </div>
+                      <div className="goal-target">
+                        <label>Target Date:</label>
+                        <input
+                          type="date"
+                          value={goal?.targetDate ? 
+                            (typeof goal.targetDate === 'string' ? goal.targetDate.slice(0, 10) : '') : 
+                            ''}
+                          onChange={(e) => handleGoalChange(index, 'targetDate', e.target.value)}
+                        />
+                      </div>
+                      <div className="goal-status">
+                        <label>Status:</label>
+                        <select
+                          value={goal?.status || 'Not Started'}
+                          onChange={(e) => handleGoalChange(index, 'status', e.target.value)}
+                        >
+                          <option value="Not Started">Not Started</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Completed">Completed</option>
+                          <option value="Canceled">Canceled</option>
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="no-goals">
+                  <p>No goals have been set for this review yet.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="review-section">
+              <h2>Additional Comments</h2>
+              <textarea
+                name="comments"
+                value={formData.comments || ''}
+                onChange={handleInputChange}
+                rows="4"
+                placeholder="Any additional comments about the employee's performance..."
+              ></textarea>
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button type="submit" className="btn-save">
+              <FaSave /> Save
+            </button>
+            <button type="button" className="btn-complete" onClick={handleComplete}>
+              <FaCheck /> Complete Review
+            </button>
+            <button type="button" className="btn-cancel" onClick={() => navigate('/pending-reviews')}>
+              <FaTimes /> Cancel
+            </button>
+          </div>
+        </form>
+      </>
+    );
+  };
+
+  return (
+    <SidebarLayout user={user} activeView="reviews-edit">
+      <div className="view-evaluation-container">
+        {renderContent()}
       </div>
     </SidebarLayout>
   );
