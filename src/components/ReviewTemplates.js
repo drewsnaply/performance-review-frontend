@@ -294,13 +294,25 @@ function ReviewTemplates() {
       fontSize: '0.85rem',
       fontWeight: '500'
     },
+    actionsContainer: {
+      display: 'flex',
+      gap: '8px'
+    },
+    viewButton: {
+      backgroundColor: '#3B82F6',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '6px 16px',
+      cursor: 'pointer',
+      fontSize: '0.85rem'
+    },
     editButton: {
       backgroundColor: '#3B82F6',
       color: 'white',
       border: 'none',
       borderRadius: '4px',
-      padding: '6px 12px',
-      marginRight: '8px',
+      padding: '6px 16px',
       cursor: 'pointer',
       fontSize: '0.85rem'
     },
@@ -309,16 +321,7 @@ function ReviewTemplates() {
       color: 'white',
       border: 'none',
       borderRadius: '4px',
-      padding: '6px 12px',
-      cursor: 'pointer',
-      fontSize: '0.85rem'
-    },
-    viewButton: {
-      backgroundColor: '#3B82F6',
-      color: 'white',
-      border: 'none',
-      borderRadius: '4px',
-      padding: '6px 12px',
+      padding: '6px 16px',
       cursor: 'pointer',
       fontSize: '0.85rem'
     },
@@ -456,15 +459,15 @@ function ReviewTemplates() {
                     </span>
                   </td>
                   <td style={styles.td}>
-                    <button style={styles.editButton}>
-                      Edit
-                    </button>
-                    <button 
-                      style={styles.deleteButton}
-                      onClick={() => handleDeleteTemplate(template._id)}
-                    >
-                      Delete
-                    </button>
+                    <div style={styles.actionsContainer}>
+                      <button style={styles.editButton}>Edit</button>
+                      <button 
+                        style={styles.deleteButton}
+                        onClick={() => handleDeleteTemplate(template._id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -596,15 +599,17 @@ function ReviewTemplates() {
                     </span>
                   </td>
                   <td style={styles.td}>
-                    <button 
-                      style={styles.viewButton}
-                      onClick={() => handleReviewAction(assignment._id, assignment.createdReview)}
-                    >
-                      {assignment.createdReview ? 'View' : 'Start'}
-                    </button>
-                    <button style={styles.deleteButton}>
-                      Cancel
-                    </button>
+                    <div style={styles.actionsContainer}>
+                      <button 
+                        style={styles.viewButton}
+                        onClick={() => handleReviewAction(assignment._id, assignment.createdReview)}
+                      >
+                        {assignment.createdReview ? 'View' : 'Start'}
+                      </button>
+                      <button style={styles.deleteButton}>
+                        Cancel
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
