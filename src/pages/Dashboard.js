@@ -1,25 +1,24 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import { useDepartments } from '../context/DepartmentContext';
 import { useAuth } from '../context/AuthContext'; 
 import LogoutButton from '../components/LogoutButton';
 
-// Import components
-import MyReviews from '../components/MyReviews';
-import TeamReviews from '../components/TeamReviews';
-import Employees from './Employees';
-import ReviewCycles from '../components/ReviewCycles';
-import ReviewTemplates from '../components/ReviewTemplates';
-import ImportTool from '../components/ImportTool';
-import ExportTool from '../components/ExportTool';
-import EvaluationManagement from '../components/EvaluationManagement';
-import Settings from './Settings';
-import ViewEvaluation from '../components/ViewEvaluation';
-import PendingReviews from '../components/PendingReviews';
+// Lazy-load component imports to improve initial loading speed
+const MyReviews = lazy(() => import('../components/MyReviews'));
+const TeamReviews = lazy(() => import('../components/TeamReviews'));
+const Employees = lazy(() => import('./Employees'));
+const ReviewCycles = lazy(() => import('../components/ReviewCycles'));
+const ReviewTemplates = lazy(() => import('../components/ReviewTemplates'));
+const ImportTool = lazy(() => import('../components/ImportTool'));
+const ExportTool = lazy(() => import('../components/ExportTool'));
+const EvaluationManagement = lazy(() => import('../components/EvaluationManagement'));
+const Settings = lazy(() => import('./Settings'));
+const ViewEvaluation = lazy(() => import('../components/ViewEvaluation'));
+const PendingReviews = lazy(() => import('../components/PendingReviews'));
 
 function Dashboard({ initialView = 'dashboard' }) {
-  console.log('Dashboard component rendering - full version');
   const { employees } = useDepartments();
   const [activeView, setActiveView] = useState(initialView);
   const [reviewData, setReviewData] = useState({
@@ -31,20 +30,15 @@ function Dashboard({ initialView = 'dashboard' }) {
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFetchingAssignments, setIsFetchingAssignments] = useState(false);
+  const [dataFetchStarted, setDataFetchStarted] = useState(false);
   const navigate = useNavigate();
   const params = useParams();
   
-  // Client-side review completion tracking
-  const [completedReviewId, setCompletedReviewId] = useState(
-    sessionStorage.getItem('completedReviewId')
-  );
-  const [completedReviewMetadata, setCompletedReviewMetadata] = useState(() => {
-    const storedMetadata = sessionStorage.getItem('completedReviewMetadata');
-    return storedMetadata ? JSON.parse(storedMetadata) : null;
-  });
+  // Get completed review data from session storage only once
+  const completedReviewId = sessionStorage.getItem('completedReviewId');
+  const completedReviewMetadata = JSON.parse(sessionStorage.getItem('completedReviewMetadata') || 'null');
   
-  // Get auth state directly from context - simplified approach
+  // Get auth state directly from context
   const { currentUser, logout } = useAuth();
   const [user, setUser] = useState(null);
   
@@ -53,32 +47,33 @@ function Dashboard({ initialView = 'dashboard' }) {
     ? 'http://localhost:5000' 
     : 'https://performance-review-backend-ab8z.onrender.com';
 
-  // Check if we're coming from a completed review - run only once
+  // Initialize user - run only when currentUser changes
   useEffect(() => {
-    const locationState = window.history.state?.state;
-    const fromPendingWithCompleted = locationState?.completedReview;
-    const reviewMetadata = locationState?.completedReviewMetadata;
-    
-    if (fromPendingWithCompleted) {
-      setCompletedReviewId(fromPendingWithCompleted);
-      // Store in session storage to persist across page refreshes
-      sessionStorage.setItem('completedReviewId', fromPendingWithCompleted);
-      
-      if (reviewMetadata) {
-        setCompletedReviewMetadata(reviewMetadata);
-        sessionStorage.setItem('completedReviewMetadata', JSON.stringify(reviewMetadata));
-      }
+    if (!currentUser) {
+      setIsLoading(false);
+      navigate('/login');
+      return;
     }
-  }, []); // Empty dependency array to run only once
+    
+    // Create a normalized user
+    setUser({
+      ...currentUser,
+      firstName: currentUser.username || 'User',
+      lastName: ''
+    });
+    
+    // Set loading to false once user is set
+    setIsLoading(false);
+  }, [currentUser, navigate]);
 
-  // Function to fetch assignments from the API - memoized to prevent recreation on every render
+  // Function to fetch assignments - separate from the rendering cycle
   const fetchAssignments = useCallback(async () => {
-    // Prevent multiple concurrent fetches
-    if (isFetchingAssignments) return;
+    // Prevent multiple fetches
+    if (dataFetchStarted) return;
+    setDataFetchStarted(true);
     
     try {
       console.log('Fetching assignments from API');
-      setIsFetchingAssignments(true);
       
       const response = await fetch(`${API_BASE_URL}/api/templates/assignments`, {
         headers: {
@@ -92,254 +87,150 @@ function Dashboard({ initialView = 'dashboard' }) {
       }
 
       const assignments = await response.json();
-      console.log('Fetched assignments:', assignments);
       
-      // Calculate counts
+      // Process assignments in a more efficient way
+      let pendingCount = 0;
+      let completedCount = 0;
+      let upcomingCount = 0;
+      
+      // Current and next month for filtering
       const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
-      const nextMonth = new Date(currentYear, currentMonth + 1, 1);
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
       
-      let pendingCount = assignments.filter(a => 
-        a.status === 'Pending' || a.status === 'InProgress'
-      ).length;
-      
-      let completedCount = assignments.filter(a => 
-        a.status === 'Completed'
-      ).length;
-      
-      const upcomingCount = assignments.filter(a => {
-        const dueDate = new Date(a.dueDate);
-        return dueDate >= nextMonth && a.status !== 'Completed' && a.status !== 'Canceled';
-      }).length;
-      
-      // Adjust counts for client-side completed reviews
-      if (completedReviewId) {
-        // Find if any pending reviews match the completed review ID
-        const hasCompletedPendingReview = assignments.some(a => 
-          (a._id === completedReviewId || a.createdReview === completedReviewId) && 
-          (a.status === 'Pending' || a.status === 'InProgress')
-        );
-        
-        // If we found a pending review that should be marked as completed
-        if (hasCompletedPendingReview) {
-          // Decrease pending count by 1
-          pendingCount = Math.max(0, pendingCount - 1);
-          // Increase completed count by 1
-          completedCount += 1;
-        }
-      }
-      
-      // Map assignments to recent reviews for display
-      let recentReviews = assignments.slice(0, 5).map(assignment => ({
-        id: assignment._id,
-        employee: `${assignment.employee?.firstName || ''} ${assignment.employee?.lastName || ''}`.trim() || 'Unknown',
-        cycle: assignment.template?.name || 'Performance Review',
-        dueDate: new Date(assignment.dueDate).toLocaleDateString(),
-        reviewType: assignment.template?.frequency || 'Performance',
-        status: assignment.status?.toLowerCase() || 'pending',
-        createdReview: assignment.createdReview || null
-      }));
-      
-      // Update status of any reviews that were marked as completed client-side
-      if (completedReviewId) {
-        recentReviews = recentReviews.map(review => {
-          if (review.id === completedReviewId || review.createdReview === completedReviewId) {
-            return {
-              ...review,
-              status: 'completed'
-            };
+      // Process all assignments in a single loop
+      assignments.forEach(a => {
+        // Count pending/in-progress
+        if (a.status === 'Pending' || a.status === 'InProgress') {
+          // If this is a completed review (client-side), don't count as pending
+          if (completedReviewId && 
+             (a._id === completedReviewId || a.createdReview === completedReviewId)) {
+            completedCount++;
+          } else {
+            pendingCount++;
           }
-          return review;
-        });
-      }
+        }
+        // Count completed
+        else if (a.status === 'Completed') {
+          completedCount++;
+        }
+        
+        // Count upcoming
+        const dueDate = new Date(a.dueDate);
+        if (dueDate >= nextMonth && a.status !== 'Completed' && a.status !== 'Canceled') {
+          upcomingCount++;
+        }
+      });
       
+      // Map only the first 5 assignments for display
+      const recentReviews = assignments.slice(0, 5).map(assignment => {
+        // Build the basic review object
+        const review = {
+          id: assignment._id,
+          employee: `${assignment.employee?.firstName || ''} ${assignment.employee?.lastName || ''}`.trim() || 'Unknown',
+          cycle: assignment.template?.name || 'Performance Review',
+          dueDate: new Date(assignment.dueDate).toLocaleDateString(),
+          reviewType: assignment.template?.frequency || 'Performance',
+          status: assignment.status?.toLowerCase() || 'pending',
+          createdReview: assignment.createdReview || null
+        };
+        
+        // Update status if this is a completed review
+        if (completedReviewId && 
+           (assignment._id === completedReviewId || assignment.createdReview === completedReviewId)) {
+          review.status = 'completed';
+        }
+        
+        return review;
+      });
+      
+      // Update state once with all data
       setReviewData({
         pending: pendingCount,
         completed: completedCount,
         upcoming: upcomingCount,
-        recentReviews: recentReviews
+        recentReviews
       });
-      
-      setIsLoading(false);
-      setIsFetchingAssignments(false);
     } catch (error) {
       console.error('Error fetching assignments:', error);
       
-      // Fallback to localStorage if API fails
+      // Attempt to use localStorage as fallback
       const storedReviews = localStorage.getItem('reviews');
       if (storedReviews) {
         try {
           const parsedReviews = JSON.parse(storedReviews);
-          
-          // Calculate review statistics from localStorage
-          let pendingCount = parsedReviews.filter(r => 
-            r.status?.toLowerCase() === 'pending' || 
-            r.status?.toLowerCase() === 'pending manager review'
-          ).length;
-          
-          let completedCount = parsedReviews.filter(r => 
-            r.status?.toLowerCase() === 'completed'
-          ).length;
-          
-          const upcomingCount = parsedReviews.filter(r => 
-            r.status?.toLowerCase() === 'upcoming'
-          ).length;
-          
-          // Adjust counts for client-side completed reviews
-          if (completedReviewId) {
-            // Find if any pending reviews match the completed review ID
-            const hasCompletedPendingReview = parsedReviews.some(r => 
-              (r.id === completedReviewId || r.reviewId === completedReviewId) && 
-              (r.status?.toLowerCase() === 'pending' || r.status?.toLowerCase() === 'pending manager review')
-            );
-            
-            // If we found a pending review that should be marked as completed
-            if (hasCompletedPendingReview) {
-              // Decrease pending count by 1
-              pendingCount = Math.max(0, pendingCount - 1);
-              // Increase completed count by 1
-              completedCount += 1;
-            }
-          }
-          
-          // Map local reviews for display
-          let recentReviews = parsedReviews.slice(0, 5).map(review => ({
-            id: review.id,
-            employee: review.employeeName || 'Unknown',
-            cycle: review.reviewCycle || 'Annual Review',
-            dueDate: review.submissionDate || 'N/A',
-            reviewType: 'Performance',
-            status: review.status?.toLowerCase() || 'pending',
-            createdReview: review.reviewId || null
-          }));
-          
-          // Update status of any reviews that were marked as completed client-side
-          if (completedReviewId) {
-            recentReviews = recentReviews.map(review => {
-              if (review.id === completedReviewId || review.createdReview === completedReviewId) {
-                return {
-                  ...review,
-                  status: 'completed'
-                };
-              }
-              return review;
-            });
-          }
-          
+          // Process localStorage data (simplified)
           setReviewData({
-            pending: pendingCount,
-            completed: completedCount,
-            upcoming: upcomingCount,
-            recentReviews: recentReviews
+            pending: parsedReviews.filter(r => 
+              r.status?.toLowerCase() === 'pending' || 
+              r.status?.toLowerCase() === 'pending manager review'
+            ).length,
+            completed: parsedReviews.filter(r => 
+              r.status?.toLowerCase() === 'completed'
+            ).length,
+            upcoming: parsedReviews.filter(r => 
+              r.status?.toLowerCase() === 'upcoming'
+            ).length,
+            recentReviews: parsedReviews.slice(0, 5).map(review => ({
+              id: review.id,
+              employee: review.employeeName || 'Unknown',
+              cycle: review.reviewCycle || 'Annual Review',
+              dueDate: review.submissionDate || 'N/A',
+              reviewType: 'Performance',
+              status: review.status?.toLowerCase() || 'pending',
+              createdReview: review.reviewId || null
+            }))
           });
-        } catch (error) {
-          console.error('Error parsing reviews from localStorage:', error);
+        } catch (localStorageError) {
+          console.error('Error parsing reviews from localStorage:', localStorageError);
         }
       }
-      
-      setIsLoading(false);
-      setIsFetchingAssignments(false);
+    } finally {
+      // Always mark data fetch as complete
+      setDataFetchStarted(false);
     }
-  }, [API_BASE_URL, completedReviewId, isFetchingAssignments]);
+  }, [API_BASE_URL, completedReviewId]);
   
-  // Main initialization effect - combined to reduce multiple state updates
+  // Fetch data if on dashboard view and user is available
   useEffect(() => {
-    console.log('Dashboard main useEffect triggered');
-    
-    // Handle user initialization only once when currentUser changes
-    if (!currentUser) {
-      console.warn('No user found - redirecting to login');
-      setIsLoading(false);
-      navigate('/login');
-      return;
-    }
-    
-    // Create a normalized user that has firstName/lastName
-    const normalizedUser = {
-      ...currentUser,
-      firstName: currentUser.username || 'User',
-      lastName: ''
-    };
-    
-    setUser(normalizedUser);
-    
-    // Set initial view (if different from current state)
-    if (activeView !== initialView) {
-      setActiveView(initialView);
-    }
-    
-    // Only fetch assignments if we're on the dashboard view
-    if (activeView === 'dashboard') {
-      setIsLoading(true);
+    if (activeView === 'dashboard' && user && !dataFetchStarted) {
       fetchAssignments();
-    } else {
-      setIsLoading(false);
     }
-  }, [currentUser, navigate, initialView, activeView, fetchAssignments]);
+  }, [activeView, user, fetchAssignments, dataFetchStarted]);
   
-  // Calculate active employees count with memoization
-  const activeEmployeesCount = useMemo(() => {
-    return employees.filter(employee => 
-      employee.isActive === true || 
-      employee.status?.toLowerCase() === 'active'
-    ).length;
-  }, [employees]);
-  
-  // Logout handlers
-  const handleLogout = useCallback(() => {
+  // Handle logout
+  const handleLogout = () => {
     try {
       logout();
     } catch (error) {
       console.error('Logout failed:', error);
       navigate('/login');
     }
-  }, [logout, navigate]);
+  };
 
-  const confirmLogout = useCallback(() => setShowLogoutConfirm(true), []);
-  const cancelLogout = useCallback(() => setShowLogoutConfirm(false), []);
-  const proceedLogout = useCallback(() => handleLogout(), [handleLogout]);
-  
-  // Navigation handlers
-  const toggleToolsDropdown = useCallback(() => {
-    setToolsDropdownOpen(prev => !prev);
-  }, []);
+  // UI interaction handlers
+  const confirmLogout = () => setShowLogoutConfirm(true);
+  const cancelLogout = () => setShowLogoutConfirm(false);
+  const proceedLogout = () => handleLogout();
+  const toggleToolsDropdown = () => setToolsDropdownOpen(!toolsDropdownOpen);
 
-  const setView = useCallback((view) => {
+  const setView = (view) => {
     setActiveView(view);
     setToolsDropdownOpen(false);
-    
-    // If switching to dashboard view, refresh assignments
-    if (view === 'dashboard' && user) {
-      setIsLoading(true);
-      fetchAssignments();
-    }
-  }, [fetchAssignments, user]);
+  };
   
-  const handlePendingReviewsClick = useCallback(() => {
+  const handlePendingReviewsClick = () => {
     setActiveView('pending-reviews');
     navigate('/pending-reviews');
-  }, [navigate]);
+  };
   
-  // Fixed function to handle review actions
-  const handleReviewAction = useCallback((review) => {
-    console.log('Handling review action for:', review);
-
+  // Handle review actions
+  const handleReviewAction = (review) => {
     if (review.status === 'completed') {
-      // Navigate to view completed review
       navigate(`/reviews/${review.id}`);
-      console.log(`Navigating to view completed review: /reviews/${review.id}`);
     } else if (review.status === 'pending' || review.status === 'inprogress') {
-      // For pending or in-progress reviews
-      
       if (review.createdReview) {
-        // Continue existing review if it has already been started
         navigate(`/reviews/edit/${review.createdReview}`);
-        console.log(`Continuing existing review: /reviews/edit/${review.createdReview}`);
       } else {
-        // Start a new review process by calling the API
-        console.log(`Starting new review for assignment: ${review.id}`);
-        
         fetch(`${API_BASE_URL}/api/templates/assignments/${review.id}/start`, {
           method: 'POST',
           headers: {
@@ -348,14 +239,10 @@ function Dashboard({ initialView = 'dashboard' }) {
           }
         })
         .then(response => {
-          if (!response.ok) {
-            throw new Error('Failed to start review');
-          }
+          if (!response.ok) throw new Error('Failed to start review');
           return response.json();
         })
         .then(data => {
-          console.log('Review started successfully:', data);
-          // Navigate to the review editor with the newly created review
           navigate(`/reviews/edit/${data.review._id}`);
         })
         .catch(error => {
@@ -364,137 +251,133 @@ function Dashboard({ initialView = 'dashboard' }) {
         });
       }
     } else {
-      // For other statuses, navigate to evaluation management
       navigate(`/evaluation-management`);
       setActiveView('evaluation-management');
     }
-  }, [navigate, API_BASE_URL]);
+  };
   
-  // Memoize the renderActiveView function to prevent unnecessary recalculations
-  const renderActiveView = useCallback(() => {
-    console.log('Rendering active view:', activeView);
+  // Calculate active employees count
+  const activeEmployeesCount = employees.filter(employee => 
+    employee.isActive === true || 
+    employee.status?.toLowerCase() === 'active'
+  ).length;
+  
+  // Render the active view with Suspense for lazy-loaded components
+  const renderActiveView = () => {
+    // Return a Suspense wrapped component
+    const renderComponent = (Component, props = {}) => (
+      <Suspense fallback={<div className="loading-state">Loading component...</div>}>
+        <Component {...props} />
+      </Suspense>
+    );
+    
     switch (activeView) {
-      case 'my-reviews':
-        return <MyReviews />;
-      case 'team-reviews':
-        return <TeamReviews />;
-      case 'employees':
-        return <Employees />;
-      case 'settings':
-        return <Settings />;
-      case 'review-cycles':
-        return <ReviewCycles />;
-      case 'templates':
-        return <ReviewTemplates />;
-      case 'tools-imports':
-        return <ImportTool />;
-      case 'tools-exports':
-        return <ExportTool />;
-      case 'evaluation-management':
-        return <EvaluationManagement initialActiveTab="active-evaluations" />;
-      case 'evaluation-detail':
-        return <ViewEvaluation />;
-      case 'pending-reviews':
-        return <PendingReviews />;
-      default:
-        // For the dashboard view, we return a memoized version
-        return (
-          <>
-            <h1 className="page-title">Dashboard Overview</h1>
-            
-            <div className="dashboard-overview">
-              <div 
-                className="overview-card clickable" 
-                onClick={() => setView('employees')}
-              >
-                <h3>Active Employees</h3>
-                <div className="value">{activeEmployeesCount}</div>
-                <div className="status positive">View Employee List</div>
-              </div>
-
-              <div 
-                className="overview-card clickable" 
-                onClick={handlePendingReviewsClick}
-              >
-                <h3>Pending Reviews</h3>
-                <div className="value">{reviewData.pending}</div>
-                <div className="status">Due this month</div>
-              </div>
-              
-              <div 
-                className="overview-card clickable" 
-                onClick={() => setView('my-reviews')}
-              >
-                <h3>Completed Reviews</h3>
-                <div className="value">{reviewData.completed}</div>
-                <div className="status positive">+3 from last cycle</div>
-              </div>
-              
-              <div 
-                className="overview-card clickable" 
-                onClick={() => setView('my-reviews')}
-              >
-                <h3>Upcoming Reviews</h3>
-                <div className="value">{reviewData.upcoming}</div>
-                <div className="status">Starting next month</div>
-              </div>
-            </div>
-            
-            <div className="dashboard-recent">
-              <h2>Recent Reviews</h2>
-              {reviewData.recentReviews.length > 0 ? (
-                <table className="review-list">
-                  <thead>
-                    <tr>
-                      <th>Employee</th>
-                      <th>Review Cycle</th>
-                      <th>Due Date</th>
-                      <th>Type</th>
-                      <th>Status</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reviewData.recentReviews.map((review) => (
-                      <tr key={review.id}>
-                        <td className="employee-name">{review.employee}</td>
-                        <td>{review.cycle}</td>
-                        <td>{review.dueDate}</td>
-                        <td>{review.reviewType}</td>
-                        <td>
-                          <span className={`status-badge ${review.status}`}>
-                            {review.status.charAt(0).toUpperCase() + review.status.slice(1)}
-                          </span>
-                        </td>
-                        <td>
-                          <button 
-                            className="action-button"
-                            onClick={() => handleReviewAction(review)}
-                          >
-                            {review.status === 'completed' ? 'View' : 'Review'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="empty-state">
-                  <p>No reviews found. Create a review cycle to get started.</p>
-                </div>
-              )}
-            </div>
-          </>
-        );
+      case 'my-reviews': return renderComponent(MyReviews);
+      case 'team-reviews': return renderComponent(TeamReviews);
+      case 'employees': return renderComponent(Employees);
+      case 'settings': return renderComponent(Settings);
+      case 'review-cycles': return renderComponent(ReviewCycles);
+      case 'templates': return renderComponent(ReviewTemplates);
+      case 'tools-imports': return renderComponent(ImportTool);
+      case 'tools-exports': return renderComponent(ExportTool);
+      case 'evaluation-management': return renderComponent(EvaluationManagement, { initialActiveTab: "active-evaluations" });
+      case 'evaluation-detail': return renderComponent(ViewEvaluation);
+      case 'pending-reviews': return renderComponent(PendingReviews);
+      default: return renderDashboardDefault();
     }
-  }, [
-    activeView, 
-    activeEmployeesCount, 
-    reviewData, 
-    setView, 
-    handlePendingReviewsClick, 
-    handleReviewAction
-  ]);
+  };
+
+  // Default dashboard view
+  const renderDashboardDefault = () => {
+    return (
+      <>
+        <h1 className="page-title">Dashboard Overview</h1>
+        
+        <div className="dashboard-overview">
+          <div 
+            className="overview-card clickable" 
+            onClick={() => setView('employees')}
+          >
+            <h3>Active Employees</h3>
+            <div className="value">{activeEmployeesCount}</div>
+            <div className="status positive">View Employee List</div>
+          </div>
+
+          <div 
+            className="overview-card clickable" 
+            onClick={handlePendingReviewsClick}
+          >
+            <h3>Pending Reviews</h3>
+            <div className="value">{reviewData.pending}</div>
+            <div className="status">Due this month</div>
+          </div>
+          
+          <div 
+            className="overview-card clickable" 
+            onClick={() => setView('my-reviews')}
+          >
+            <h3>Completed Reviews</h3>
+            <div className="value">{reviewData.completed}</div>
+            <div className="status positive">+3 from last cycle</div>
+          </div>
+          
+          <div 
+            className="overview-card clickable" 
+            onClick={() => setView('my-reviews')}
+          >
+            <h3>Upcoming Reviews</h3>
+            <div className="value">{reviewData.upcoming}</div>
+            <div className="status">Starting next month</div>
+          </div>
+        </div>
+        
+        <div className="dashboard-recent">
+          <h2>Recent Reviews</h2>
+          {reviewData.recentReviews.length > 0 ? (
+            <table className="review-list">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Review Cycle</th>
+                  <th>Due Date</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviewData.recentReviews.map((review) => (
+                  <tr key={review.id}>
+                    <td className="employee-name">{review.employee}</td>
+                    <td>{review.cycle}</td>
+                    <td>{review.dueDate}</td>
+                    <td>{review.reviewType}</td>
+                    <td>
+                      <span className={`status-badge ${review.status}`}>
+                        {review.status.charAt(0).toUpperCase() + review.status.slice(1)}
+                      </span>
+                    </td>
+                    <td>
+                      <button 
+                        className="action-button"
+                        onClick={() => handleReviewAction(review)}
+                      >
+                        {review.status === 'completed' ? 'View' : 'Review'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty-state">
+              <p>No reviews found. Create a review cycle to get started.</p>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  };
   
   // Show loading state while checking for user data
   if (isLoading) {
@@ -503,7 +386,6 @@ function Dashboard({ initialView = 'dashboard' }) {
   
   // Render fallback if no user data is found
   if (!user) {
-    console.log('User data not available - rendering fallback');
     return (
       <div className="error-state">
         <h1>Authentication Error</h1>
