@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import '../styles/ReviewTemplates.css';
 
 function ReviewTemplates() {
-  // State management
   const [activeTab, setActiveTab] = useState('templates');
   const [templates, setTemplates] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -279,9 +277,209 @@ function ReviewTemplates() {
     return `${firstName} ${lastName}`.trim() || 'Unknown';
   };
   
+  // Render templates tab
+  const renderTemplates = () => {
+    if (loading) {
+      return <div>Loading templates...</div>;
+    }
+    
+    if (error) {
+      return <div className="error-message">{error}</div>;
+    }
+    
+    return (
+      <>
+        <h2>Review Templates</h2>
+        <button 
+          className="new-template-button"
+          onClick={() => setShowNewTemplateForm(true)}
+        >
+          + New Template
+        </button>
+        
+        {showNewTemplateForm && (
+          <div className="modal-form">
+            <h3>Create New Template</h3>
+            {formError && <div className="error-message">{formError}</div>}
+            <form onSubmit={handleSubmit}>
+              <div className="form-group">
+                <label htmlFor="name">Template Name:</label>
+                <input 
+                  type="text" 
+                  id="name" 
+                  name="name" 
+                  value={newTemplate.name}
+                  onChange={handleInputChange}
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="description">Description:</label>
+                <textarea 
+                  id="description" 
+                  name="description" 
+                  value={newTemplate.description}
+                  onChange={handleInputChange}
+                />
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="frequency">Frequency:</label>
+                <select 
+                  id="frequency" 
+                  name="frequency" 
+                  value={newTemplate.frequency}
+                  onChange={handleInputChange}
+                >
+                  <option value="Annual">Annual</option>
+                  <option value="Semi-Annual">Semi-Annual</option>
+                  <option value="Quarterly">Quarterly</option>
+                  <option value="Monthly">Monthly</option>
+                  <option value="Ad Hoc">Ad Hoc</option>
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label>
+                  <input 
+                    type="checkbox" 
+                    name="active" 
+                    checked={newTemplate.active}
+                    onChange={handleInputChange}
+                  />
+                  Active
+                </label>
+              </div>
+              
+              <div className="form-actions">
+                <button type="submit">Save</button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowNewTemplateForm(false);
+                    setFormError('');
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Template Name</th>
+              <th>Description</th>
+              <th>Frequency</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {templates.map(template => (
+              <tr key={template._id}>
+                <td>{template.name}</td>
+                <td>{template.description || 'No description'}</td>
+                <td>{template.frequency}</td>
+                <td>{template.active ? 'Active' : 'Inactive'}</td>
+                <td>
+                  <button 
+                    className="edit-button"
+                    onClick={() => alert('Edit functionality coming soon')}
+                  >
+                    Edit
+                  </button>
+                  <button 
+                    className="delete-button"
+                    onClick={() => handleDeleteTemplate(template._id)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </>
+    );
+  };
+  
+  // Render assignments tab
+  const renderAssignments = () => {
+    if (loading) {
+      return <div>Loading assignments...</div>;
+    }
+    
+    if (error) {
+      return <div className="error-message">{error}</div>;
+    }
+    
+    return (
+      <>
+        <h2>Template Assignments</h2>
+        <div className="filter-container">
+          <label htmlFor="status-filter">Status:</label>
+          <select 
+            id="status-filter" 
+            value={statusFilter}
+            onChange={handleStatusFilterChange}
+          >
+            <option value="All Status">All Status</option>
+            <option value="Pending">Pending</option>
+            <option value="InProgress">InProgress</option>
+            <option value="Completed">Completed</option>
+            <option value="Canceled">Canceled</option>
+          </select>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Template</th>
+              <th>Employee</th>
+              <th>Reviewer</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredAssignments.map(assignment => (
+              <tr key={assignment._id}>
+                <td>{assignment.template?.name || 'Unknown Template'}</td>
+                <td>{extractName(assignment.employee)}</td>
+                <td>{extractName(assignment.reviewer)}</td>
+                <td>{formatDate(assignment.dueDate)}</td>
+                <td className="status-cell">
+                  <span className={`status-badge ${assignment.status?.toLowerCase()}`}>
+                    {assignment.status || 'Pending'}
+                  </span>
+                </td>
+                <td>
+                  <button 
+                    className="edit-button"
+                    onClick={() => handleOpenReview(assignment._id, assignment.createdReview)}
+                  >
+                    {assignment.createdReview ? 'View' : 'Start'}
+                  </button>
+                  <button className="delete-button">
+                    Cancel
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </>
+    );
+  };
+  
   return (
-    <div>
-      <div className="tab-navigation">
+    <>
+      <div className="tabs">
         <button
           className={activeTab === 'templates' ? 'active' : ''}
           onClick={() => setActiveTab('templates')}
@@ -295,213 +493,11 @@ function ReviewTemplates() {
           Assignments
         </button>
       </div>
-
-      {activeTab === 'templates' && (
-        <div>
-          <div className="header-section">
-            <h2>Review Templates</h2>
-            <button 
-              className="new-template-btn" 
-              onClick={() => setShowNewTemplateForm(true)}
-            >
-              + New Template
-            </button>
-          </div>
-
-          {showNewTemplateForm && (
-            <div className="form-container">
-              <h3>Create New Template</h3>
-              {formError && <div className="error-message">{formError}</div>}
-              <form onSubmit={handleSubmit}>
-                <div className="form-group">
-                  <label htmlFor="name">Template Name:</label>
-                  <input 
-                    type="text" 
-                    id="name" 
-                    name="name" 
-                    value={newTemplate.name}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label htmlFor="description">Description:</label>
-                  <textarea 
-                    id="description" 
-                    name="description" 
-                    value={newTemplate.description}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label htmlFor="frequency">Frequency:</label>
-                  <select 
-                    id="frequency" 
-                    name="frequency" 
-                    value={newTemplate.frequency}
-                    onChange={handleInputChange}
-                  >
-                    <option value="Annual">Annual</option>
-                    <option value="Semi-Annual">Semi-Annual</option>
-                    <option value="Quarterly">Quarterly</option>
-                    <option value="Monthly">Monthly</option>
-                    <option value="Ad Hoc">Ad Hoc</option>
-                  </select>
-                </div>
-                
-                <div className="form-group checkbox">
-                  <label>
-                    <input 
-                      type="checkbox" 
-                      name="active" 
-                      checked={newTemplate.active}
-                      onChange={handleInputChange}
-                    />
-                    Active
-                  </label>
-                </div>
-                
-                <div className="form-actions">
-                  <button type="submit" className="btn-primary">Save Template</button>
-                  <button 
-                    type="button" 
-                    className="btn-secondary"
-                    onClick={() => {
-                      setShowNewTemplateForm(false);
-                      setFormError('');
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {loading ? (
-            <div className="loading-spinner">Loading templates...</div>
-          ) : error ? (
-            <div className="error-alert">{error}</div>
-          ) : templates.length === 0 ? (
-            <div className="empty-state">
-              <p>No templates found. Create a new template to get started.</p>
-            </div>
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Template Name</th>
-                  <th>Description</th>
-                  <th>Frequency</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {templates.map(template => (
-                  <tr key={template._id}>
-                    <td>{template.name}</td>
-                    <td>{template.description || 'No description'}</td>
-                    <td>{template.frequency}</td>
-                    <td>
-                      <span className={template.active ? 'active-badge' : 'inactive-badge'}>
-                        {template.active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button className="edit-btn">Edit</button>
-                        <button 
-                          className="delete-btn"
-                          onClick={() => handleDeleteTemplate(template._id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'assignments' && (
-        <div>
-          <div className="header-section">
-            <h2>Template Assignments</h2>
-            <div className="filter-section">
-              <label htmlFor="status-filter">Status:</label>
-              <select 
-                id="status-filter" 
-                value={statusFilter}
-                onChange={handleStatusFilterChange}
-              >
-                <option value="All Status">All Status</option>
-                <option value="Pending">Pending</option>
-                <option value="InProgress">InProgress</option>
-                <option value="Completed">Completed</option>
-                <option value="Canceled">Canceled</option>
-              </select>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="loading-spinner">Loading assignments...</div>
-          ) : error ? (
-            <div className="error-alert">{error}</div>
-          ) : filteredAssignments.length === 0 ? (
-            <div className="empty-state">
-              <p>No assignments found for the selected filter.</p>
-            </div>
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Template</th>
-                  <th>Employee</th>
-                  <th>Reviewer</th>
-                  <th>Due Date</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAssignments.map(assignment => (
-                  <tr key={assignment._id}>
-                    <td>{assignment.template?.name || 'Unknown Template'}</td>
-                    <td>{extractName(assignment.employee)}</td>
-                    <td>{extractName(assignment.reviewer)}</td>
-                    <td>{formatDate(assignment.dueDate)}</td>
-                    <td>
-                      <span className={`status-badge ${assignment.status?.toLowerCase()}`}>
-                        {assignment.status || 'Pending'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button 
-                          className="review-btn"
-                          onClick={() => handleOpenReview(assignment._id, assignment.createdReview)}
-                        >
-                          {assignment.createdReview ? 'View' : 'Start'}
-                        </button>
-                        <button className="cancel-btn">
-                          Cancel
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-    </div>
+      
+      <div className="tab-content">
+        {activeTab === 'templates' ? renderTemplates() : renderAssignments()}
+      </div>
+    </>
   );
 }
 
