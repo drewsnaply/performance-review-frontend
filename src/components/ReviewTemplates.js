@@ -26,12 +26,28 @@ function ReviewTemplates() {
     } else if (activeTab === 'assignments') {
       fetchAssignments();
     }
+    
+    // Cleanup function to ensure we never leave the component with loading=true
+    return () => {
+      setLoading(false);
+    };
   }, [activeTab]);
 
-  // Fetch templates
+  // Fetch templates with timeout safeguard
   const fetchTemplates = async () => {
     try {
       setLoading(true);
+      
+      // Set a timeout to prevent infinite loading
+      const loadingTimeoutId = setTimeout(() => {
+        console.log('Template loading timeout triggered');
+        if (loading) {
+          setLoading(false);
+          setError('Request timed out. Please try again.');
+        }
+      }, 10000);
+      
+      console.log('Fetching templates from API');
       const response = await fetch(`${API_BASE_URL}/api/templates`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -39,24 +55,45 @@ function ReviewTemplates() {
         }
       });
       
+      // Clear the timeout since we got a response
+      clearTimeout(loadingTimeoutId);
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch templates');
+        throw new Error(`Failed to fetch templates (Status: ${response.status})`);
       }
       
       const data = await response.json();
-      setTemplates(data);
+      console.log('Templates fetched successfully:', data);
+      
+      // Make sure we have an array (even if empty) to avoid rendering issues
+      setTemplates(Array.isArray(data) ? data : []);
+      setError(null);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching templates:', err);
-      setError(err.message);
+      setError(err.message || 'An error occurred while fetching templates');
+      // Critical: Always set loading to false, even on error
       setLoading(false);
+      // Provide an empty array to ensure the component can render properly
+      setTemplates([]);
     }
   };
 
-  // Fetch assignments
+  // Fetch assignments with timeout safeguard
   const fetchAssignments = async () => {
     try {
       setLoading(true);
+      
+      // Set a timeout to prevent infinite loading
+      const loadingTimeoutId = setTimeout(() => {
+        console.log('Assignments loading timeout triggered');
+        if (loading) {
+          setLoading(false);
+          setError('Request timed out. Please try again.');
+        }
+      }, 10000);
+      
+      console.log('Fetching assignments from API');
       const response = await fetch(`${API_BASE_URL}/api/templates/assignments`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -64,14 +101,18 @@ function ReviewTemplates() {
         }
       });
       
+      // Clear the timeout since we got a response
+      clearTimeout(loadingTimeoutId);
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch assignments');
+        throw new Error(`Failed to fetch assignments (Status: ${response.status})`);
       }
       
       const data = await response.json();
+      console.log('Assignments fetched successfully:', data);
       
       // Update assignment status if it matches the completed review ID
-      if (completedReviewId) {
+      if (completedReviewId && Array.isArray(data)) {
         const updatedAssignments = data.map(assignment => {
           if (assignment._id === completedReviewId || 
               assignment.createdReview === completedReviewId) {
@@ -85,14 +126,19 @@ function ReviewTemplates() {
         
         setAssignments(updatedAssignments);
       } else {
-        setAssignments(data);
+        // Make sure we have an array (even if empty) to avoid rendering issues
+        setAssignments(Array.isArray(data) ? data : []);
       }
       
+      setError(null);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching assignments:', err);
-      setError(err.message);
+      setError(err.message || 'An error occurred while fetching assignments');
+      // Critical: Always set loading to false, even on error
       setLoading(false);
+      // Provide an empty array to ensure the component can render properly
+      setAssignments([]);
     }
   };
 
@@ -112,13 +158,16 @@ function ReviewTemplates() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to delete template');
+        throw new Error(`Failed to delete template (Status: ${response.status})`);
       }
       
+      // Refresh the templates list
       fetchTemplates();
+      
     } catch (err) {
       console.error('Error deleting template:', err);
-      setError(err.message);
+      setError(err.message || 'An error occurred while deleting the template');
+      alert(`Error: ${err.message}`);
     }
   };
 
@@ -139,14 +188,14 @@ function ReviewTemplates() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to start review');
+        throw new Error(`Failed to start review (Status: ${response.status})`);
       }
       
       const data = await response.json();
       navigate(`/reviews/edit/${data.review._id}`);
     } catch (err) {
       console.error('Error starting review:', err);
-      alert('Failed to start review');
+      alert(`Failed to start review: ${err.message}`);
     }
   };
 
@@ -368,6 +417,22 @@ function ReviewTemplates() {
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
       gap: '20px'
+    },
+    errorContainer: {
+      padding: '16px',
+      backgroundColor: '#fee2e2',
+      borderRadius: '8px',
+      color: '#b91c1c',
+      marginBottom: '20px'
+    },
+    retryButton: {
+      padding: '8px 16px',
+      backgroundColor: '#3b82f6',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      marginTop: '12px'
     }
   };
 
@@ -407,12 +472,24 @@ function ReviewTemplates() {
           </button>
         </div>
         
+        {error && (
+          <div style={styles.errorContainer}>
+            <strong>Error:</strong> {error}
+            <div>
+              <button 
+                style={styles.retryButton}
+                onClick={fetchTemplates}
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+        
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <div className="loading-spinner">Loading...</div>
+            <div className="loading-spinner">Loading templates...</div>
           </div>
-        ) : error ? (
-          <p style={{ color: '#EF4444', textAlign: 'center', padding: '20px' }}>{error}</p>
         ) : templates.length === 0 ? (
           <div style={styles.emptyState}>
             <p style={styles.emptyStateMessage}>No templates found. Create your first template to get started.</p>
@@ -503,12 +580,24 @@ function ReviewTemplates() {
           </select>
         </div>
         
+        {error && (
+          <div style={styles.errorContainer}>
+            <strong>Error:</strong> {error}
+            <div>
+              <button 
+                style={styles.retryButton}
+                onClick={fetchAssignments}
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+        
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <div className="loading-spinner">Loading...</div>
+            <div className="loading-spinner">Loading assignments...</div>
           </div>
-        ) : error ? (
-          <p style={{ color: '#EF4444', textAlign: 'center', padding: '20px' }}>{error}</p>
         ) : filteredAssignments.length === 0 ? (
           <div style={styles.emptyState}>
             <p style={styles.emptyStateMessage}>
