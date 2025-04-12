@@ -229,41 +229,238 @@ function ReviewTemplates() {
     ? assignments 
     : assignments.filter(assignment => assignment.status === statusFilter);
 
+  // Styles to match Dashboard
+  const styles = {
+    container: {
+      padding: '20px',
+      maxWidth: '1200px',
+      margin: '0 auto'
+    },
+    tabs: {
+      display: 'flex',
+      marginBottom: '20px'
+    },
+    tab: {
+      padding: '8px 16px',
+      backgroundColor: 'white',
+      border: 'none',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: '500',
+      color: '#64748b'
+    },
+    activeTab: {
+      backgroundColor: '#f1f5f9',
+      fontWeight: 'bold',
+      color: '#0369a1'
+    },
+    heading: {
+      margin: '0 0 20px 0',
+      fontSize: '1.5rem',
+      fontWeight: '500',
+      color: '#333'
+    },
+    newButton: {
+      backgroundColor: '#4CAF50',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '8px 16px',
+      marginBottom: '20px',
+      cursor: 'pointer',
+      fontWeight: '500'
+    },
+    table: {
+      width: '100%',
+      borderCollapse: 'collapse'
+    },
+    th: {
+      textAlign: 'left',
+      padding: '12px 16px',
+      borderBottom: '2px solid #e2e8f0',
+      color: '#64748b',
+      fontWeight: '500',
+      fontSize: '0.9rem'
+    },
+    td: {
+      padding: '16px',
+      borderBottom: '1px solid #e2e8f0',
+      color: '#1e293b'
+    },
+    statusBadge: {
+      display: 'inline-block',
+      padding: '4px 12px',
+      borderRadius: '12px',
+      fontSize: '0.85rem',
+      fontWeight: '500'
+    },
+    editButton: {
+      backgroundColor: '#3B82F6',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '6px 12px',
+      marginRight: '8px',
+      cursor: 'pointer',
+      fontSize: '0.85rem'
+    },
+    deleteButton: {
+      backgroundColor: '#EF4444',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '6px 12px',
+      cursor: 'pointer',
+      fontSize: '0.85rem'
+    },
+    viewButton: {
+      backgroundColor: '#3B82F6',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '6px 12px',
+      cursor: 'pointer',
+      fontSize: '0.85rem'
+    },
+    modal: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000
+    },
+    modalContent: {
+      backgroundColor: 'white',
+      padding: '24px',
+      borderRadius: '8px',
+      width: '500px',
+      maxWidth: '90%'
+    },
+    formGroup: {
+      marginBottom: '16px'
+    },
+    label: {
+      display: 'block',
+      marginBottom: '8px',
+      fontWeight: '500',
+      color: '#64748b'
+    },
+    input: {
+      width: '100%',
+      padding: '8px 12px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '4px',
+      fontSize: '0.9rem'
+    },
+    formActions: {
+      display: 'flex',
+      justifyContent: 'flex-end',
+      gap: '16px',
+      marginTop: '24px'
+    },
+    cancelButton: {
+      backgroundColor: '#f1f5f9',
+      color: '#64748b',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '8px 16px',
+      cursor: 'pointer',
+      fontWeight: '500'
+    },
+    saveButton: {
+      backgroundColor: '#4CAF50',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '8px 16px',
+      cursor: 'pointer',
+      fontWeight: '500'
+    },
+    filterContainer: {
+      marginBottom: '20px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px'
+    },
+    filterLabel: {
+      fontWeight: '500',
+      color: '#64748b'
+    },
+    filterSelect: {
+      padding: '8px 12px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '4px',
+      backgroundColor: 'white'
+    }
+  };
+
+  // Get status badge style
+  const getStatusBadgeStyle = (status) => {
+    let baseStyle = { ...styles.statusBadge };
+    
+    switch (status?.toLowerCase()) {
+      case 'completed':
+        return { ...baseStyle, backgroundColor: '#dcfce7', color: '#16a34a' };
+      case 'inprogress':
+        return { ...baseStyle, backgroundColor: '#dbeafe', color: '#1e40af' };
+      case 'active':
+        return { ...baseStyle, backgroundColor: '#dcfce7', color: '#16a34a' };
+      case 'inactive':
+        return { ...baseStyle, backgroundColor: '#fee2e2', color: '#dc2626' };
+      default:
+        return { ...baseStyle, backgroundColor: '#f1f5f9', color: '#64748b' };
+    }
+  };
+
   // Render Templates tab
   const renderTemplatesTab = () => {
     return (
       <div>
-        <h2>Review Templates</h2>
-        <button className="btn btn-primary" onClick={() => setShowNewTemplateForm(true)}>
+        <h2 style={styles.heading}>Review Templates</h2>
+        <button 
+          style={styles.newButton}
+          onClick={() => setShowNewTemplateForm(true)}
+        >
           + New Template
         </button>
         
         {loading ? (
           <p>Loading templates...</p>
         ) : error ? (
-          <p className="error">{error}</p>
+          <p style={{ color: '#EF4444' }}>{error}</p>
         ) : (
-          <table>
+          <table style={styles.table}>
             <thead>
               <tr>
-                <th>Template Name</th>
-                <th>Description</th>
-                <th>Frequency</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th style={styles.th}>Template Name</th>
+                <th style={styles.th}>Description</th>
+                <th style={styles.th}>Frequency</th>
+                <th style={styles.th}>Status</th>
+                <th style={styles.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {templates.map(template => (
                 <tr key={template._id}>
-                  <td>{template.name}</td>
-                  <td>{template.description || 'No description'}</td>
-                  <td>{template.frequency}</td>
-                  <td>{template.active ? 'Active' : 'Inactive'}</td>
-                  <td>
-                    <button className="btn btn-primary">Edit</button>
+                  <td style={styles.td}>{template.name}</td>
+                  <td style={styles.td}>{template.description || 'No description'}</td>
+                  <td style={styles.td}>{template.frequency}</td>
+                  <td style={styles.td}>
+                    <span style={getStatusBadgeStyle(template.active ? 'Active' : 'Inactive')}>
+                      {template.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td style={styles.td}>
+                    <button style={styles.editButton}>
+                      Edit
+                    </button>
                     <button 
-                      className="btn btn-danger"
+                      style={styles.deleteButton}
                       onClick={() => handleDeleteTemplate(template._id)}
                     >
                       Delete
@@ -276,34 +473,37 @@ function ReviewTemplates() {
         )}
         
         {showNewTemplateForm && (
-          <div className="modal">
-            <div className="modal-content">
-              <h3>Create New Template</h3>
+          <div style={styles.modal}>
+            <div style={styles.modalContent}>
+              <h3 style={{ ...styles.heading, marginBottom: '16px' }}>Create New Template</h3>
               <form onSubmit={handleCreateTemplate}>
-                <div className="form-group">
-                  <label>Name:</label>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Name:</label>
                   <input 
                     type="text" 
                     name="name" 
                     value={newTemplate.name} 
                     onChange={handleInputChange} 
+                    style={styles.input}
                     required 
                   />
                 </div>
-                <div className="form-group">
-                  <label>Description:</label>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Description:</label>
                   <textarea 
                     name="description" 
                     value={newTemplate.description} 
                     onChange={handleInputChange} 
+                    style={{ ...styles.input, height: '100px', resize: 'vertical' }}
                   />
                 </div>
-                <div className="form-group">
-                  <label>Frequency:</label>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Frequency:</label>
                   <select 
                     name="frequency" 
                     value={newTemplate.frequency} 
                     onChange={handleInputChange}
+                    style={styles.input}
                   >
                     <option value="Annual">Annual</option>
                     <option value="Semi-Annual">Semi-Annual</option>
@@ -311,24 +511,31 @@ function ReviewTemplates() {
                     <option value="Monthly">Monthly</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>
+                <div style={styles.formGroup}>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
                     <input 
                       type="checkbox" 
                       name="active" 
                       checked={newTemplate.active} 
                       onChange={handleInputChange} 
+                      style={{ marginRight: '8px' }}
                     />
-                    Active
+                    <span style={{ color: '#64748b' }}>Active</span>
                   </label>
                 </div>
-                <div className="form-actions">
-                  <button type="submit">Save</button>
+                <div style={styles.formActions}>
                   <button 
                     type="button" 
+                    style={styles.cancelButton}
                     onClick={() => setShowNewTemplateForm(false)}
                   >
                     Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    style={styles.saveButton}
+                  >
+                    Save
                   </button>
                 </div>
               </form>
@@ -343,11 +550,12 @@ function ReviewTemplates() {
   const renderAssignmentsTab = () => {
     return (
       <div>
-        <h2>Template Assignments</h2>
+        <h2 style={styles.heading}>Template Assignments</h2>
         
-        <div className="filter-container">
-          <label>Status:</label>
+        <div style={styles.filterContainer}>
+          <label style={styles.filterLabel}>Status:</label>
           <select 
+            style={styles.filterSelect}
             value={statusFilter} 
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -362,39 +570,39 @@ function ReviewTemplates() {
         {loading ? (
           <p>Loading assignments...</p>
         ) : error ? (
-          <p className="error">{error}</p>
+          <p style={{ color: '#EF4444' }}>{error}</p>
         ) : (
-          <table>
+          <table style={styles.table}>
             <thead>
               <tr>
-                <th>Template</th>
-                <th>Employee</th>
-                <th>Reviewer</th>
-                <th>Due Date</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th style={styles.th}>Template</th>
+                <th style={styles.th}>Employee</th>
+                <th style={styles.th}>Reviewer</th>
+                <th style={styles.th}>Due Date</th>
+                <th style={styles.th}>Status</th>
+                <th style={styles.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredAssignments.map(assignment => (
                 <tr key={assignment._id}>
-                  <td>{assignment.template?.name || 'Unknown'}</td>
-                  <td>{extractName(assignment.employee)}</td>
-                  <td>{extractName(assignment.reviewer)}</td>
-                  <td>{formatDate(assignment.dueDate)}</td>
-                  <td>
-                    <span className={`status-badge ${assignment.status?.toLowerCase() || 'pending'}`}>
+                  <td style={styles.td}>{assignment.template?.name || 'Unknown'}</td>
+                  <td style={styles.td}>{extractName(assignment.employee)}</td>
+                  <td style={styles.td}>{extractName(assignment.reviewer)}</td>
+                  <td style={styles.td}>{formatDate(assignment.dueDate)}</td>
+                  <td style={styles.td}>
+                    <span style={getStatusBadgeStyle(assignment.status)}>
                       {assignment.status || 'Pending'}
                     </span>
                   </td>
-                  <td>
+                  <td style={styles.td}>
                     <button 
-                      className="btn btn-primary"
+                      style={styles.viewButton}
                       onClick={() => handleReviewAction(assignment._id, assignment.createdReview)}
                     >
                       {assignment.createdReview ? 'View' : 'Start'}
                     </button>
-                    <button className="btn btn-danger">
+                    <button style={styles.deleteButton}>
                       Cancel
                     </button>
                   </td>
@@ -408,25 +616,29 @@ function ReviewTemplates() {
   };
 
   return (
-    <div>
-      <div>
+    <div style={styles.container}>
+      <div style={styles.tabs}>
         <button 
-          className={activeTab === 'templates' ? 'active' : ''}
+          style={{
+            ...styles.tab,
+            ...(activeTab === 'templates' ? styles.activeTab : {})
+          }}
           onClick={() => setActiveTab('templates')}
         >
           Templates
         </button>
         <button 
-          className={activeTab === 'assignments' ? 'active' : ''}
+          style={{
+            ...styles.tab,
+            ...(activeTab === 'assignments' ? styles.activeTab : {})
+          }}
           onClick={() => setActiveTab('assignments')}
         >
           Assignments
         </button>
       </div>
       
-      <div>
-        {activeTab === 'templates' ? renderTemplatesTab() : renderAssignmentsTab()}
-      </div>
+      {activeTab === 'templates' ? renderTemplatesTab() : renderAssignmentsTab()}
     </div>
   );
 }
