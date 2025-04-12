@@ -208,34 +208,61 @@ function ViewEvaluation() {
 
   const handleComplete = async () => {
     try {
-      // First save the review with updated status
-      const updatedFormData = {
-        ...formData,
-        status: 'completed'
-      };
+      // First ensure the current form data is saved
+      await handleSubmit(new Event('submit'));
+      
+      // Add a small delay to ensure the save completed
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       setSaveStatus('saving');
-      console.log(`Completing review ${id} by updating status:`, updatedFormData);
       
-      // Update the review with the new status directly
-      const response = await fetch(`${API_BASE_URL}/api/reviews/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(updatedFormData)
-      });
-
-      console.log('Complete review response:', response);
+      // Try different approaches to update the status
+      console.log(`Attempting to complete review ${id}`);
       
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(`Failed to complete review: ${response.status} ${response.statusText}${errorData ? ` - ${JSON.stringify(errorData)}` : ''}`);
+      // Method 1: Try a dedicated complete endpoint
+      try {
+        const completeResponse = await fetch(`${API_BASE_URL}/api/reviews/${id}/complete`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (completeResponse.ok) {
+          console.log("Successfully completed review using dedicated endpoint");
+          navigate('/pending-reviews');
+          return;
+        }
+      } catch (error) {
+        console.log("Dedicated complete endpoint failed, trying alternative method");
       }
-
-      // Navigate back to pending reviews
-      navigate('/pending-reviews');
+      
+      // Method 2: Try to update just the status field
+      try {
+        const statusUpdateResponse = await fetch(`${API_BASE_URL}/api/reviews/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            ...formData,
+            status: 'completed'
+          })
+        });
+        
+        if (statusUpdateResponse.ok) {
+          console.log("Successfully completed review by updating status field");
+          navigate('/pending-reviews');
+          return;
+        }
+      } catch (error) {
+        console.log("Status update failed, trying one more approach");
+      }
+      
+      // If we reach here, both methods failed
+      throw new Error("Failed to complete review after trying multiple methods");
     } catch (err) {
       console.error('Error completing review:', err);
       setError(err.message || 'Error completing review');
