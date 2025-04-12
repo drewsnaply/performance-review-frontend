@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import SidebarLayout from './SidebarLayout';
 import { useAuth } from '../context/AuthContext';
-import { FaArrowLeft, FaSave, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaArrowLeft, FaSave, FaCheck, FaTimes, FaPlus, FaTrash, FaEdit, FaExternalLinkAlt } from 'react-icons/fa';
 
 function ViewEvaluation() {
   const { id } = useParams();
@@ -17,10 +17,25 @@ function ViewEvaluation() {
     goals: []
   });
   const [saveStatus, setSaveStatus] = useState(null);
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [currentGoal, setCurrentGoal] = useState(null);
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+  const [kpis, setKpis] = useState([]);
   
   const API_BASE_URL = process.env.NODE_ENV === 'development' 
     ? 'http://localhost:5000' 
     : 'https://performance-review-backend-ab8z.onrender.com';
+
+  // Initialize new goal form
+  const [goalForm, setGoalForm] = useState({
+    title: '',
+    description: '',
+    targetDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0],
+    linkedKpi: '',
+    status: 'Not Started',
+    progress: 0,
+    notes: ''
+  });
 
   useEffect(() => {
     const fetchReview = async () => {
@@ -47,7 +62,8 @@ function ViewEvaluation() {
           reviewerName: extractReviewerName(rawData.reviewer),
           reviewPeriod: formatDateRange(rawData.reviewPeriod),
           status: rawData.status || 'Unknown',
-          startDate: formatDate(rawData.startDate)
+          startDate: formatDate(rawData.startDate),
+          template: rawData.template || {}
         };
         
         // Set up form data structure
@@ -63,10 +79,15 @@ function ViewEvaluation() {
           ratings: rawData.ratings || {},
           feedback: rawData.feedback || {},
           goals: Array.isArray(rawData.goals) ? rawData.goals : [],
-          comments: rawData.comments || ''
+          comments: rawData.comments || '',
+          template: rawData.template || {}
         });
         
         setReviewData(sanitizedData);
+        
+        // Also fetch KPIs for goal linking
+        fetchKpis();
+        
         setLoading(false);
       } catch (err) {
         console.error('Error fetching review:', err);
@@ -79,6 +100,41 @@ function ViewEvaluation() {
       fetchReview();
     }
   }, [id, API_BASE_URL]);
+  
+  const fetchKpis = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/kpis`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        // Fallback to hardcoded sample KPIs
+        console.warn('KPI API unavailable, using sample data');
+        const sampleKpis = [
+          { id: '1', _id: '1', title: 'Customer Satisfaction', target: '4.5/5 rating', category: 'Customer' },
+          { id: '2', _id: '2', title: 'Code Quality', target: 'Reduce bugs by 20%', category: 'Technical' },
+          { id: '3', _id: '3', title: 'Team Collaboration', target: 'Weekly knowledge sharing', category: 'Team' }
+        ];
+        setKpis(sampleKpis);
+        return;
+      }
+      
+      const data = await response.json();
+      setKpis(data);
+    } catch (error) {
+      console.error('Error fetching KPIs:', error);
+      // Fallback to hardcoded sample KPIs
+      const sampleKpis = [
+        { id: '1', _id: '1', title: 'Customer Satisfaction', target: '4.5/5 rating', category: 'Customer' },
+        { id: '2', _id: '2', title: 'Code Quality', target: 'Reduce bugs by 20%', category: 'Technical' },
+        { id: '3', _id: '3', title: 'Team Collaboration', target: 'Weekly knowledge sharing', category: 'Team' }
+      ];
+      setKpis(sampleKpis);
+    }
+  };
   
   // Helper function to extract employee name
   const extractEmployeeName = (employee) => {
@@ -309,6 +365,185 @@ function ViewEvaluation() {
       setSaveStatus('error');
     }
   };
+  
+  // Goal management functions
+  const handleAddGoal = () => {
+    setIsEditingGoal(false);
+    setCurrentGoal(null);
+    setGoalForm({
+      title: '',
+      description: '',
+      targetDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0],
+      linkedKpi: '',
+      status: 'Not Started',
+      progress: 0,
+      notes: ''
+    });
+    setShowGoalModal(true);
+  };
+  
+  const handleEditGoal = (goal, index) => {
+    setIsEditingGoal(true);
+    setCurrentGoal({ ...goal, index });
+    
+    // Format date for the form
+    const targetDate = goal.targetDate 
+      ? new Date(goal.targetDate).toISOString().split('T')[0]
+      : '';
+    
+    setGoalForm({
+      title: goal.title || '',
+      description: goal.description || '',
+      targetDate,
+      linkedKpi: goal.linkedKpi || '',
+      status: goal.status || 'Not Started',
+      progress: goal.progress || 0,
+      notes: goal.notes || ''
+    });
+    
+    setShowGoalModal(true);
+  };
+  
+  const handleGoalInputChange = (e) => {
+    const { name, value } = e.target;
+    setGoalForm({
+      ...goalForm,
+      [name]: value
+    });
+  };
+  
+  const handleProgressChange = (e) => {
+    const value = parseInt(e.target.value);
+    setGoalForm({
+      ...goalForm,
+      progress: value,
+      // Update status automatically based on progress
+      status: value >= 100 ? 'Completed' : value > 0 ? 'In Progress' : 'Not Started'
+    });
+  };
+  
+  const handleSaveGoal = async () => {
+    try {
+      // Validate form
+      if (!goalForm.title) {
+        alert('Please enter a goal title');
+        return;
+      }
+      
+      // Prepare goal data
+      const goalData = {
+        ...goalForm,
+        progress: parseInt(goalForm.progress)
+      };
+      
+      // Update formData with the new/updated goal
+      const updatedGoals = [...formData.goals];
+      
+      if (isEditingGoal && currentGoal) {
+        // Update existing goal
+        updatedGoals[currentGoal.index] = {
+          ...updatedGoals[currentGoal.index],
+          ...goalData
+        };
+      } else {
+        // Add new goal
+        updatedGoals.push(goalData);
+      }
+      
+      // Update form data
+      setFormData({
+        ...formData,
+        goals: updatedGoals
+      });
+      
+      // Close modal
+      setShowGoalModal(false);
+      
+      // Save the review with updated goals
+      await handleSubmit();
+      
+    } catch (error) {
+      console.error('Error saving goal:', error);
+      alert('An error occurred while saving the goal');
+    }
+  };
+  
+  const handleDeleteGoal = (index) => {
+    if (!window.confirm('Are you sure you want to delete this goal?')) {
+      return;
+    }
+    
+    try {
+      // Remove the goal from the goals array
+      const updatedGoals = [...formData.goals];
+      updatedGoals.splice(index, 1);
+      
+      // Update form data
+      setFormData({
+        ...formData,
+        goals: updatedGoals
+      });
+      
+      // Save the review with updated goals
+      handleSubmit();
+      
+    } catch (error) {
+      console.error('Error deleting goal:', error);
+      alert('An error occurred while deleting the goal');
+    }
+  };
+  
+  // Get status badge class
+  const getStatusBadgeClass = (status) => {
+    switch (status) {
+      case 'Completed': return { 
+        backgroundColor: '#dcfce7', 
+        color: '#16a34a',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        fontSize: '0.875rem',
+        fontWeight: '500'
+      };
+      case 'In Progress': return { 
+        backgroundColor: '#dbeafe', 
+        color: '#2563eb',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        fontSize: '0.875rem',
+        fontWeight: '500'
+      };
+      case 'Not Started': return { 
+        backgroundColor: '#f3f4f6', 
+        color: '#6b7280',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        fontSize: '0.875rem',
+        fontWeight: '500'
+      };
+      case 'At Risk': return { 
+        backgroundColor: '#fee2e2', 
+        color: '#dc2626',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        fontSize: '0.875rem',
+        fontWeight: '500'
+      };
+      default: return { 
+        backgroundColor: '#f3f4f6', 
+        color: '#6b7280',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        fontSize: '0.875rem',
+        fontWeight: '500'
+      };
+    }
+  };
+  
+  const getKpiName = (kpiId) => {
+    if (!kpiId) return '';
+    const kpi = kpis.find(k => k.id === kpiId || k._id === kpiId);
+    return kpi ? kpi.title : 'Unknown KPI';
+  };
 
   const renderSaveStatus = () => {
     const baseStyle = {
@@ -327,6 +562,233 @@ function ViewEvaluation() {
     if (saveStatus === 'error') 
       return <span style={{...baseStyle, backgroundColor: '#ffebee', color: '#f44336'}}>Error Saving!</span>;
     return null;
+  };
+  
+  // Render goal modal
+  const renderGoalModal = () => {
+    if (!showGoalModal) return null;
+    
+    const modalOverlayStyle = {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000
+    };
+    
+    const modalContentStyle = {
+      backgroundColor: 'white',
+      borderRadius: '8px',
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      width: '90%',
+      maxWidth: '600px',
+      maxHeight: '90vh',
+      overflow: 'auto',
+      padding: '24px'
+    };
+    
+    const modalHeaderStyle = {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '20px',
+      paddingBottom: '10px',
+      borderBottom: '1px solid #e5e7eb'
+    };
+    
+    const modalFormStyle = {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '16px'
+    };
+    
+    const formGroupStyle = {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '4px'
+    };
+    
+    const labelStyle = {
+      fontWeight: '500',
+      color: '#374151'
+    };
+    
+    const inputStyle = {
+      padding: '8px 12px',
+      border: '1px solid #d1d5db',
+      borderRadius: '4px',
+      width: '100%'
+    };
+    
+    const formRowStyle = {
+      display: 'flex',
+      gap: '16px'
+    };
+    
+    const buttonGroupStyle = {
+      display: 'flex',
+      justifyContent: 'flex-end',
+      gap: '10px',
+      marginTop: '20px'
+    };
+    
+    const cancelButtonStyle = {
+      padding: '8px 16px',
+      backgroundColor: '#f3f4f6',
+      color: '#374151',
+      border: 'none',
+      borderRadius: '4px',
+      cursor: 'pointer'
+    };
+    
+    const saveButtonStyle = {
+      padding: '8px 16px',
+      backgroundColor: '#3b82f6',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      cursor: 'pointer'
+    };
+    
+    return (
+      <div style={modalOverlayStyle}>
+        <div style={modalContentStyle}>
+          <div style={modalHeaderStyle}>
+            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>
+              {isEditingGoal ? 'Edit Goal' : 'Add New Goal'}
+            </h2>
+            <button 
+              style={{ 
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '1.25rem'
+              }}
+              onClick={() => setShowGoalModal(false)}
+            >
+              <FaTimes />
+            </button>
+          </div>
+          
+          <div style={modalFormStyle}>
+            <div style={formGroupStyle}>
+              <label style={labelStyle}>Goal Title <span style={{ color: '#ef4444' }}>*</span></label>
+              <input
+                type="text"
+                name="title"
+                value={goalForm.title}
+                onChange={handleGoalInputChange}
+                style={inputStyle}
+                required
+              />
+            </div>
+            
+            <div style={formGroupStyle}>
+              <label style={labelStyle}>Description</label>
+              <textarea
+                name="description"
+                value={goalForm.description}
+                onChange={handleGoalInputChange}
+                style={inputStyle}
+                rows="3"
+              />
+            </div>
+            
+            <div style={formRowStyle}>
+              <div style={{ ...formGroupStyle, flex: 1 }}>
+                <label style={labelStyle}>Target Date</label>
+                <input
+                  type="date"
+                  name="targetDate"
+                  value={goalForm.targetDate}
+                  onChange={handleGoalInputChange}
+                  style={inputStyle}
+                />
+              </div>
+              
+              <div style={{ ...formGroupStyle, flex: 1 }}>
+                <label style={labelStyle}>Linked KPI</label>
+                <select
+                  name="linkedKpi"
+                  value={goalForm.linkedKpi}
+                  onChange={handleGoalInputChange}
+                  style={inputStyle}
+                >
+                  <option value="">-- None --</option>
+                  {kpis.map(kpi => (
+                    <option key={kpi.id || kpi._id} value={kpi.id || kpi._id}>
+                      {kpi.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div style={formRowStyle}>
+              <div style={{ ...formGroupStyle, flex: 1 }}>
+                <label style={labelStyle}>Status</label>
+                <select
+                  name="status"
+                  value={goalForm.status}
+                  onChange={handleGoalInputChange}
+                  style={inputStyle}
+                >
+                  <option value="Not Started">Not Started</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                  <option value="At Risk">At Risk</option>
+                </select>
+              </div>
+              
+              <div style={{ ...formGroupStyle, flex: 1 }}>
+                <label style={labelStyle}>Progress: {goalForm.progress}%</label>
+                <input
+                  type="range"
+                  name="progress"
+                  value={goalForm.progress}
+                  onChange={handleProgressChange}
+                  min="0"
+                  max="100"
+                  step="5"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+            
+            <div style={formGroupStyle}>
+              <label style={labelStyle}>Notes</label>
+              <textarea
+                name="notes"
+                value={goalForm.notes}
+                onChange={handleGoalInputChange}
+                style={inputStyle}
+                rows="3"
+              />
+            </div>
+            
+            <div style={buttonGroupStyle}>
+              <button
+                style={cancelButtonStyle}
+                onClick={() => setShowGoalModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                style={saveButtonStyle}
+                onClick={handleSaveGoal}
+              >
+                {isEditingGoal ? 'Update Goal' : 'Add Goal'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
   
   const content = () => {
@@ -436,6 +898,10 @@ function ViewEvaluation() {
       border: '1px solid #ddd',
       fontSize: '14px'
     };
+    
+    // Determine if this template has goals enabled
+    const hasGoalSetting = reviewData.template?.includesGoals || false;
+    const hasKpiTracking = reviewData.template?.includesKPIs || false;
     
     return (
       <form onSubmit={handleSubmit}>
@@ -585,6 +1051,178 @@ function ViewEvaluation() {
             ></textarea>
           </div>
         </div>
+        
+        {/* Goals Section - Only shown if template has Goals enabled */}
+        {hasGoalSetting && (
+          <div style={cardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ ...headingStyle, marginBottom: 0, borderBottom: 'none' }}>Performance Goals</h3>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button 
+                  type="button"
+                  onClick={handleAddGoal}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '8px 12px',
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontSize: '0.875rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <FaPlus /> Add Goal
+                </button>
+                
+                <button 
+                  type="button"
+                  onClick={() => navigate(`/goals/review/${id}`)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '8px 12px',
+                    backgroundColor: '#6366f1',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontSize: '0.875rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <FaExternalLinkAlt /> Advanced Goal Tracking
+                </button>
+              </div>
+            </div>
+            
+            {formData.goals.length === 0 ? (
+              <div style={{
+                padding: '20px',
+                backgroundColor: '#f9fafb',
+                borderRadius: '4px',
+                textAlign: 'center',
+                color: '#6b7280'
+              }}>
+                <p>No goals have been added yet. Click "Add Goal" to get started.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {formData.goals.map((goal, index) => (
+                  <div 
+                    key={index} 
+                    style={{
+                      padding: '15px',
+                      backgroundColor: '#f9fafb',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <h4 style={{ margin: 0, fontSize: '1rem' }}>{goal.title}</h4>
+                      <span style={getStatusBadgeClass(goal.status)}>{goal.status || 'Not Started'}</span>
+                    </div>
+                    
+                    {goal.description && (
+                      <p style={{ margin: '5px 0', color: '#4b5563' }}>{goal.description}</p>
+                    )}
+                    
+                    <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', margin: '10px 0' }}>
+                      {goal.targetDate && (
+                        <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                          <strong>Target Date:</strong> {formatDate(goal.targetDate)}
+                        </div>
+                      )}
+                      
+                      {goal.linkedKpi && (
+                        <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                          <strong>Linked KPI:</strong> {getKpiName(goal.linkedKpi)}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Progress bar */}
+                    <div style={{ marginTop: '10px' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        fontSize: '0.875rem', 
+                        color: '#6b7280',
+                        marginBottom: '5px'
+                      }}>
+                        <span>Progress: {goal.progress || 0}%</span>
+                      </div>
+                      <div style={{ 
+                        height: '8px', 
+                        backgroundColor: '#e5e7eb', 
+                        borderRadius: '4px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{ 
+                          height: '100%', 
+                          width: `${goal.progress || 0}%`,
+                          backgroundColor: 
+                            goal.status === 'Completed' ? '#10b981' :
+                            goal.status === 'At Risk' ? '#f59e0b' :
+                            '#3b82f6',
+                          borderRadius: '4px'
+                        }}></div>
+                      </div>
+                    </div>
+                    
+                    {goal.notes && (
+                      <div style={{ marginTop: '10px', fontSize: '0.875rem', color: '#6b7280' }}>
+                        <strong>Notes:</strong> {goal.notes}
+                      </div>
+                    )}
+                    
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                      <button 
+                        type="button"
+                        onClick={() => handleEditGoal(goal, index)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '6px 10px',
+                          backgroundColor: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <FaEdit /> Edit
+                      </button>
+                      
+                      <button 
+                        type="button"
+                        onClick={() => handleDeleteGoal(index)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '6px 10px',
+                          backgroundColor: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <FaTrash /> Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Comments Section */}
         <div style={cardStyle}>
@@ -714,6 +1352,7 @@ function ViewEvaluation() {
         </div>
         
         {content()}
+        {renderGoalModal()}
       </div>
     </SidebarLayout>
   );
