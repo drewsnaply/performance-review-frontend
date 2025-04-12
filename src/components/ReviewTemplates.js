@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import '../styles/ReviewTemplates.css';
 
 function ReviewTemplates() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('templates');
   const [templates, setTemplates] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('All Status');
   const [showNewTemplateForm, setShowNewTemplateForm] = useState(false);
   const [newTemplate, setNewTemplate] = useState({
     name: '',
@@ -14,45 +18,17 @@ function ReviewTemplates() {
     frequency: 'Annual',
     active: true
   });
-  const [formError, setFormError] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All Status');
-  const navigate = useNavigate();
   
-  // Client-side review completion tracking
-  const [completedReviewId, setCompletedReviewId] = useState(
-    sessionStorage.getItem('completedReviewId')
-  );
-  const [completedReviewMetadata, setCompletedReviewMetadata] = useState(() => {
-    const storedMetadata = sessionStorage.getItem('completedReviewMetadata');
-    return storedMetadata ? JSON.parse(storedMetadata) : null;
-  });
+  // Get completed review ID from session storage
+  const completedReviewId = sessionStorage.getItem('completedReviewId');
   
-  // API base URL for fetching data
+  // API base URL
   const API_BASE_URL = process.env.NODE_ENV === 'development' 
     ? 'http://localhost:5000' 
     : 'https://performance-review-backend-ab8z.onrender.com';
   
-  // Check if we're coming from a completed review
+  // Fetch templates and assignments
   useEffect(() => {
-    const locationState = window.history.state?.state;
-    const fromPendingWithCompleted = locationState?.completedReview;
-    const reviewMetadata = locationState?.completedReviewMetadata;
-    
-    if (fromPendingWithCompleted) {
-      setCompletedReviewId(fromPendingWithCompleted);
-      // Store in session storage to persist across page refreshes
-      sessionStorage.setItem('completedReviewId', fromPendingWithCompleted);
-      
-      if (reviewMetadata) {
-        setCompletedReviewMetadata(reviewMetadata);
-        sessionStorage.setItem('completedReviewMetadata', JSON.stringify(reviewMetadata));
-      }
-    }
-  }, []);
-  
-  // Fetch templates and assignments on component mount
-  useEffect(() => {
-    // Call our fetch functions based on the active tab
     if (activeTab === 'templates') {
       fetchTemplates();
     } else if (activeTab === 'assignments') {
@@ -60,7 +36,7 @@ function ReviewTemplates() {
     }
   }, [activeTab]);
   
-  // Function to fetch templates from API
+  // Fetch templates from API
   const fetchTemplates = async () => {
     try {
       setLoading(true);
@@ -80,12 +56,12 @@ function ReviewTemplates() {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching templates:', error);
-      setError('Failed to load templates. Please try again later.');
+      setError('Failed to fetch templates');
       setLoading(false);
     }
   };
   
-  // Function to fetch assignments from API
+  // Fetch assignments from API
   const fetchAssignments = async () => {
     try {
       setLoading(true);
@@ -103,10 +79,8 @@ function ReviewTemplates() {
       const data = await response.json();
       
       // Update assignment status if it matches the completed review ID
-      let updatedAssignments = [...data];
-      
       if (completedReviewId) {
-        updatedAssignments = data.map(assignment => {
+        const updatedAssignments = data.map(assignment => {
           if (assignment._id === completedReviewId || 
               assignment.createdReview === completedReviewId) {
             return {
@@ -114,28 +88,22 @@ function ReviewTemplates() {
               status: 'Completed'
             };
           }
-          // Also check if this assignment is referenced in the completed review metadata
-          if (completedReviewMetadata && 
-              (assignment._id === completedReviewMetadata.assignmentId)) {
-            return {
-              ...assignment,
-              status: 'Completed'
-            };
-          }
           return assignment;
         });
+        setAssignments(updatedAssignments);
+      } else {
+        setAssignments(data);
       }
       
-      setAssignments(updatedAssignments);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching assignments:', error);
-      setError('Failed to load assignments. Please try again later.');
+      setError('Failed to fetch assignments');
       setLoading(false);
     }
   };
   
-  // Handle new template form input changes
+  // Handle template input change
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setNewTemplate(prev => ({
@@ -144,16 +112,9 @@ function ReviewTemplates() {
     }));
   };
   
-  // Handle new template form submission
-  const handleSubmit = async (e) => {
+  // Handle creating new template
+  const handleCreateTemplate = async (e) => {
     e.preventDefault();
-    
-    // Basic form validation
-    if (!newTemplate.name.trim()) {
-      setFormError('Template name is required');
-      return;
-    }
-    
     try {
       const response = await fetch(`${API_BASE_URL}/api/templates`, {
         method: 'POST',
@@ -168,25 +129,21 @@ function ReviewTemplates() {
         throw new Error('Failed to create template');
       }
       
-      // Reset form and state
+      fetchTemplates();
+      setShowNewTemplateForm(false);
       setNewTemplate({
         name: '',
         description: '',
         frequency: 'Annual',
         active: true
       });
-      setShowNewTemplateForm(false);
-      setFormError('');
-      
-      // Refresh templates list
-      fetchTemplates();
     } catch (error) {
       console.error('Error creating template:', error);
-      setFormError('Failed to create template. Please try again.');
+      setError('Failed to create template');
     }
   };
   
-  // Handle template deletion
+  // Handle deleting a template
   const handleDeleteTemplate = async (id) => {
     if (!window.confirm('Are you sure you want to delete this template?')) {
       return;
@@ -205,27 +162,24 @@ function ReviewTemplates() {
         throw new Error('Failed to delete template');
       }
       
-      // Refresh templates list
       fetchTemplates();
     } catch (error) {
       console.error('Error deleting template:', error);
-      setError('Failed to delete template. Please try again.');
+      setError('Failed to delete template');
     }
   };
   
-  // Handle opening the review editor
+  // Handle opening a review
   const handleOpenReview = (assignmentId, reviewId) => {
     if (reviewId) {
-      // If review exists, navigate to edit it
       navigate(`/reviews/edit/${reviewId}`);
     } else {
-      // Otherwise, start new review
-      startNewReview(assignmentId);
+      startReview(assignmentId);
     }
   };
   
-  // Function to start a new review
-  const startNewReview = async (assignmentId) => {
+  // Start a new review
+  const startReview = async (assignmentId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/templates/assignments/${assignmentId}/start`, {
         method: 'POST',
@@ -240,264 +194,221 @@ function ReviewTemplates() {
       }
       
       const data = await response.json();
-      
-      // Navigate to new review editor
       navigate(`/reviews/edit/${data.review._id}`);
     } catch (error) {
       console.error('Error starting review:', error);
-      alert('Failed to start review. Please try again.');
+      alert('Failed to start review');
     }
-  };
-  
-  // Function to handle status filter change
-  const handleStatusFilterChange = (e) => {
-    setStatusFilter(e.target.value);
-  };
-  
-  // Filter assignments based on status filter
-  const filteredAssignments = statusFilter === 'All Status' 
-    ? assignments 
-    : assignments.filter(assignment => assignment.status === statusFilter);
-  
-  // Format date safely
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch (e) {
-      return 'Invalid Date';
-    }
-  };
-  
-  // Extract name from employee or reviewer object
-  const extractName = (person) => {
-    if (!person) return 'Unknown';
-    const firstName = person.firstName || '';
-    const lastName = person.lastName || '';
-    return `${firstName} ${lastName}`.trim() || 'Unknown';
-  };
-  
-  // Render templates tab
-  const renderTemplates = () => {
-    if (loading) {
-      return <div>Loading templates...</div>;
-    }
-    
-    if (error) {
-      return <div className="error-message">{error}</div>;
-    }
-    
-    return (
-      <>
-        <h2>Review Templates</h2>
-        <button 
-          className="new-template-button"
-          onClick={() => setShowNewTemplateForm(true)}
-        >
-          + New Template
-        </button>
-        
-        {showNewTemplateForm && (
-          <div className="modal-form">
-            <h3>Create New Template</h3>
-            {formError && <div className="error-message">{formError}</div>}
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label htmlFor="name">Template Name:</label>
-                <input 
-                  type="text" 
-                  id="name" 
-                  name="name" 
-                  value={newTemplate.name}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="description">Description:</label>
-                <textarea 
-                  id="description" 
-                  name="description" 
-                  value={newTemplate.description}
-                  onChange={handleInputChange}
-                />
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="frequency">Frequency:</label>
-                <select 
-                  id="frequency" 
-                  name="frequency" 
-                  value={newTemplate.frequency}
-                  onChange={handleInputChange}
-                >
-                  <option value="Annual">Annual</option>
-                  <option value="Semi-Annual">Semi-Annual</option>
-                  <option value="Quarterly">Quarterly</option>
-                  <option value="Monthly">Monthly</option>
-                  <option value="Ad Hoc">Ad Hoc</option>
-                </select>
-              </div>
-              
-              <div className="form-group">
-                <label>
-                  <input 
-                    type="checkbox" 
-                    name="active" 
-                    checked={newTemplate.active}
-                    onChange={handleInputChange}
-                  />
-                  Active
-                </label>
-              </div>
-              
-              <div className="form-actions">
-                <button type="submit">Save</button>
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    setShowNewTemplateForm(false);
-                    setFormError('');
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-        
-        <table>
-          <thead>
-            <tr>
-              <th>Template Name</th>
-              <th>Description</th>
-              <th>Frequency</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {templates.map(template => (
-              <tr key={template._id}>
-                <td>{template.name}</td>
-                <td>{template.description || 'No description'}</td>
-                <td>{template.frequency}</td>
-                <td>{template.active ? 'Active' : 'Inactive'}</td>
-                <td>
-                  <button 
-                    className="edit-button"
-                    onClick={() => alert('Edit functionality coming soon')}
-                  >
-                    Edit
-                  </button>
-                  <button 
-                    className="delete-button"
-                    onClick={() => handleDeleteTemplate(template._id)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </>
-    );
-  };
-  
-  // Render assignments tab
-  const renderAssignments = () => {
-    if (loading) {
-      return <div>Loading assignments...</div>;
-    }
-    
-    if (error) {
-      return <div className="error-message">{error}</div>;
-    }
-    
-    return (
-      <>
-        <h2>Template Assignments</h2>
-        <div className="filter-container">
-          <label htmlFor="status-filter">Status:</label>
-          <select 
-            id="status-filter" 
-            value={statusFilter}
-            onChange={handleStatusFilterChange}
-          >
-            <option value="All Status">All Status</option>
-            <option value="Pending">Pending</option>
-            <option value="InProgress">InProgress</option>
-            <option value="Completed">Completed</option>
-            <option value="Canceled">Canceled</option>
-          </select>
-        </div>
-        
-        <table>
-          <thead>
-            <tr>
-              <th>Template</th>
-              <th>Employee</th>
-              <th>Reviewer</th>
-              <th>Due Date</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredAssignments.map(assignment => (
-              <tr key={assignment._id}>
-                <td>{assignment.template?.name || 'Unknown Template'}</td>
-                <td>{extractName(assignment.employee)}</td>
-                <td>{extractName(assignment.reviewer)}</td>
-                <td>{formatDate(assignment.dueDate)}</td>
-                <td className="status-cell">
-                  <span className={`status-badge ${assignment.status?.toLowerCase()}`}>
-                    {assignment.status || 'Pending'}
-                  </span>
-                </td>
-                <td>
-                  <button 
-                    className="edit-button"
-                    onClick={() => handleOpenReview(assignment._id, assignment.createdReview)}
-                  >
-                    {assignment.createdReview ? 'View' : 'Start'}
-                  </button>
-                  <button className="delete-button">
-                    Cancel
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </>
-    );
   };
   
   return (
-    <>
+    <div>
       <div className="tabs">
-        <button
-          className={activeTab === 'templates' ? 'active' : ''}
+        <button 
+          className={activeTab === 'templates' ? 'active' : ''} 
           onClick={() => setActiveTab('templates')}
         >
           Templates
         </button>
-        <button
-          className={activeTab === 'assignments' ? 'active' : ''}
+        <button 
+          className={activeTab === 'assignments' ? 'active' : ''} 
           onClick={() => setActiveTab('assignments')}
         >
           Assignments
         </button>
       </div>
       
-      <div className="tab-content">
-        {activeTab === 'templates' ? renderTemplates() : renderAssignments()}
-      </div>
-    </>
+      {activeTab === 'templates' && (
+        <div>
+          <h2>Review Templates</h2>
+          <button 
+            className="new-template-button" 
+            onClick={() => setShowNewTemplateForm(true)}
+          >
+            + New Template
+          </button>
+          
+          {loading ? (
+            <p>Loading templates...</p>
+          ) : error ? (
+            <p className="error-message">{error}</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Template Name</th>
+                  <th>Description</th>
+                  <th>Frequency</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {templates.map(template => (
+                  <tr key={template._id}>
+                    <td>{template.name}</td>
+                    <td>{template.description || 'No description'}</td>
+                    <td>{template.frequency}</td>
+                    <td>{template.active ? 'Active' : 'Inactive'}</td>
+                    <td>
+                      <button 
+                        className="edit-button"
+                        onClick={() => alert('Edit feature coming soon')}
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        className="delete-button"
+                        onClick={() => handleDeleteTemplate(template._id)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          
+          {showNewTemplateForm && (
+            <div className="modal">
+              <div className="modal-content">
+                <h3>Create New Template</h3>
+                <form onSubmit={handleCreateTemplate}>
+                  <div className="form-group">
+                    <label>Name:</label>
+                    <input 
+                      type="text" 
+                      name="name" 
+                      value={newTemplate.name} 
+                      onChange={handleInputChange} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Description:</label>
+                    <textarea 
+                      name="description" 
+                      value={newTemplate.description} 
+                      onChange={handleInputChange} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Frequency:</label>
+                    <select 
+                      name="frequency" 
+                      value={newTemplate.frequency} 
+                      onChange={handleInputChange}
+                    >
+                      <option value="Annual">Annual</option>
+                      <option value="Semi-Annual">Semi-Annual</option>
+                      <option value="Quarterly">Quarterly</option>
+                      <option value="Monthly">Monthly</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>
+                      <input 
+                        type="checkbox" 
+                        name="active" 
+                        checked={newTemplate.active} 
+                        onChange={handleInputChange} 
+                      />
+                      Active
+                    </label>
+                  </div>
+                  <div className="form-actions">
+                    <button type="submit">Save</button>
+                    <button 
+                      type="button" 
+                      onClick={() => setShowNewTemplateForm(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {activeTab === 'assignments' && (
+        <div>
+          <h2>Template Assignments</h2>
+          
+          <div className="filter-container">
+            <label htmlFor="status-filter">Status:</label>
+            <select 
+              id="status-filter" 
+              value={statusFilter} 
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="All Status">All Status</option>
+              <option value="Pending">Pending</option>
+              <option value="InProgress">InProgress</option>
+              <option value="Completed">Completed</option>
+              <option value="Canceled">Canceled</option>
+            </select>
+          </div>
+          
+          {loading ? (
+            <p>Loading assignments...</p>
+          ) : error ? (
+            <p className="error-message">{error}</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Template</th>
+                  <th>Employee</th>
+                  <th>Reviewer</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assignments
+                  .filter(assignment => 
+                    statusFilter === 'All Status' || assignment.status === statusFilter
+                  )
+                  .map(assignment => (
+                    <tr key={assignment._id}>
+                      <td>{assignment.template?.name || 'Unknown'}</td>
+                      <td>
+                        {assignment.employee?.firstName || ''} {assignment.employee?.lastName || ''}
+                      </td>
+                      <td>
+                        {assignment.reviewer?.firstName || ''} {assignment.reviewer?.lastName || ''}
+                      </td>
+                      <td>
+                        {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td>
+                        <span className={`status ${assignment.status?.toLowerCase() || 'pending'}`}>
+                          {assignment.status || 'Pending'}
+                        </span>
+                      </td>
+                      <td>
+                        <button 
+                          className="edit-button"
+                          onClick={() => handleOpenReview(assignment._id, assignment.createdReview)}
+                        >
+                          {assignment.createdReview ? 'View' : 'Start'}
+                        </button>
+                        <button className="delete-button">
+                          Cancel
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
