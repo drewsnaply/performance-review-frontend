@@ -232,7 +232,7 @@ function ViewEvaluation() {
       setSaveStatus('saving');
       
       // Since the backend API endpoints for completion are not working,
-      // let's implement a client-side "completion" that just returns to the pending reviews
+      // implement a client-side "completion" that just returns to the pending reviews
       console.log(`Simulating completion for review ${id} since API endpoints are returning errors`);
       
       // Show success message

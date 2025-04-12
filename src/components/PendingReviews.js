@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import SidebarLayout from './SidebarLayout';
 import { useAuth } from '../context/AuthContext';
-import { FaEdit, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
+import { FaEdit, FaCheck } from 'react-icons/fa';
 
 function PendingReviews() {
   const { user } = useAuth();
@@ -10,24 +10,8 @@ function PendingReviews() {
   const location = useLocation();
   const [pendingReviews, setPendingReviews] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [notification, setNotification] = useState(location.state?.message || null);
-  const [completedReviewId, setCompletedReviewId] = useState(location.state?.completedReview || null);
-
-  // Fallback data in case API fails
-  const mockReviews = [
-    {
-      _id: location.state?.completedReview || "mock-review-1",
-      employee: { firstName: "Dana", lastName: "Bear" },
-      reviewer: { firstName: "Andrew", lastName: "Mintzell" },
-      reviewPeriod: { 
-        start: "2024-10-12T00:00:00.000Z", 
-        end: "2025-04-10T00:00:00.000Z" 
-      },
-      status: "inProgress",
-      clientSideCompleted: location.state?.completedReview ? true : false
-    }
-  ];
+  const completedReviewId = location.state?.completedReview || null;
 
   const API_BASE_URL = process.env.NODE_ENV === 'development' 
     ? 'http://localhost:5000' 
@@ -68,7 +52,21 @@ function PendingReviews() {
         
         // Use mock data as fallback
         console.log("Using mock data as fallback due to API error");
-        setPendingReviews(mockReviews);
+        
+        // Create mock review data with the completed review ID if it exists
+        const mockData = [{
+          _id: completedReviewId || "mock-review-1",
+          employee: { firstName: "Dana", lastName: "Bear" },
+          reviewer: { firstName: "Andrew", lastName: "Mintzell" },
+          reviewPeriod: { 
+            start: "2024-10-12T00:00:00.000Z", 
+            end: "2025-04-10T00:00:00.000Z" 
+          },
+          status: "inProgress",
+          clientSideCompleted: completedReviewId ? true : false
+        }];
+        
+        setPendingReviews(mockData);
         
         // Still show notification but don't display error
         if (completedReviewId) {
@@ -88,7 +86,7 @@ function PendingReviews() {
       }, 5000);
       return () => clearTimeout(timer);
     }
-  }, [API_BASE_URL, completedReviewId, notification, mockReviews]);
+  }, [API_BASE_URL, completedReviewId, notification]);
 
   const handleReviewClick = (reviewId) => {
     navigate(`/reviews/edit/${reviewId}`);
