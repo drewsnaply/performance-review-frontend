@@ -52,6 +52,13 @@ function ViewEvaluation() {
         
         // Set up form data structure
         setFormData({
+          // Preserve the original structure but set defaults if missing
+          _id: rawData._id,
+          employee: rawData.employee,
+          reviewer: rawData.reviewer,
+          reviewPeriod: rawData.reviewPeriod,
+          status: rawData.status,
+          startDate: rawData.startDate,
           ratings: rawData.ratings || {},
           feedback: rawData.feedback || {},
           goals: Array.isArray(rawData.goals) ? rawData.goals : [],
@@ -161,6 +168,9 @@ function ViewEvaluation() {
     try {
       setSaveStatus('saving');
       
+      // Log the data being sent
+      console.log("Saving review with data:", formData);
+      
       const response = await fetch(`${API_BASE_URL}/api/reviews/${id}`, {
         method: 'PUT',
         headers: {
@@ -171,9 +181,14 @@ function ViewEvaluation() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save review');
+        // Try to get more detailed error info
+        const errorData = await response.json().catch(() => null);
+        throw new Error(`Failed to save review: ${response.status} ${response.statusText}${errorData ? ` - ${JSON.stringify(errorData)}` : ''}`);
       }
 
+      const savedData = await response.json();
+      console.log("Review saved successfully:", savedData);
+      
       setSaveStatus('success');
       
       // Reset status after 3 seconds
@@ -183,6 +198,7 @@ function ViewEvaluation() {
     } catch (err) {
       console.error('Error saving review:', err);
       setSaveStatus('error');
+      setError(err.message || 'Error saving review');
       // Reset status after 3 seconds
       setTimeout(() => {
         setSaveStatus(null);
@@ -192,23 +208,34 @@ function ViewEvaluation() {
 
   const handleComplete = async () => {
     try {
+      // First save the review
+      await handleSubmit(new Event('submit'));
+      
+      setSaveStatus('saving');
+      console.log(`Completing review ${id}`);
+      
       const response = await fetch(`${API_BASE_URL}/api/reviews/${id}/complete`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ status: 'completed' }) // Include status in the body
       });
 
+      console.log('Complete review response:', response);
+      
       if (!response.ok) {
-        throw new Error('Failed to complete review');
+        const errorData = await response.json().catch(() => null);
+        throw new Error(`Failed to complete review: ${response.status} ${response.statusText}${errorData ? ` - ${JSON.stringify(errorData)}` : ''}`);
       }
 
       // Navigate back to pending reviews
       navigate('/pending-reviews');
     } catch (err) {
       console.error('Error completing review:', err);
-      setError(err.message);
+      setError(err.message || 'Error completing review');
+      setSaveStatus('error');
     }
   };
 
@@ -251,6 +278,14 @@ function ViewEvaluation() {
             animation: 'spin 1s linear infinite'
           }}></div>
           <p>Loading review data...</p>
+          <style>
+            {`
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+            `}
+          </style>
         </div>
       );
     }
@@ -560,7 +595,11 @@ function ViewEvaluation() {
   };
 
   return (
-    <SidebarLayout user={user} activeView="my-reviews">
+    <SidebarLayout 
+      // Make sure user prop is properly provided
+      user={user || {}} 
+      activeView="my-reviews"
+    >
       <div style={{ 
         padding: '20px',
         maxWidth: '1000px',
