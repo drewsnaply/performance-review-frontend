@@ -49,9 +49,15 @@ const Login = () => {
       // Decode the token to extract user details
       const decodedToken = jwtDecode(token);
       console.log('Decoded token:', decodedToken);
-
-      // Navigate to the dashboard
-      navigate(from, { replace: true });
+      
+      // Check if user is a superadmin and redirect accordingly
+      if (user && user.role === 'superadmin') {
+        console.log('Superadmin detected, redirecting to Super Admin dashboard');
+        navigate('/super-admin/customers', { replace: true });
+      } else {
+        // Navigate to the dashboard or the page they were trying to access
+        navigate(from, { replace: true });
+      }
     } catch (err) {
       console.error('Login error:', err);
       setError(err.message || 'Login failed');

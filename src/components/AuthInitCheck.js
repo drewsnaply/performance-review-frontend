@@ -29,7 +29,26 @@ const AuthInitCheck = () => {
             return;
           }
           
-          // Here you would validate the token if needed
+          // Check if we need to redirect to Super Admin dashboard
+          if (currentPath === '/' || currentPath === '/dashboard') {
+            // Get user data to check role
+            const userData = localStorage.getItem('user');
+            if (userData) {
+              try {
+                const user = JSON.parse(userData);
+                
+                // If user is superadmin, redirect to Super Admin dashboard
+                if (user.role === 'superadmin') {
+                  console.log('Super Admin detected, redirecting to Super Admin dashboard');
+                  window.location.href = '/super-admin/customers';
+                  return;
+                }
+              } catch (parseError) {
+                console.error('Error parsing user data:', parseError);
+              }
+            }
+          }
+          
           console.log('Token found during initialization check');
           
         } catch (error) {

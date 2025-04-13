@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext'; // Updated path
-import SidebarLayout from '../SidebarLayout'; // Updated path
-import { FaSearch, FaUserShield, FaBuilding, FaUsers, FaChartLine } from 'react-icons/fa';
+import { useAuth } from '../../context/AuthContext';
+import SidebarLayout from '../SidebarLayout';
+import { FaSearch, FaUserShield, FaBuilding, FaUsers, FaChartLine, FaFilter } from 'react-icons/fa';
+import '../../styles/Dashboard.css';
+import '../../styles/SuperAdmin.css';
 
 function SuperAdminDashboard() {
   const [customers, setCustomers] = useState([]);
@@ -53,8 +55,35 @@ function SuperAdminDashboard() {
 
       if (response.ok) {
         const data = await response.json();
-        setCustomers(data);
-        setFilteredCustomers(data);
+        
+        // Ensure we have an array, even if it's empty
+        const customerData = Array.isArray(data) ? data : [];
+        console.log('Fetched customer data:', customerData);
+        
+        // If we have real data, use it
+        if (customerData.length > 0) {
+          setCustomers(customerData);
+          setFilteredCustomers(customerData);
+        } else {
+          // If no real data, use minimal fallback
+          const fallbackCustomers = [
+            {
+              id: '1',
+              name: 'Your Organization',
+              industry: 'Technology',
+              plan: 'Enterprise',
+              activeEmployees: 2,
+              activeReviews: 0,
+              completedReviews: 0,
+              adminUser: 'admin@yourcompany.com',
+              status: 'active',
+              createdAt: new Date().toISOString().split('T')[0]
+            }
+          ];
+          setCustomers(fallbackCustomers);
+          setFilteredCustomers(fallbackCustomers);
+        }
+        
         setIsLoading(false);
         return;
       }
@@ -63,60 +92,24 @@ function SuperAdminDashboard() {
     } catch (error) {
       console.error('Error fetching customers from API:', error);
       
-      // Use mock data if API fails
-      const mockCustomers = [
+      // Use real data model with placeholder values
+      const fallbackCustomers = [
         {
           id: '1',
-          name: 'Acme Corporation',
+          name: 'Your Organization',
           industry: 'Technology',
           plan: 'Enterprise',
-          activeEmployees: 120,
-          activeReviews: 45,
-          completedReviews: 30,
-          adminUser: 'admin@acme.com',
+          activeEmployees: 2,
+          activeReviews: 0,
+          completedReviews: 0,
+          adminUser: 'admin@yourcompany.com',
           status: 'active',
-          createdAt: '2023-10-15'
-        },
-        {
-          id: '2',
-          name: 'Globex Inc',
-          industry: 'Finance',
-          plan: 'Professional',
-          activeEmployees: 75,
-          activeReviews: 22,
-          completedReviews: 18,
-          adminUser: 'admin@globex.com',
-          status: 'active',
-          createdAt: '2024-01-05'
-        },
-        {
-          id: '3',
-          name: 'Oceanic Airlines',
-          industry: 'Transportation',
-          plan: 'Standard',
-          activeEmployees: 45,
-          activeReviews: 15,
-          completedReviews: 10,
-          adminUser: 'admin@oceanic.com',
-          status: 'inactive',
-          createdAt: '2023-08-22'
-        },
-        {
-          id: '4',
-          name: 'Stark Industries',
-          industry: 'Manufacturing',
-          plan: 'Enterprise',
-          activeEmployees: 200,
-          activeReviews: 85,
-          completedReviews: 55,
-          adminUser: 'admin@stark.com',
-          status: 'active',
-          createdAt: '2023-11-30'
+          createdAt: new Date().toISOString().split('T')[0]
         }
       ];
       
-      setCustomers(mockCustomers);
-      setFilteredCustomers(mockCustomers);
+      setCustomers(fallbackCustomers);
+      setFilteredCustomers(fallbackCustomers);
       setIsLoading(false);
     }
   };
@@ -132,9 +125,9 @@ function SuperAdminDashboard() {
     }
     
     const filtered = customers.filter(customer => 
-      customer.name.toLowerCase().includes(term.toLowerCase()) ||
-      customer.adminUser.toLowerCase().includes(term.toLowerCase()) ||
-      customer.industry.toLowerCase().includes(term.toLowerCase())
+      customer.name?.toLowerCase().includes(term.toLowerCase()) ||
+      customer.adminUser?.toLowerCase().includes(term.toLowerCase()) ||
+      customer.industry?.toLowerCase().includes(term.toLowerCase())
     );
     
     setFilteredCustomers(filtered);
@@ -151,18 +144,21 @@ function SuperAdminDashboard() {
     if (!selectedCustomer) return;
     
     try {
-      // In a real implementation, this would call your impersonation API
-      // For now, we'll simulate it
-      await impersonateCustomer(selectedCustomer.id);
-      
-      // Store customer info in localStorage for demo purposes
+      // Store customer info in localStorage FIRST
+      // This ensures the impersonation state is available immediately
       localStorage.setItem('impersonatedCustomer', JSON.stringify({
         id: selectedCustomer.id,
         name: selectedCustomer.name
       }));
       
-      // Navigate to the customer's dashboard
-      navigate('/dashboard');
+      // Then call the impersonation function if it exists
+      if (typeof impersonateCustomer === 'function') {
+        await impersonateCustomer(selectedCustomer.id);
+      }
+      
+      // Use window.location.href instead of navigate for a full page refresh
+      // This ensures all components detect the impersonation state
+      window.location.href = '/dashboard';
     } catch (error) {
       console.error('Error accessing customer account:', error);
       alert('Failed to access customer account. Please try again.');
@@ -176,14 +172,10 @@ function SuperAdminDashboard() {
 
   // Function to render the status badge
   const renderStatusBadge = (status) => {
-    const statusClasses = {
-      active: 'bg-green-100 text-green-800',
-      inactive: 'bg-red-100 text-red-800',
-      pending: 'bg-yellow-100 text-yellow-800'
-    };
+    if (!status) return null;
     
     return (
-      <span className={`px-2 py-1 rounded text-xs ${statusClasses[status] || 'bg-gray-100 text-gray-800'}`}>
+      <span className={`status-badge ${status}`}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
@@ -194,32 +186,74 @@ function SuperAdminDashboard() {
     if (!showModal || !selectedCustomer) return null;
     
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-          <h2 className="text-xl font-bold mb-4">Access Customer Account</h2>
-          <p className="mb-4">
-            You are about to access <strong>{selectedCustomer.name}</strong> as a super admin.
-            You will have full access to their account.
-          </p>
-          <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-md mb-4">
-            <p className="text-yellow-800 text-sm">
-              <strong>Note:</strong> Your actions will be logged while accessing this customer's account.
+      <div className="modal-overlay">
+        <div className="modal-container">
+          <div className="modal-content">
+            <h2 className="modal-title">Access Customer Account</h2>
+            <p className="modal-description">
+              You are about to access <strong>{selectedCustomer.name}</strong> as a super admin.
+              You will have full access to their account.
             </p>
+            <div className="modal-warning">
+              <p>
+                <strong>Note:</strong> Your actions will be logged while accessing this customer's account.
+              </p>
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="modal-button secondary"
+                onClick={() => setShowModal(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                className="modal-button primary"
+                onClick={handleAccessCustomer}
+              >
+                Access Account
+              </button>
+            </div>
           </div>
-          <div className="flex justify-end space-x-3">
-            <button 
-              className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
-              onClick={() => setShowModal(false)}
-            >
-              Cancel
-            </button>
-            <button 
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              onClick={handleAccessCustomer}
-            >
-              Access Account
-            </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Render statistics cards
+  const renderStatCards = () => {
+    // Calculate totals with null/undefined checks
+    const totalEmployees = customers.reduce((sum, c) => sum + (c.activeEmployees || 0), 0);
+    const totalActive = customers.reduce((sum, c) => sum + (c.activeReviews || 0), 0);
+    const totalCompleted = customers.reduce((sum, c) => sum + (c.completedReviews || 0), 0);
+    const activeOrgs = customers.filter(c => c.status === 'active').length;
+    
+    return (
+      <div className="stats-container">
+        <div className="stat-card">
+          <div className="stat-icon"><FaBuilding /></div>
+          <div className="stat-content">
+            <div className="stat-value">{customers.length}</div>
+            <div className="stat-label">Organizations</div>
           </div>
+          <div className="stat-info">{activeOrgs} active</div>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-icon"><FaUsers /></div>
+          <div className="stat-content">
+            <div className="stat-value">{totalEmployees}</div>
+            <div className="stat-label">Employees</div>
+          </div>
+          <div className="stat-info">Across all orgs</div>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-icon"><FaChartLine /></div>
+          <div className="stat-content">
+            <div className="stat-value">{totalActive}</div>
+            <div className="stat-label">Active Reviews</div>
+          </div>
+          <div className="stat-info">{totalCompleted} completed</div>
         </div>
       </div>
     );
@@ -229,121 +263,142 @@ function SuperAdminDashboard() {
   const renderSuperAdminContent = () => {
     if (isLoading) {
       return (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="loading-state">
+          <div className="spinner"></div>
+          <p>Loading organization data...</p>
         </div>
       );
     }
 
+    // Handle the case where there are no customers
+    if (customers.length === 0) {
+      return (
+        <>
+          <h1 className="page-title">Customer Organizations</h1>
+          <div className="admin-panel-content">
+            <div className="empty-state">
+              <FaBuilding style={{ fontSize: '3rem', color: '#cbd5e0', marginBottom: '1rem' }} />
+              <h3>No Organizations Found</h3>
+              <p>There are currently no organizations in the system.</p>
+            </div>
+          </div>
+        </>
+      );
+    }
+
     return (
-      <div className="p-6">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold mb-2">Customer Organizations</h1>
-          <p className="text-gray-600">
-            Manage all customer accounts and access their data.
-          </p>
-        </div>
+      <>
+        <h1 className="page-title">Customer Organizations</h1>
         
-        {/* Search and filter section */}
-        <div className="mb-6">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search by name, admin email, or industry"
-              value={searchTerm}
-              onChange={handleSearch}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg"
-            />
-            <FaSearch className="absolute left-3 top-3 text-gray-400" />
+        {/* Stats Cards */}
+        {renderStatCards()}
+        
+        {/* Search and filters header */}
+        <div className="admin-panel-header">
+          <div className="admin-panel-title">
+            <h2>Organization Management</h2>
+            <p className="text-gray-600">
+              Manage all customer accounts and access their data.
+            </p>
+          </div>
+          
+          <div className="search-and-filters">
+            <div className="search-wrapper">
+              <FaSearch className="search-icon" />
+              <input
+                type="text"
+                placeholder="Search by name, admin email, or industry"
+                value={searchTerm}
+                onChange={handleSearch}
+                className="search-input"
+              />
+            </div>
+            
+            <button className="filter-button">
+              <FaFilter className="mr-2" /> Filters
+            </button>
           </div>
         </div>
         
         {/* Customers list */}
-        {filteredCustomers.length === 0 ? (
-          <div className="bg-gray-50 p-8 rounded-lg text-center">
-            <p className="text-gray-500">No customers found matching your search criteria.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white rounded-lg overflow-hidden shadow">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="py-3 px-4 text-left font-semibold">Customer</th>
-                  <th className="py-3 px-4 text-left font-semibold">Industry</th>
-                  <th className="py-3 px-4 text-left font-semibold">Plan</th>
-                  <th className="py-3 px-4 text-left font-semibold">Employees</th>
-                  <th className="py-3 px-4 text-left font-semibold">Reviews</th>
-                  <th className="py-3 px-4 text-left font-semibold">Status</th>
-                  <th className="py-3 px-4 text-left font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCustomers.map(customer => (
-                  <tr key={customer.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div>
-                        <div className="font-medium">{customer.name}</div>
-                        <div className="text-sm text-gray-500">{customer.adminUser}</div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">{customer.industry}</td>
-                    <td className="py-3 px-4">{customer.plan}</td>
-                    <td className="py-3 px-4">{customer.activeEmployees}</td>
-                    <td className="py-3 px-4">
-                      <div>
-                        <div>{customer.activeReviews} active</div>
-                        <div className="text-sm text-gray-500">{customer.completedReviews} completed</div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      {renderStatusBadge(customer.status)}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex space-x-2">
-                        <button 
-                          className="p-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
-                          onClick={() => handleSelectCustomer(customer)}
-                          title="Access customer account"
-                        >
-                          <FaUserShield />
-                        </button>
-                        <button 
-                          className="p-2 bg-purple-50 text-purple-600 rounded hover:bg-purple-100"
-                          onClick={() => handleNavigateToCustomer(customer.id, 'details')}
-                          title="View customer details"
-                        >
-                          <FaBuilding />
-                        </button>
-                        <button 
-                          className="p-2 bg-green-50 text-green-600 rounded hover:bg-green-100"
-                          onClick={() => handleNavigateToCustomer(customer.id, 'employees')}
-                          title="View employees"
-                        >
-                          <FaUsers />
-                        </button>
-                        <button 
-                          className="p-2 bg-yellow-50 text-yellow-600 rounded hover:bg-yellow-100"
-                          onClick={() => handleNavigateToCustomer(customer.id, 'analytics')}
-                          title="View analytics"
-                        >
-                          <FaChartLine />
-                        </button>
-                      </div>
-                    </td>
+        <div className="admin-panel-content">
+          {filteredCustomers.length === 0 ? (
+            <div className="empty-state">
+              <p>No organizations found matching your search criteria.</p>
+            </div>
+          ) : (
+            <div className="customer-table-container">
+              <table className="customer-table">
+                <thead>
+                  <tr>
+                    <th>Organization</th>
+                    <th>Industry</th>
+                    <th>Plan</th>
+                    <th>Employees</th>
+                    <th>Reviews</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </thead>
+                <tbody>
+                  {filteredCustomers.map(customer => (
+                    <tr key={customer.id || Math.random().toString()}>
+                      <td className="customer-cell">
+                        <div className="customer-info">
+                          <div className="customer-name">{customer.name || 'Unnamed Organization'}</div>
+                          <div className="customer-email">{customer.adminUser || 'No admin email'}</div>
+                        </div>
+                      </td>
+                      <td>{customer.industry || 'Not specified'}</td>
+                      <td>
+                        <span className="plan-badge">{customer.plan || 'Standard'}</span>
+                      </td>
+                      <td className="numeric-cell">{customer.activeEmployees || 0}</td>
+                      <td className="reviews-cell">
+                        <div className="reviews-info">
+                          <div>{customer.activeReviews || 0} active</div>
+                          <div className="completed-reviews">{customer.completedReviews || 0} completed</div>
+                        </div>
+                      </td>
+                      <td>
+                        {renderStatusBadge(customer.status || 'active')}
+                      </td>
+                      <td>
+                        <div className="action-buttons">
+                          <button 
+                            className="action-button"
+                            onClick={() => handleSelectCustomer(customer)}
+                            title="Access customer account"
+                          >
+                            <FaUserShield className="mr-1" /> Access
+                          </button>
+                          <button 
+                            className="action-button secondary"
+                            onClick={() => handleNavigateToCustomer(customer.id, 'details')}
+                            title="View customer details"
+                          >
+                            <FaBuilding className="mr-1" /> Details
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </>
     );
   };
 
   // Render impersonation modal
   return (
     <SidebarLayout user={user} activeView="super-admin">
-      {renderSuperAdminContent()}
+      <div className="super-admin-container">
+        {renderSuperAdminContent()}
+      </div>
+      {/* Render the modal at the root level, outside the normal document flow */}
       {renderImpersonationModal()}
     </SidebarLayout>
   );

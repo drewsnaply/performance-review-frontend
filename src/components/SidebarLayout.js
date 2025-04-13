@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-// Import React Icons (you need to install this package)
-// npm install react-icons --save
+// Import React Icons
 import { 
   MdDashboard, 
   MdDescription, 
@@ -17,8 +16,13 @@ import {
   MdKeyboardArrowDown,
   MdKeyboardArrowUp,
   MdChevronLeft,
-  MdChevronRight
+  MdChevronRight,
+  MdSupervisorAccount,
+  MdExitToApp
 } from 'react-icons/md';
+
+// Import the SuperAdminSidebar
+import SuperAdminSidebar from './super-admin/SuperAdminSidebar';
 
 // Import the dedicated CSS file
 import '../styles/SidebarLayout.css';
@@ -28,11 +32,47 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
   const location = useLocation();
   const [toolsOpen, setToolsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { logout } = useAuth(); // Keep for compatibility
+  const { logout, impersonating, exitImpersonation } = useAuth();
   const [companyInfo, setCompanyInfo] = useState({
     name: 'Performance Review System',
     logo: null
   });
+  
+  // State for impersonation
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [impersonatedCustomer, setImpersonatedCustomer] = useState(null);
+
+  // Determine if the user is a Super Admin and if we're in the super admin section
+  const isSuperAdmin = user && user.role === 'superadmin';
+  const isInSuperAdminSection = location.pathname.startsWith('/super-admin');
+
+  // Check for impersonation data in localStorage
+  useEffect(() => {
+    // Check for impersonation data whenever location changes
+    const checkImpersonation = () => {
+      try {
+        const impersonationData = localStorage.getItem('impersonatedCustomer');
+        if (impersonationData) {
+          const parsedData = JSON.parse(impersonationData);
+          setImpersonatedCustomer(parsedData);
+          setIsImpersonating(true);
+        } else {
+          setImpersonatedCustomer(null);
+          setIsImpersonating(false);
+        }
+      } catch (error) {
+        console.error('Error checking impersonation status:', error);
+        setIsImpersonating(false);
+      }
+    };
+    
+    checkImpersonation();
+  }, [location.pathname]); // Re-run whenever the URL changes
+
+  // IMPORTANT: Local function for checking active paths - fixes "useLocation is called" error
+  const isActivePath = (path) => {
+    return location.pathname.startsWith(path);
+  };
 
   // Check localStorage for saved sidebar state and company info on component mount
   useEffect(() => {
@@ -72,6 +112,22 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
+  // Handle exit impersonation
+  const handleExitImpersonation = () => {
+    if (typeof exitImpersonation === 'function') {
+      exitImpersonation();
+    } else {
+      // Fallback if context method is not available
+      localStorage.removeItem('impersonatedCustomer');
+      // Update local state to reflect the change immediately
+      setIsImpersonating(false);
+      setImpersonatedCustomer(null);
+    }
+    
+    // Navigate to Super Admin
+    navigate('/super-admin/customers');
+  };
+
   // Updated navigateTo function
   const navigateTo = (route) => {
     navigate(route);
@@ -87,7 +143,8 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
       '/templates': 'templates',
       '/kpis': 'kpis',
       '/import-tool': 'tools-imports',
-      '/export-tool': 'tools-exports'
+      '/export-tool': 'tools-exports',
+      '/super-admin/customers': 'super-admin'
     };
 
     const activeViewName = viewMapping[route] || route.replace('/', '');
@@ -96,6 +153,26 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
     if (typeof setActiveView === 'function') {
       setActiveView(activeViewName);
     }
+  };
+
+  // Return to Super Admin dashboard
+  const handleReturnToSuperAdmin = () => {
+    // First clear any impersonation data
+    localStorage.removeItem('impersonatedCustomer');
+    
+    // If you have an impersonation flag in context, reset it
+    if (typeof exitImpersonation === 'function') {
+      exitImpersonation();
+    }
+    
+    // Update local state immediately
+    setIsImpersonating(false);
+    setImpersonatedCustomer(null);
+    
+    console.log('Navigating to Super Admin dashboard');
+    
+    // Use window.location for a full page reload to ensure clean state
+    window.location.href = '/super-admin/customers';
   };
 
   // Function to generate absolute URL
@@ -145,7 +222,9 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
     reviewCycles: <MdLoop />,           // Cycle/Loop icon
     templates: <MdAssignment />,        // Clipboard/Assignment icon
     kpis: <MdBarChart />,               // Chart/Analytics icon
-    tools: <MdBuild />                  // Tool/Wrench icon
+    tools: <MdBuild />,                 // Tool/Wrench icon
+    superAdmin: <MdSupervisorAccount />, // Super Admin icon
+    exit: <MdExitToApp />               // Exit icon
   };
 
   // Fallback to default if user or activeView is undefined
@@ -195,10 +274,82 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
           }}>
             {companyInfo.name}
           </span>
+          
+          {/* Show Super Admin badge if in Super Admin section */}
+          {isInSuperAdminSection && (
+            <span className="super-admin-badge" style={{
+              backgroundColor: '#805ad5',
+              color: 'white',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              fontSize: '0.7rem',
+              fontWeight: 'bold',
+              marginLeft: '8px'
+            }}>
+              SUPER ADMIN
+            </span>
+          )}
+          
+          {/* Show impersonation badge if Super Admin is impersonating */}
+          {isImpersonating && isSuperAdmin && !isInSuperAdminSection && (
+            <span className="impersonation-badge" style={{
+              backgroundColor: '#f6ad55',
+              color: '#744210',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              fontSize: '0.7rem',
+              fontWeight: 'bold',
+              marginLeft: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <span>VIEWING AS {impersonatedCustomer?.name || 'CUSTOMER'}</span>
+              <button 
+                onClick={handleExitImpersonation}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#744210',
+                  padding: '0 0 0 4px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title="Exit impersonation"
+              >
+                {icons.exit}
+              </button>
+            </span>
+          )}
         </div>
         
         {/* User Info & Logout */}
         <div className="user-info" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          {/* Return to Super Admin button - only visible when impersonating */}
+          {isSuperAdmin && isImpersonating && !isInSuperAdminSection && (
+            <button 
+              onClick={handleReturnToSuperAdmin}
+              className="return-to-super-admin-button"
+              style={{
+                backgroundColor: '#805ad5',
+                color: 'white',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                border: 'none',
+                fontWeight: 500,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <MdSupervisorAccount style={{ fontSize: '1.2em' }} />
+              Return to Super Admin
+            </button>
+          )}
+          
           <span className="user-name" style={{ fontSize: '0.95rem', fontWeight: 500 }}>
             {`${currentUser.firstName} ${currentUser.lastName || ''}`}
           </span>
@@ -233,180 +384,311 @@ function SidebarLayout({ children, user, activeView, setActiveView }) {
             {sidebarCollapsed ? <MdChevronRight /> : <MdChevronLeft />}
           </button>
           
+          {/* Show different sidebar based on section */}
           {!sidebarCollapsed && (
-            <nav className="sidebar-menu">
-              <button 
-                className={currentActiveView === 'dashboard' ? 'active' : ''}
-                onClick={() => navigateTo('/dashboard')}
-              >
-                <span className="sidebar-icon">{icons.dashboard}</span>
-                Dashboard
-              </button>
-              
-              <button 
-                className={currentActiveView === 'my-reviews' ? 'active' : ''}
-                onClick={() => navigateTo('/my-reviews')}
-              >
-                <span className="sidebar-icon">{icons.myReviews}</span>
-                My Reviews
-              </button>
-              
-              {/* Always show Management section - removes role restriction */}
-              <div className="sidebar-heading">Management</div>
-              <button 
-                className={currentActiveView === 'team-reviews' ? 'active' : ''}
-                onClick={() => navigateTo('/team-reviews')}
-              >
-                <span className="sidebar-icon">{icons.teamReviews}</span>
-                Team Reviews
-              </button>
-              
-              {/* Always show Administration section - removes role restriction */}
-              <div className="sidebar-heading">Administration</div>
-              <button 
-                className={currentActiveView === 'employees' ? 'active' : ''}
-                onClick={() => navigateTo('/employees')}
-              >
-                <span className="sidebar-icon">{icons.employees}</span>
-                Employees
-              </button>
-              <button 
-                className={currentActiveView === 'settings' ? 'active' : ''}
-                onClick={() => navigateTo('/settings')}
-              >
-                <span className="sidebar-icon">{icons.settings}</span>
-                Settings
-              </button>
-              <button 
-                className={currentActiveView === 'review-cycles' ? 'active' : ''}
-                onClick={() => navigateTo('/review-cycles')}
-              >
-                <span className="sidebar-icon">{icons.reviewCycles}</span>
-                Review Cycles
-              </button>
-              <button 
-                className={currentActiveView === 'templates' ? 'active' : ''}
-                onClick={() => navigateTo('/templates')}
-              >
-                <span className="sidebar-icon">{icons.templates}</span>
-                Templates
-              </button>
-              <button 
-                className={currentActiveView === 'kpis' ? 'active' : ''}
-                onClick={() => navigateTo('/kpis')}
-              >
-                <span className="sidebar-icon">{icons.kpis}</span>
-                KPI Management
-              </button>
-              
-              {/* Always show Tools section - removes role restriction */}
-              <div className="sidebar-heading">Tools</div>
-              <div className="tools-dropdown">
-                <button 
-                  className={`dropdown-button ${currentActiveView.startsWith('tools-') ? 'active' : ''}`}
-                  onClick={handleToolsToggle}
-                >
-                  <span className="sidebar-icon">{icons.tools}</span>
-                  Tools {toolsOpen ? <MdKeyboardArrowUp /> : <MdKeyboardArrowDown />}
-                </button>
-                {toolsOpen && (
-                  <div className="dropdown-menu">
+            <>
+              {/* Only show SuperAdminSidebar when in Super Admin section and not impersonating */}
+              {isInSuperAdminSection && !isImpersonating ? (
+                <SuperAdminSidebar 
+                  activeView={currentActiveView} 
+                  setActiveView={setActiveView} 
+                />
+              ) : (
+                <nav className="sidebar-menu">
+                  <button 
+                    className={currentActiveView === 'dashboard' ? 'active' : ''}
+                    onClick={() => navigateTo('/dashboard')}
+                  >
+                    <span className="sidebar-icon">{icons.dashboard}</span>
+                    Dashboard
+                  </button>
+                  
+                  <button 
+                    className={currentActiveView === 'my-reviews' ? 'active' : ''}
+                    onClick={() => navigateTo('/my-reviews')}
+                  >
+                    <span className="sidebar-icon">{icons.myReviews}</span>
+                    My Reviews
+                  </button>
+                  
+                  {/* Management section */}
+                  <div className="sidebar-heading">Management</div>
+                  <button 
+                    className={currentActiveView === 'team-reviews' ? 'active' : ''}
+                    onClick={() => navigateTo('/team-reviews')}
+                  >
+                    <span className="sidebar-icon">{icons.teamReviews}</span>
+                    Team Reviews
+                  </button>
+                  
+                  {/* Administration section */}
+                  <div className="sidebar-heading">Administration</div>
+                  <button 
+                    className={currentActiveView === 'employees' ? 'active' : ''}
+                    onClick={() => navigateTo('/employees')}
+                  >
+                    <span className="sidebar-icon">{icons.employees}</span>
+                    Employees
+                  </button>
+                  <button 
+                    className={currentActiveView === 'settings' ? 'active' : ''}
+                    onClick={() => navigateTo('/settings')}
+                  >
+                    <span className="sidebar-icon">{icons.settings}</span>
+                    Settings
+                  </button>
+                  <button 
+                    className={currentActiveView === 'review-cycles' ? 'active' : ''}
+                    onClick={() => navigateTo('/review-cycles')}
+                  >
+                    <span className="sidebar-icon">{icons.reviewCycles}</span>
+                    Review Cycles
+                  </button>
+                  <button 
+                    className={currentActiveView === 'templates' ? 'active' : ''}
+                    onClick={() => navigateTo('/templates')}
+                  >
+                    <span className="sidebar-icon">{icons.templates}</span>
+                    Templates
+                  </button>
+                  <button 
+                    className={currentActiveView === 'kpis' ? 'active' : ''}
+                    onClick={() => navigateTo('/kpis')}
+                  >
+                    <span className="sidebar-icon">{icons.kpis}</span>
+                    KPI Management
+                  </button>
+                  
+                  {/* Tools section */}
+                  <div className="sidebar-heading">Tools</div>
+                  <div className="tools-dropdown">
                     <button 
-                      className={currentActiveView === 'tools-imports' ? 'active' : ''}
-                      onClick={() => navigateTo('/import-tool')}
+                      className={`dropdown-button ${currentActiveView.startsWith('tools-') ? 'active' : ''}`}
+                      onClick={handleToolsToggle}
                     >
-                      Imports
+                      <span className="sidebar-icon">{icons.tools}</span>
+                      Tools {toolsOpen ? <MdKeyboardArrowUp /> : <MdKeyboardArrowDown />}
                     </button>
-                    <button 
-                      className={currentActiveView === 'tools-exports' ? 'active' : ''}
-                      onClick={() => navigateTo('/export-tool')}
-                    >
-                      Exports
-                    </button>
+                    {toolsOpen && (
+                      <div className="dropdown-menu">
+                        <button 
+                          className={currentActiveView === 'tools-imports' ? 'active' : ''}
+                          onClick={() => navigateTo('/import-tool')}
+                        >
+                          Imports
+                        </button>
+                        <button 
+                          className={currentActiveView === 'tools-exports' ? 'active' : ''}
+                          onClick={() => navigateTo('/export-tool')}
+                        >
+                          Exports
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </nav>
+                  
+                  {/* Super Admin Access - only show for superadmin users who are not impersonating */}
+                  {isSuperAdmin && !isImpersonating && !isInSuperAdminSection && (
+                    <>
+                      <div className="sidebar-heading">Super Admin</div>
+                      <button 
+                        className="super-admin-button"
+                        onClick={() => navigateTo('/super-admin/customers')}
+                        style={{
+                          backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                          borderLeft: '3px solid #6366f1'
+                        }}
+                      >
+                        <span className="sidebar-icon">{icons.superAdmin}</span>
+                        Super Admin Portal
+                      </button>
+                    </>
+                  )}
+                  
+                  {/* Exit Impersonation - only show for superadmin users who are impersonating */}
+                  {isSuperAdmin && isImpersonating && (
+                    <>
+                      <div className="sidebar-heading">Super Admin</div>
+                      <button 
+                        className="exit-impersonation-button"
+                        onClick={handleExitImpersonation}
+                        style={{
+                          backgroundColor: 'rgba(246, 173, 85, 0.1)',
+                          borderLeft: '3px solid #f6ad55',
+                          color: '#744210'
+                        }}
+                      >
+                        <span className="sidebar-icon">{icons.exit}</span>
+                        Exit Impersonation
+                      </button>
+                    </>
+                  )}
+                </nav>
+              )}
+            </>
           )}
           
+          {/* Collapsed mode sidebar icons */}
           {sidebarCollapsed && (
             <nav className="sidebar-menu-icons">
-              <button 
-                className={currentActiveView === 'dashboard' ? 'active' : ''}
-                onClick={() => navigateTo('/dashboard')}
-                title="Dashboard"
-              >
-                {icons.dashboard}
-              </button>
-              
-              <button 
-                className={currentActiveView === 'my-reviews' ? 'active' : ''}
-                onClick={() => navigateTo('/my-reviews')}
-                title="My Reviews"
-              >
-                {icons.myReviews}
-              </button>
-              
-              {/* Always include divider for visual separation */}
-              <div className="sidebar-divider"></div>
-              
-              <button 
-                className={currentActiveView === 'team-reviews' ? 'active' : ''}
-                onClick={() => navigateTo('/team-reviews')}
-                title="Team Reviews"
-              >
-                {icons.teamReviews}
-              </button>
-              
-              {/* Always include divider for visual separation */}
-              <div className="sidebar-divider"></div>
-              
-              <button 
-                className={currentActiveView === 'employees' ? 'active' : ''}
-                onClick={() => navigateTo('/employees')}
-                title="Employees"
-              >
-                {icons.employees}
-              </button>
-              <button 
-                className={currentActiveView === 'settings' ? 'active' : ''}
-                onClick={() => navigateTo('/settings')}
-                title="Settings"
-              >
-                {icons.settings}
-              </button>
-              <button 
-                className={currentActiveView === 'review-cycles' ? 'active' : ''}
-                onClick={() => navigateTo('/review-cycles')}
-                title="Review Cycles"
-              >
-                {icons.reviewCycles}
-              </button>
-              <button 
-                className={currentActiveView === 'templates' ? 'active' : ''}
-                onClick={() => navigateTo('/templates')}
-                title="Templates"
-              >
-                {icons.templates}
-              </button>
-              <button 
-                className={currentActiveView === 'kpis' ? 'active' : ''}
-                onClick={() => navigateTo('/kpis')}
-                title="KPI Management"
-              >
-                {icons.kpis}
-              </button>
-              
-              {/* Always include divider for visual separation */}
-              <div className="sidebar-divider"></div>
-              
-              <button 
-                className={currentActiveView.startsWith('tools-') ? 'active' : ''}
-                onClick={() => navigateTo('/import-tool')}
-                title="Tools"
-              >
-                {icons.tools}
-              </button>
+              {isInSuperAdminSection && !isImpersonating ? (
+                <>
+                  {/* Super Admin icons */}
+                  <button 
+                    className={isActivePath('/super-admin/customers') ? 'active' : ''}
+                    onClick={() => navigateTo('/super-admin/customers')}
+                    title="Organizations"
+                  >
+                    <MdSupervisorAccount />
+                  </button>
+                  <button 
+                    className={isActivePath('/super-admin/users') ? 'active' : ''}
+                    onClick={() => navigateTo('/super-admin/users')}
+                    title="User Management"
+                  >
+                    <MdPeople />
+                  </button>
+                  <button 
+                    className={isActivePath('/super-admin/analytics') ? 'active' : ''}
+                    onClick={() => navigateTo('/super-admin/analytics')}
+                    title="System Analytics"
+                  >
+                    <MdBarChart />
+                  </button>
+                  <button 
+                    className={isActivePath('/super-admin/settings') ? 'active' : ''}
+                    onClick={() => navigateTo('/super-admin/settings')}
+                    title="System Settings"
+                  >
+                    <MdSettings />
+                  </button>
+                  
+                  {/* Divider */}
+                  <div className="sidebar-divider"></div>
+                  
+                  {/* Link back to dashboard */}
+                  <button 
+                    onClick={() => navigateTo('/dashboard')}
+                    title="Return to Dashboard"
+                  >
+                    {icons.dashboard}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Regular dashboard icons */}
+                  <button 
+                    className={currentActiveView === 'dashboard' ? 'active' : ''}
+                    onClick={() => navigateTo('/dashboard')}
+                    title="Dashboard"
+                  >
+                    {icons.dashboard}
+                  </button>
+                  
+                  <button 
+                    className={currentActiveView === 'my-reviews' ? 'active' : ''}
+                    onClick={() => navigateTo('/my-reviews')}
+                    title="My Reviews"
+                  >
+                    {icons.myReviews}
+                  </button>
+                  
+                  {/* Divider */}
+                  <div className="sidebar-divider"></div>
+                  
+                  <button 
+                    className={currentActiveView === 'team-reviews' ? 'active' : ''}
+                    onClick={() => navigateTo('/team-reviews')}
+                    title="Team Reviews"
+                  >
+                    {icons.teamReviews}
+                  </button>
+                  
+                  {/* Divider */}
+                  <div className="sidebar-divider"></div>
+                  
+                  <button 
+                    className={currentActiveView === 'employees' ? 'active' : ''}
+                    onClick={() => navigateTo('/employees')}
+                    title="Employees"
+                  >
+                    {icons.employees}
+                  </button>
+                  <button 
+                    className={currentActiveView === 'settings' ? 'active' : ''}
+                    onClick={() => navigateTo('/settings')}
+                    title="Settings"
+                  >
+                    {icons.settings}
+                  </button>
+                  <button 
+                    className={currentActiveView === 'review-cycles' ? 'active' : ''}
+                    onClick={() => navigateTo('/review-cycles')}
+                    title="Review Cycles"
+                  >
+                    {icons.reviewCycles}
+                  </button>
+                  <button 
+                    className={currentActiveView === 'templates' ? 'active' : ''}
+                    onClick={() => navigateTo('/templates')}
+                    title="Templates"
+                  >
+                    {icons.templates}
+                  </button>
+                  <button 
+                    className={currentActiveView === 'kpis' ? 'active' : ''}
+                    onClick={() => navigateTo('/kpis')}
+                    title="KPI Management"
+                  >
+                    {icons.kpis}
+                  </button>
+                  
+                  {/* Divider */}
+                  <div className="sidebar-divider"></div>
+                  
+                  <button 
+                    className={currentActiveView.startsWith('tools-') ? 'active' : ''}
+                    onClick={() => navigateTo('/import-tool')}
+                    title="Tools"
+                  >
+                    {icons.tools}
+                  </button>
+                  
+                  {/* Super Admin access */}
+                  {isSuperAdmin && !isImpersonating && (
+                    <>
+                      <div className="sidebar-divider"></div>
+                      <button 
+                        onClick={() => navigateTo('/super-admin/customers')}
+                        title="Super Admin Portal"
+                        style={{
+                          color: '#6366f1',
+                          fontSize: '1.1em'
+                        }}
+                      >
+                        {icons.superAdmin}
+                      </button>
+                    </>
+                  )}
+                  
+                  {/* Exit Impersonation - only if impersonating */}
+                  {isSuperAdmin && isImpersonating && (
+                    <>
+                      <div className="sidebar-divider"></div>
+                      <button 
+                        onClick={handleExitImpersonation}
+                        title="Exit Impersonation"
+                        style={{
+                          color: '#f6ad55',
+                          fontSize: '1.1em'
+                        }}
+                      >
+                        {icons.exit}
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
             </nav>
           )}
         </aside>

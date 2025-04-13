@@ -49,6 +49,9 @@ function Dashboard({ initialView = 'dashboard' }) {
   const { currentUser, logout } = useAuth();
   const [user, setUser] = useState(null);
   
+  // Check if we're in impersonation mode
+  const isImpersonating = !!localStorage.getItem('impersonatedCustomer');
+  
   // API base URL for fetching data
   const API_BASE_URL = process.env.NODE_ENV === 'development' 
     ? 'http://localhost:5000' 
@@ -284,8 +287,8 @@ function Dashboard({ initialView = 'dashboard' }) {
       <>
         <h1 className="page-title">Dashboard Overview</h1>
         
-        {/* Super Admin Access Panel - Only visible to superadmin users */}
-        {user && user.role === 'superadmin' && (
+        {/* Super Admin Access Panel - Only visible to superadmin users who are NOT impersonating */}
+        {user && user.role === 'superadmin' && !isImpersonating && (
           <div className="super-admin-access-panel mb-6 p-4 bg-indigo-100 rounded-lg border border-indigo-200">
             <h3 className="text-lg font-medium text-indigo-800 mb-2">Super Admin Access</h3>
             <p className="text-indigo-700 mb-3">
