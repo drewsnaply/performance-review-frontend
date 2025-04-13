@@ -11,7 +11,14 @@ import '../styles/EvaluationReview.css';
 function ViewEvaluation() {
   const { reviewId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { currentUser } = useAuth();  // Changed from { user } to { currentUser }
+  
+  // Create user object for SidebarLayout
+  const user = currentUser ? {
+    firstName: currentUser.firstName || currentUser.username || 'User',
+    lastName: currentUser.lastName || '',
+    role: currentUser.role || 'USER'
+  } : null;
   
   const [reviewData, setReviewData] = useState(null);
   const [loading, setLoading] = useState(true);

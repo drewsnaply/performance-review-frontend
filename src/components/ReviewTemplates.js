@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/ReviewTemplates.css';
 import ApiService from '../ApiService';
+import { useAuth } from '../context/AuthContext'; // Add this import
+import SidebarLayout from '../components/SidebarLayout'; // Add this import
 
 function ReviewTemplates() {
   const [activeTab, setActiveTab] = useState('templates');
@@ -24,6 +26,16 @@ function ReviewTemplates() {
     }
   });
   const navigate = useNavigate();
+  
+  // Get user information for SidebarLayout
+  const { currentUser } = useAuth();
+  
+  // Create user object for SidebarLayout
+  const user = currentUser ? {
+    firstName: currentUser.firstName || currentUser.username || 'User',
+    lastName: currentUser.lastName || '',
+    role: currentUser.role || 'USER'
+  } : null;
   
   // Get completed review ID from session storage for client-side status tracking
   const completedReviewId = sessionStorage.getItem('completedReviewId');
@@ -853,31 +865,41 @@ function ReviewTemplates() {
     );
   };
 
-  return (
-    <div style={styles.container}>
-      <div style={styles.tabs}>
-        <button 
-          style={{
-            ...styles.tab,
-            ...(activeTab === 'templates' ? styles.activeTab : {})
-          }}
-          onClick={() => setActiveTab('templates')}
-        >
-          Templates
-        </button>
-        <button 
-          style={{
-            ...styles.tab,
-            ...(activeTab === 'assignments' ? styles.activeTab : {})
-          }}
-          onClick={() => setActiveTab('assignments')}
-        >
-          Assignments
-        </button>
+  // Render the content of the ReviewTemplates component
+  const renderReviewTemplatesContent = () => {
+    return (
+      <div style={styles.container}>
+        <div style={styles.tabs}>
+          <button 
+            style={{
+              ...styles.tab,
+              ...(activeTab === 'templates' ? styles.activeTab : {})
+            }}
+            onClick={() => setActiveTab('templates')}
+          >
+            Templates
+          </button>
+          <button 
+            style={{
+              ...styles.tab,
+              ...(activeTab === 'assignments' ? styles.activeTab : {})
+            }}
+            onClick={() => setActiveTab('assignments')}
+          >
+            Assignments
+          </button>
+        </div>
+        
+        {activeTab === 'templates' ? renderTemplatesTab() : renderAssignmentsTab()}
       </div>
-      
-      {activeTab === 'templates' ? renderTemplatesTab() : renderAssignmentsTab()}
-    </div>
+    );
+  };
+
+  // Wrap the ReviewTemplates content with SidebarLayout
+  return (
+    <SidebarLayout user={user} activeView="templates">
+      {renderReviewTemplatesContent()}
+    </SidebarLayout>
   );
 }
 

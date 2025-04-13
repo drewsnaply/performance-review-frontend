@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense, useRef } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import { useDepartments } from '../context/DepartmentContext';
-import { useAuth } from '../context/AuthContext'; 
-import LogoutButton from '../components/LogoutButton';
+import { useAuth } from '../context/AuthContext';
+// Import SidebarLayout with the correct path
+import SidebarLayout from '../components/SidebarLayout';
 
 // Lazy-load component imports to improve initial loading speed
 const MyReviews = lazy(() => import('../components/MyReviews'));
@@ -14,7 +15,7 @@ const ReviewTemplates = lazy(() => import('../components/ReviewTemplates'));
 const KpiManager = lazy(() => import('../components/KpiManager')); 
 const ImportTool = lazy(() => import('../components/ImportTool'));
 const ExportTool = lazy(() => import('../components/ExportTool'));
-const EvaluationManagement = lazy(() => import('../components/EvaluationManagement'));
+// EvaluationManagement import removed
 const Settings = lazy(() => import('./Settings'));
 const ViewEvaluation = lazy(() => import('../components/ViewEvaluation'));
 const PendingReviews = lazy(() => import('../components/PendingReviews'));
@@ -28,8 +29,6 @@ function Dashboard({ initialView = 'dashboard' }) {
     upcoming: 0,
     recentReviews: []
   });
-  const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
   // Simple flag to prevent repeated API calls
@@ -63,7 +62,8 @@ function Dashboard({ initialView = 'dashboard' }) {
     setUser({
       ...currentUser,
       firstName: currentUser.username || 'User',
-      lastName: ''
+      lastName: '',
+      role: currentUser.role || 'USER'
     });
     
     // Set loading to false once user is set
@@ -200,33 +200,7 @@ function Dashboard({ initialView = 'dashboard' }) {
     }
   }, [activeView, user, API_BASE_URL, completedReviewId]);
   
-  // Handle logout
-  const handleLogout = () => {
-    try {
-      logout();
-    } catch (error) {
-      console.error('Logout failed:', error);
-      navigate('/login');
-    }
-  };
-
-  // UI interaction handlers
-  const confirmLogout = () => setShowLogoutConfirm(true);
-  const cancelLogout = () => setShowLogoutConfirm(false);
-  const proceedLogout = () => handleLogout();
-  const toggleToolsDropdown = () => setToolsDropdownOpen(!toolsDropdownOpen);
-
-  const setView = (view) => {
-    setActiveView(view);
-    setToolsDropdownOpen(false);
-  };
-  
-  const handlePendingReviewsClick = () => {
-    setActiveView('pending-reviews');
-    navigate('/pending-reviews');
-  };
-  
-  // Handle review actions
+  // Handle review actions 
   const handleReviewAction = (review) => {
     if (review.status === 'completed') {
       navigate(`/reviews/${review.id}`);
@@ -254,16 +228,18 @@ function Dashboard({ initialView = 'dashboard' }) {
         });
       }
     } else {
-      navigate(`/evaluation-management`);
-      setActiveView('evaluation-management');
+      // Navigate to templates page instead of evaluation management
+      navigate(`/templates`);
+      setActiveView('templates');
     }
   };
   
-  // Calculate active employees count
-  const activeEmployeesCount = employees.filter(employee => 
-    employee.isActive === true || 
-    employee.status?.toLowerCase() === 'active'
-  ).length;
+  // Calculate active employees count safely
+  const activeEmployeesCount = Array.isArray(employees) ? 
+    employees.filter(employee => 
+      employee && (employee.isActive === true || 
+      employee.status?.toLowerCase() === 'active')
+    ).length : 0;
   
   // Render the active view with Suspense for lazy-loaded components
   const renderActiveView = () => {
@@ -284,7 +260,7 @@ function Dashboard({ initialView = 'dashboard' }) {
       case 'kpis': return renderComponent(KpiManager);
       case 'tools-imports': return renderComponent(ImportTool);
       case 'tools-exports': return renderComponent(ExportTool);
-      case 'evaluation-management': return renderComponent(EvaluationManagement, { initialActiveTab: "active-evaluations" });
+      // EvaluationManagement case removed
       case 'evaluation-detail': return renderComponent(ViewEvaluation);
       case 'pending-reviews': return renderComponent(PendingReviews);
       default: return renderDashboardDefault();
@@ -300,7 +276,10 @@ function Dashboard({ initialView = 'dashboard' }) {
         <div className="dashboard-overview">
           <div 
             className="overview-card clickable" 
-            onClick={() => setView('employees')}
+            onClick={() => {
+              setActiveView('employees');
+              navigate('/employees');
+            }}
           >
             <h3>Active Employees</h3>
             <div className="value">{activeEmployeesCount}</div>
@@ -309,7 +288,10 @@ function Dashboard({ initialView = 'dashboard' }) {
 
           <div 
             className="overview-card clickable" 
-            onClick={handlePendingReviewsClick}
+            onClick={() => {
+              setActiveView('pending-reviews');
+              navigate('/pending-reviews');
+            }}
           >
             <h3>Pending Reviews</h3>
             <div className="value">{reviewData.pending}</div>
@@ -318,7 +300,10 @@ function Dashboard({ initialView = 'dashboard' }) {
           
           <div 
             className="overview-card clickable" 
-            onClick={() => setView('my-reviews')}
+            onClick={() => {
+              setActiveView('my-reviews');
+              navigate('/my-reviews');
+            }}
           >
             <h3>Completed Reviews</h3>
             <div className="value">{reviewData.completed}</div>
@@ -327,7 +312,10 @@ function Dashboard({ initialView = 'dashboard' }) {
           
           <div 
             className="overview-card clickable" 
-            onClick={() => setView('my-reviews')}
+            onClick={() => {
+              setActiveView('my-reviews');
+              navigate('/my-reviews');
+            }}
           >
             <h3>Upcoming Reviews</h3>
             <div className="value">{reviewData.upcoming}</div>
@@ -404,155 +392,16 @@ function Dashboard({ initialView = 'dashboard' }) {
     );
   }
   
+  // The main dashboard content to be wrapped by SidebarLayout
+  const renderDashboardContent = () => {
+    return renderActiveView();
+  };
+  
+  // Return the dashboard wrapped in SidebarLayout
   return (
-    <div className="dashboard-container">
-      <header className="dashboard-header">
-        <div className="user-info">
-          <span className="user-name">{user.firstName} {user.lastName}</span>
-          <LogoutButton />
-        </div>
-      </header>
-      
-      {showLogoutConfirm && (
-        <div className="logout-modal">
-          <div className="logout-modal-content">
-            <h2>Confirm Logout</h2>
-            <p>Are you sure you want to log out?</p>
-            <div className="logout-modal-actions">
-              <button 
-                className="btn btn-cancel" 
-                onClick={cancelLogout}
-              >
-                Cancel
-              </button>
-              <button 
-                className="btn btn-logout" 
-                onClick={proceedLogout}
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <div className="dashboard-main">
-        <aside className="dashboard-sidebar">
-          <nav className="sidebar-menu">
-            <button 
-              className={activeView === 'dashboard' ? 'active' : ''}
-              onClick={() => {
-                setView('dashboard');
-                navigate('/dashboard');
-              }}
-            >
-              Dashboard
-            </button>
-            
-            <button 
-              className={activeView === 'my-reviews' ? 'active' : ''}
-              onClick={() => setView('my-reviews')}
-            >
-              My Reviews
-            </button>
-            
-            <div className="sidebar-heading">Management</div>
-            <button 
-              className={activeView === 'team-reviews' ? 'active' : ''}
-              onClick={() => setView('team-reviews')}
-            >
-              Team Reviews
-            </button>
-            <button 
-              className={activeView === 'employees' ? 'active' : ''}
-              onClick={() => setView('employees')}
-            >
-              Employees
-            </button>
-            
-            <button 
-              className={activeView === 'pending-reviews' ? 'active' : ''}
-              onClick={() => {
-                setView('pending-reviews');
-                navigate('/pending-reviews');
-              }}
-            >
-              Pending Reviews
-            </button>
-            
-            {(user.role?.toLowerCase() === 'admin' || user.role?.toLowerCase() === 'manager') && (
-              <>
-                <div className="sidebar-heading">Administration</div>
-                <button 
-                  className={activeView === 'settings' ? 'active' : ''}
-                  onClick={() => setView('settings')}
-                >
-                  Settings
-                </button>
-                <button 
-                  className={activeView === 'review-cycles' ? 'active' : ''}
-                  onClick={() => setView('review-cycles')}
-                >
-                  Review Cycles
-                </button>
-                <button 
-                  className={activeView === 'templates' ? 'active' : ''}
-                  onClick={() => setView('templates')}
-                >
-                  Templates
-                </button>
-                <button 
-                  className={activeView === 'kpis' ? 'active' : ''}
-                  onClick={() => {
-                    setView('kpis');
-                    navigate('/kpis');
-                  }}
-                >
-                  KPI Management
-                </button>
-                <button 
-                  className={activeView === 'evaluation-management' ? 'active' : ''}
-                  onClick={() => setView('evaluation-management')}
-                >
-                  Evaluation Management
-                </button>
-
-                <div className="sidebar-heading">Tools</div>
-                <div className="tools-menu">
-                  <button 
-                    className={`dropdown-button ${toolsDropdownOpen ? 'active' : ''}`}
-                    onClick={toggleToolsDropdown}
-                  >
-                    Tools {toolsDropdownOpen ? '▲' : '▼'}
-                  </button>
-                  
-                  {toolsDropdownOpen && (
-                    <div className="dropdown-menu">
-                      <button 
-                        className={activeView === 'tools-imports' ? 'active' : ''}
-                        onClick={() => setView('tools-imports')}
-                      >
-                        Data Imports
-                      </button>
-                      <button 
-                        className={activeView === 'tools-exports' ? 'active' : ''}
-                        onClick={() => setView('tools-exports')}
-                      >
-                        Data Exports
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </nav>
-        </aside>
-        
-        <main className="dashboard-content">
-          {renderActiveView()}
-        </main>
-      </div>
-    </div>
+    <SidebarLayout user={user} activeView={activeView} setActiveView={setActiveView}>
+      {renderDashboardContent()}
+    </SidebarLayout>
   );
 }
 

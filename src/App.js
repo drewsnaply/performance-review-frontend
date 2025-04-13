@@ -28,7 +28,7 @@ import ReviewCycles from './components/ReviewCycles';
 import ReviewTemplates from './components/ReviewTemplates';
 import ImportTool from './components/ImportTool';
 import ExportTool from './components/ExportTool';
-import EvaluationManagement from './components/EvaluationManagement';
+// EvaluationManagement import removed
 
 // Title Updater Component
 const TitleUpdater = () => {
@@ -45,7 +45,7 @@ const TitleUpdater = () => {
         '/review-cycles': 'Review Cycles',
         '/templates': 'Templates',
         '/templates/builder': 'Template Builder',
-        '/evaluation-management': 'Evaluation Management',
+        // '/evaluation-management': 'Evaluation Management', - Removed
         '/import-tool': 'Import Tool',
         '/export-tool': 'Export Tool',
         '/pending-reviews': 'Pending Reviews',
@@ -196,14 +196,7 @@ function App() {
                 </PrivateRoute>
               }
             />
-            <Route
-              path="/evaluation-management"
-              element={
-                <PrivateRoute allowedRoles={['admin']}>
-                  <EvaluationManagement />
-                </PrivateRoute>
-              }
-            />
+            {/* EvaluationManagement route removed */}
             <Route
               path="/pending-reviews"
               element={

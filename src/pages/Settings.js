@@ -4,6 +4,7 @@ import { useDepartments } from '../context/DepartmentContext';
 import { useAuth } from '../context/AuthContext';
 import '../styles/Dashboard.css'; // Reuse existing styles
 import '../styles/Settings.css'; // Settings-specific styles
+import SidebarLayout from '../components/SidebarLayout'; // Import SidebarLayout
 
 function Settings() {
   const navigate = useNavigate();
@@ -32,6 +33,13 @@ function Settings() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  // Format user object for SidebarLayout
+  const user = currentUser ? {
+    firstName: currentUser.firstName || currentUser.username || 'User',
+    lastName: currentUser.lastName || '',
+    role: currentUser.role || 'USER'
+  } : null;
+
   // Clear messages after 5 seconds
   useEffect(() => {
     if (errorMessage || successMessage) {
@@ -49,10 +57,10 @@ function Settings() {
   if (!currentUser || 
     (currentUser.role !== 'admin' && 
      currentUser.role !== 'superadmin')) {
-  return <Navigate to="/unauthorized" replace />;
-}
+    return <Navigate to="/unauthorized" replace />;
+  }
 
-const handleAddDepartment = async (departmentData) => {
+  const handleAddDepartment = async (departmentData) => {
     if (!hasPermission('add_department')) {
       setErrorMessage('You do not have permission to add departments');
       return;
@@ -825,113 +833,122 @@ const handleAddDepartment = async (departmentData) => {
 
   const visibleMenuItems = getVisibleMenuItems();
 
-  return (
-    <div className="settings-container-top-nav">
-      {/* Message display */}
-      {errorMessage && (
-        <div className="error-notification">
-          <span>{errorMessage}</span>
-          <button onClick={() => setErrorMessage('')}>×</button>
-        </div>
-      )}
-      
-      {successMessage && (
-        <div className="success-notification">
-          <span>{successMessage}</span>
-          <button onClick={() => setSuccessMessage('')}>×</button>
-        </div>
-      )}
-    
-      {/* Top Navigation */}
-      <div className="settings-top-nav">
-        <div className="settings-nav-categories">
-          {visibleMenuItems.map(item => (
-            <div className="settings-nav-category" key={item.key}>
-              <button 
-                className={`settings-nav-dropdown-button ${activeDropdown === item.key ? 'active' : ''}`}
-                onClick={() => toggleDropdown(item.key)}
-              >
-                {item.label} <span className="dropdown-arrow">{activeDropdown === item.key ? '▲' : '▼'}</span>
-              </button>
-              {activeDropdown === item.key && (
-                <div className="settings-nav-dropdown">
-                  {item.subItems.map(subItem => (
-                    <button 
-                      key={subItem.key}
-                      className={activeTab === subItem.key ? 'active' : ''}
-                      onClick={() => handleTabClick(subItem.key)}
-                    >
-                      {subItem.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Current Tab Indicator */}
-        <div className="current-tab-indicator">
-          {activeTab === 'departments' && 'Departments'}
-          {activeTab === 'company-info' && 'Company Info'}
-          {activeTab === 'system-settings' && 'System Settings'}
-          {activeTab === 'integrations' && 'Integrations'}
-          {activeTab === 'audit-log' && 'Audit Log'}
-          {activeTab === 'role-management' && 'Role Management'}
-        </div>
-      </div>
-      
-      {/* Content Area */}
-      <div className="settings-content">
-        {isLoading ? (
-          <div className="loading-spinner">Loading...</div>
-        ) : (
-          renderActiveTab()
+  // Content to be wrapped in the SidebarLayout
+  const renderSettingsContent = () => {
+    return (
+      <div className="settings-container-top-nav">
+        {/* Message display */}
+        {errorMessage && (
+          <div className="error-notification">
+            <span>{errorMessage}</span>
+            <button onClick={() => setErrorMessage('')}>×</button>
+          </div>
         )}
-      </div>
+        
+        {successMessage && (
+          <div className="success-notification">
+            <span>{successMessage}</span>
+            <button onClick={() => setSuccessMessage('')}>×</button>
+          </div>
+        )}
       
-      {/* Department Modal */}
-      {isAddDepartmentModalOpen && (
-        <DepartmentModal 
-          department={selectedDepartment}
-          onSave={handleAddDepartment}
-          onUpdate={(updatedDept) => handleUpdateDepartment(updatedDept._id || updatedDept.id, updatedDept)}
-          onCancel={() => setIsAddDepartmentModalOpen(false)}
-        />
-      )}
-      
-      {/* Delete Confirmation Modal */}
-      {isDeleteModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content delete-modal">
-            <h2>Confirm Deletion</h2>
-            <p>Are you sure you want to delete this department? This action cannot be undone.</p>
-            <p className="warning-text">
-              Note: You cannot delete departments with active employees. 
-              Please reassign or remove employees first.
-            </p>
-            <div className="modal-actions">
-              <button 
-                className="cancel-button" 
-                onClick={() => setIsDeleteModalOpen(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="delete-button" 
-                onClick={handleDeleteDepartment}
-              >
-                Delete Department
-              </button>
-            </div>
+        {/* Top Navigation */}
+        <div className="settings-top-nav">
+          <div className="settings-nav-categories">
+            {visibleMenuItems.map(item => (
+              <div className="settings-nav-category" key={item.key}>
+                <button 
+                  className={`settings-nav-dropdown-button ${activeDropdown === item.key ? 'active' : ''}`}
+                  onClick={() => toggleDropdown(item.key)}
+                >
+                  {item.label} <span className="dropdown-arrow">{activeDropdown === item.key ? '▲' : '▼'}</span>
+                </button>
+                {activeDropdown === item.key && (
+                  <div className="settings-nav-dropdown">
+                    {item.subItems.map(subItem => (
+                      <button 
+                        key={subItem.key}
+                        className={activeTab === subItem.key ? 'active' : ''}
+                        onClick={() => handleTabClick(subItem.key)}
+                      >
+                        {subItem.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Current Tab Indicator */}
+          <div className="current-tab-indicator">
+            {activeTab === 'departments' && 'Departments'}
+            {activeTab === 'company-info' && 'Company Info'}
+            {activeTab === 'system-settings' && 'System Settings'}
+            {activeTab === 'integrations' && 'Integrations'}
+            {activeTab === 'audit-log' && 'Audit Log'}
+            {activeTab === 'role-management' && 'Role Management'}
           </div>
         </div>
-      )}
-    </div>
+        
+        {/* Content Area */}
+        <div className="settings-content">
+          {isLoading ? (
+            <div className="loading-spinner">Loading...</div>
+          ) : (
+            renderActiveTab()
+          )}
+        </div>
+        
+        {/* Department Modal */}
+        {isAddDepartmentModalOpen && (
+          <DepartmentModal 
+            department={selectedDepartment}
+            onSave={handleAddDepartment}
+            onUpdate={(updatedDept) => handleUpdateDepartment(updatedDept._id || updatedDept.id, updatedDept)}
+            onCancel={() => setIsAddDepartmentModalOpen(false)}
+          />
+        )}
+        
+        {/* Delete Confirmation Modal */}
+        {isDeleteModalOpen && (
+          <div className="modal-overlay">
+            <div className="modal-content delete-modal">
+              <h2>Confirm Deletion</h2>
+              <p>Are you sure you want to delete this department? This action cannot be undone.</p>
+              <p className="warning-text">
+                Note: You cannot delete departments with active employees. 
+                Please reassign or remove employees first.
+              </p>
+              <div className="modal-actions">
+                <button 
+                  className="cancel-button" 
+                  onClick={() => setIsDeleteModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="delete-button" 
+                  onClick={handleDeleteDepartment}
+                >
+                  Delete Department
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Wrap the settings content with SidebarLayout
+  return (
+    <SidebarLayout user={user} activeView="settings">
+      {renderSettingsContent()}
+    </SidebarLayout>
   );
 }
 
-// Department Modal Component
 // Department Modal Component
 const DepartmentModal = ({ department, onSave, onUpdate, onCancel }) => {
     const [formData, setFormData] = useState({

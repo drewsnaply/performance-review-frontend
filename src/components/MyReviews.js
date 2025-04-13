@@ -1,12 +1,22 @@
 // src/components/MyReviews.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext'; // Import useAuth hook
+import SidebarLayout from '../components/SidebarLayout'; // Import SidebarLayout
 
 function MyReviews() {
   const [reviews, setReviews] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // Default filter
   const navigate = useNavigate();
+  const { currentUser } = useAuth(); // Get current user for SidebarLayout
+
+  // Create user object for SidebarLayout
+  const user = currentUser ? {
+    firstName: currentUser.firstName || currentUser.username || 'User',
+    lastName: currentUser.lastName || '',
+    role: currentUser.role || 'USER'
+  } : null;
 
   // Mock review data - this would be fetched from an API in a real application
   const mockReviews = [
@@ -228,97 +238,107 @@ function MyReviews() {
     }
   };
 
-  // Render loading state
-  if (isLoading) {
-    return <div style={styles.loadingState}>Loading reviews...</div>;
-  }
+  // Function to render the My Reviews content
+  const renderMyReviewsContent = () => {
+    // Render loading state
+    if (isLoading) {
+      return <div style={styles.loadingState}>Loading reviews...</div>;
+    }
 
-  const filteredReviews = getFilteredReviews();
+    const filteredReviews = getFilteredReviews();
 
-  return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>My Reviews</h1>
-        <div style={styles.filterTabs}>
-          <button 
-            style={styles.filterButton(filter === 'all')}
-            onClick={() => setFilter('all')}
-          >
-            All Reviews
-          </button>
-          <button 
-            style={styles.filterButton(filter === 'pending')}
-            onClick={() => setFilter('pending')}
-          >
-            Pending
-          </button>
-          <button 
-            style={styles.filterButton(filter === 'completed')}
-            onClick={() => setFilter('completed')}
-          >
-            Completed
-          </button>
+    return (
+      <div style={styles.container}>
+        <div style={styles.header}>
+          <h1 style={styles.title}>My Reviews</h1>
+          <div style={styles.filterTabs}>
+            <button 
+              style={styles.filterButton(filter === 'all')}
+              onClick={() => setFilter('all')}
+            >
+              All Reviews
+            </button>
+            <button 
+              style={styles.filterButton(filter === 'pending')}
+              onClick={() => setFilter('pending')}
+            >
+              Pending
+            </button>
+            <button 
+              style={styles.filterButton(filter === 'completed')}
+              onClick={() => setFilter('completed')}
+            >
+              Completed
+            </button>
+          </div>
         </div>
-      </div>
 
-      {filteredReviews.length === 0 ? (
-        <div style={styles.emptyState}>
-          <p>No reviews found matching the selected filter.</p>
-        </div>
-      ) : (
-        <div>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.tableHeader}>Employee</th>
-                <th style={styles.tableHeader}>Review Cycle</th>
-                <th style={styles.tableHeader}>Due Date</th>
-                <th style={styles.tableHeader}>Type</th>
-                <th style={styles.tableHeader}>Status</th>
-                <th style={styles.tableHeader}>Progress</th>
-                <th style={styles.tableHeader}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredReviews.map((review) => (
-                <tr key={review.id}>
-                  <td style={{...styles.tableCell, ...styles.employeeName}}>{review.employee}</td>
-                  <td style={styles.tableCell}>{review.cycle}</td>
-                  <td style={styles.tableCell}>
-                    <div style={styles.dueDate}>
-                      {review.dueDate}
-                      {new Date(review.dueDate) < new Date() && review.status !== 'completed' && (
-                        <span style={styles.overdueBadge}>Overdue</span>
-                      )}
-                    </div>
-                  </td>
-                  <td style={styles.tableCell}>{review.reviewType}</td>
-                  <td style={styles.tableCell}>
-                    <span style={styles.statusBadge(review.status)}>
-                      {review.status.charAt(0).toUpperCase() + review.status.slice(1)}
-                    </span>
-                  </td>
-                  <td style={styles.tableCell}>
-                    <div style={styles.progressContainer}>
-                      <div style={styles.progressBar(review.completionPercentage)}></div>
-                      <span style={styles.progressText}>{review.completionPercentage}%</span>
-                    </div>
-                  </td>
-                  <td style={styles.tableCell}>
-                    <button 
-                      style={styles.actionButton}
-                      onClick={() => handleReviewAction(review)}
-                    >
-                      {review.status === 'completed' ? 'View' : 'Continue'}
-                    </button>
-                  </td>
+        {filteredReviews.length === 0 ? (
+          <div style={styles.emptyState}>
+            <p>No reviews found matching the selected filter.</p>
+          </div>
+        ) : (
+          <div>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.tableHeader}>Employee</th>
+                  <th style={styles.tableHeader}>Review Cycle</th>
+                  <th style={styles.tableHeader}>Due Date</th>
+                  <th style={styles.tableHeader}>Type</th>
+                  <th style={styles.tableHeader}>Status</th>
+                  <th style={styles.tableHeader}>Progress</th>
+                  <th style={styles.tableHeader}>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+              </thead>
+              <tbody>
+                {filteredReviews.map((review) => (
+                  <tr key={review.id}>
+                    <td style={{...styles.tableCell, ...styles.employeeName}}>{review.employee}</td>
+                    <td style={styles.tableCell}>{review.cycle}</td>
+                    <td style={styles.tableCell}>
+                      <div style={styles.dueDate}>
+                        {review.dueDate}
+                        {new Date(review.dueDate) < new Date() && review.status !== 'completed' && (
+                          <span style={styles.overdueBadge}>Overdue</span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={styles.tableCell}>{review.reviewType}</td>
+                    <td style={styles.tableCell}>
+                      <span style={styles.statusBadge(review.status)}>
+                        {review.status.charAt(0).toUpperCase() + review.status.slice(1)}
+                      </span>
+                    </td>
+                    <td style={styles.tableCell}>
+                      <div style={styles.progressContainer}>
+                        <div style={styles.progressBar(review.completionPercentage)}></div>
+                        <span style={styles.progressText}>{review.completionPercentage}%</span>
+                      </div>
+                    </td>
+                    <td style={styles.tableCell}>
+                      <button 
+                        style={styles.actionButton}
+                        onClick={() => handleReviewAction(review)}
+                      >
+                        {review.status === 'completed' ? 'View' : 'Continue'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Wrap the My Reviews content with SidebarLayout
+  return (
+    <SidebarLayout user={user} activeView="my-reviews">
+      {renderMyReviewsContent()}
+    </SidebarLayout>
   );
 }
 
