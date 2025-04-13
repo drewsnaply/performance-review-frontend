@@ -61,9 +61,13 @@ function ViewEvaluation() {
         setLoading(true);
         setError(null);
         
+        console.log('Attempting to fetch review data for ID:', reviewId);
+        console.log('Using token:', localStorage.getItem('token'));
+        
         const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            // Changed from 'authToken' to 'token'
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json'
           }
         });
@@ -81,7 +85,8 @@ function ViewEvaluation() {
         try {
           const kpisResponse = await fetch(`${API_BASE_URL}/api/kpis`, {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+              // Changed from 'authToken' to 'token'
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
               'Content-Type': 'application/json'
             }
           });
@@ -102,7 +107,8 @@ function ViewEvaluation() {
           try {
             const goalsResponse = await fetch(`${API_BASE_URL}/api/goals?reviewId=${reviewId}`, {
               headers: {
-                'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+                // Changed from 'authToken' to 'token'
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
                 'Content-Type': 'application/json'
               }
             });
@@ -172,7 +178,8 @@ function ViewEvaluation() {
       const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          // Changed from 'authToken' to 'token'
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(reviewData)
@@ -219,7 +226,8 @@ function ViewEvaluation() {
       const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}/submit`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          // Changed from 'authToken' to 'token'
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(reviewToSubmit)
@@ -262,7 +270,8 @@ function ViewEvaluation() {
       const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}/complete`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          // Changed from 'authToken' to 'token'
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(reviewToComplete)
@@ -328,7 +337,8 @@ function ViewEvaluation() {
       const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}/checkin`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          // Changed from 'authToken' to 'token'
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -464,7 +474,8 @@ function ViewEvaluation() {
       const response = await fetch(url, {
         method,
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          // Changed from 'authToken' to 'token'
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(goalData)
@@ -509,7 +520,8 @@ function ViewEvaluation() {
       const response = await fetch(`${API_BASE_URL}/api/goals/${goal._id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          // Changed from 'authToken' to 'token'
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
       
