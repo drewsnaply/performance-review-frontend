@@ -13,7 +13,8 @@ function PrivateRoute({ children, allowedRoles = [], requiredPermissions = [] })
     tokenExists: !!localStorage.getItem('authToken'),
     allowedRoles,
     requiredPermissions,
-    impersonating
+    impersonating,
+    path: location.pathname
   });
 
   // If still loading authentication status, show loading indicator
@@ -36,12 +37,15 @@ function PrivateRoute({ children, allowedRoles = [], requiredPermissions = [] })
   const userRole = currentUser?.role?.toLowerCase();
   const isSuperAdmin = userRole === 'superadmin' || userRole === 'super_admin';
   
-  // Special handling for impersonation - enforce correct routing
-  if (impersonating) {
+  // Fix: Only apply impersonation restrictions if we're actually impersonating
+  // AND the impersonation is not for accessing Super Admin features
+  const impersonatedCustomer = JSON.parse(localStorage.getItem('impersonatedCustomer') || 'null');
+  const isActuallyImpersonating = impersonating && !!impersonatedCustomer;
+  
+  if (isActuallyImpersonating) {
     // When impersonating, Super Admin can only access customer routes
     if (isSuperAdmin && location.pathname.startsWith('/super-admin')) {
-      // If Super Admin is impersonating but tries to access Super Admin routes,
-      // redirect to the dashboard except for exit-impersonation route
+      // Except for exit-impersonation route which is always allowed
       if (!location.pathname.includes('/exit-impersonation')) {
         console.warn('Super Admin impersonating customer tried to access Super Admin routes');
         return <Navigate to="/dashboard" replace />;
@@ -55,7 +59,7 @@ function PrivateRoute({ children, allowedRoles = [], requiredPermissions = [] })
     }
   }
   
-  // Check if user has the required role
+  // Check if user has the required role (Super Admin bypasses role checks)
   if (
     !isDevelopmentMode && 
     allowedRoles.length > 0 &&
@@ -67,7 +71,7 @@ function PrivateRoute({ children, allowedRoles = [], requiredPermissions = [] })
     return <Navigate to="/unauthorized" replace />;
   }
   
-  // Check if user has the required permissions
+  // Check if user has the required permissions (Super Admin bypasses permission checks)
   if (
     !isDevelopmentMode && 
     requiredPermissions.length > 0 &&
