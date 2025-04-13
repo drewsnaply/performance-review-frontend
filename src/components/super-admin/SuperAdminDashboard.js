@@ -20,7 +20,7 @@ function SuperAdminDashboard() {
   const user = currentUser ? {
     firstName: currentUser.firstName || currentUser.username || 'User',
     lastName: currentUser.lastName || '',
-    role: currentUser.role || 'SUPER_ADMIN'
+    role: currentUser.role || 'superadmin'
   } : null;
 
   // API base URL for fetching data
@@ -29,8 +29,8 @@ function SuperAdminDashboard() {
     : 'https://performance-review-backend-ab8z.onrender.com';
 
   useEffect(() => {
-    // Check if user is super admin
-    if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
+    // Check if user is super admin (fixed to use lowercase and case-insensitive comparison)
+    if (currentUser && currentUser.role.toLowerCase() !== 'superadmin') {
       navigate('/dashboard');
       return;
     }
