@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import SidebarLayout from '../SidebarLayout';
-import { FaSearch, FaPlus, FaEdit, FaTrash, FaKey } from 'react-icons/fa';
+import { FaSearch, FaPlus, FaEdit, FaTrash, FaKey, FaUserShield } from 'react-icons/fa';
 import '../../styles/Dashboard.css';
 import '../../styles/SuperAdmin.css';
 
@@ -20,9 +20,10 @@ function SuperAdminUsers() {
     password: '',
     firstName: '',
     lastName: '',
-    role: 'admin' // Default role
+    role: 'superadmin' // Default to superadmin for this view
   });
   const [formErrors, setFormErrors] = useState({});
+  const [showOnlySuperAdmins, setShowOnlySuperAdmins] = useState(true); // Default to showing only superadmins
   
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -64,7 +65,15 @@ function SuperAdminUsers() {
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
-        setFilteredUsers(data);
+        
+        // Apply superadmin filter by default
+        if (showOnlySuperAdmins) {
+          setFilteredUsers(data.filter(user => 
+            user.role.toLowerCase() === 'superadmin' || user.role.toLowerCase() === 'super_admin'
+          ));
+        } else {
+          setFilteredUsers(data);
+        }
       } else {
         throw new Error('Failed to fetch users');
       }
@@ -80,17 +89,36 @@ function SuperAdminUsers() {
     const term = e.target.value;
     setSearchTerm(term);
     
-    if (!term.trim()) {
-      setFilteredUsers(users);
-      return;
+    applyFilters(term, showOnlySuperAdmins);
+  };
+  
+  // Toggle superadmin filter
+  const toggleSuperAdminFilter = () => {
+    const newFilterValue = !showOnlySuperAdmins;
+    setShowOnlySuperAdmins(newFilterValue);
+    applyFilters(searchTerm, newFilterValue);
+  };
+  
+  // Apply both search and role filters
+  const applyFilters = (term, superAdminsOnly) => {
+    let filtered = [...users];
+    
+    // Apply role filter
+    if (superAdminsOnly) {
+      filtered = filtered.filter(user => 
+        user.role.toLowerCase() === 'superadmin' || user.role.toLowerCase() === 'super_admin'
+      );
     }
     
-    const filtered = users.filter(user => 
-      user.username?.toLowerCase().includes(term.toLowerCase()) ||
-      user.email?.toLowerCase().includes(term.toLowerCase()) ||
-      user.firstName?.toLowerCase().includes(term.toLowerCase()) ||
-      user.lastName?.toLowerCase().includes(term.toLowerCase())
-    );
+    // Apply search filter
+    if (term.trim()) {
+      filtered = filtered.filter(user => 
+        user.username?.toLowerCase().includes(term.toLowerCase()) ||
+        user.email?.toLowerCase().includes(term.toLowerCase()) ||
+        user.firstName?.toLowerCase().includes(term.toLowerCase()) ||
+        user.lastName?.toLowerCase().includes(term.toLowerCase())
+      );
+    }
     
     setFilteredUsers(filtered);
   };
@@ -105,7 +133,7 @@ function SuperAdminUsers() {
       password: '',
       firstName: '',
       lastName: '',
-      role: 'admin'
+      role: 'superadmin' // Default to superadmin in this view
     });
     setFormErrors({});
     setShowModal(true);
@@ -121,7 +149,7 @@ function SuperAdminUsers() {
       password: '', // Don't set password for editing
       firstName: user.firstName || '',
       lastName: user.lastName || '',
-      role: user.role || 'admin'
+      role: user.role || 'superadmin'
     });
     setFormErrors({});
     setShowModal(true);
@@ -156,8 +184,11 @@ function SuperAdminUsers() {
 
       if (response.ok) {
         // Remove user from state
-        setUsers(users.filter(u => u._id !== userId));
-        setFilteredUsers(filteredUsers.filter(u => u._id !== userId));
+        const updatedUsers = users.filter(u => u._id !== userId);
+        setUsers(updatedUsers);
+        
+        // Also update filtered users
+        setFilteredUsers(prevFiltered => prevFiltered.filter(u => u._id !== userId));
       } else {
         throw new Error('Failed to delete user');
       }
@@ -261,8 +292,8 @@ function SuperAdminUsers() {
   const renderModal = () => {
     if (!showModal) return null;
     
-    let title = 'Add New User';
-    if (modalMode === 'edit') title = 'Edit User';
+    let title = 'Add New Super Admin';
+    if (modalMode === 'edit') title = 'Edit Super Admin';
     if (modalMode === 'password') title = 'Reset Password';
     
     return (
@@ -330,9 +361,6 @@ function SuperAdminUsers() {
                       onChange={handleInputChange}
                       className="form-control"
                     >
-                      <option value="admin">Admin</option>
-                      <option value="manager">Manager</option>
-                      <option value="employee">Employee</option>
                       <option value="superadmin">Super Admin</option>
                     </select>
                   </div>
@@ -364,7 +392,7 @@ function SuperAdminUsers() {
                   type="submit"
                   className="modal-button primary"
                 >
-                  {modalMode === 'create' ? 'Create User' : (modalMode === 'edit' ? 'Save Changes' : 'Reset Password')}
+                  {modalMode === 'create' ? 'Create Super Admin' : (modalMode === 'edit' ? 'Save Changes' : 'Reset Password')}
                 </button>
               </div>
             </form>
@@ -421,13 +449,13 @@ function SuperAdminUsers() {
 
     return (
       <>
-        <h1 className="page-title">User Management</h1>
+        <h1 className="page-title">Super Admin Management</h1>
         
         <div className="admin-panel-header">
           <div className="admin-panel-title">
-            <h2>System Users</h2>
+            <h2>System Super Admins</h2>
             <p className="text-gray-600">
-              Manage all user accounts across the system
+              Manage user accounts with super admin privileges
             </p>
           </div>
           
@@ -443,8 +471,12 @@ function SuperAdminUsers() {
               />
             </div>
             
-            <button className="primary-button" onClick={handleAddUser}>
-              <FaPlus className="mr-2" /> Add User
+            <button 
+              className="primary-button flex items-center" 
+              onClick={handleAddUser}
+              style={{ gap: '8px' }}
+            >
+              <FaUserShield /> Add Super Admin
             </button>
           </div>
         </div>
@@ -452,7 +484,7 @@ function SuperAdminUsers() {
         <div className="admin-panel-content">
           {filteredUsers.length === 0 ? (
             <div className="empty-state">
-              <p>No users found matching your search criteria.</p>
+              <p>No super admin users found matching your search criteria.</p>
             </div>
           ) : (
             <div className="customer-table-container">
@@ -489,14 +521,14 @@ function SuperAdminUsers() {
                       <td>
                         <div className="action-buttons">
                           <button 
-                            className="icon-button"
+                            className="action-button-styled"
                             onClick={() => handleEditUser(user)}
                             title="Edit user"
                           >
                             <FaEdit />
                           </button>
                           <button 
-                            className="icon-button"
+                            className="action-button-styled"
                             onClick={() => handleResetPassword(user)}
                             title="Reset password"
                           >
@@ -504,7 +536,7 @@ function SuperAdminUsers() {
                           </button>
                           {currentUser._id !== user._id && (
                             <button 
-                              className="icon-button delete"
+                              className="action-button-styled delete"
                               onClick={() => handleDeleteUser(user._id)}
                               title="Delete user"
                             >
@@ -530,6 +562,61 @@ function SuperAdminUsers() {
         {renderContent()}
       </div>
       {renderModal()}
+      
+      {/* Add this to your SuperAdmin.css file */}
+      <style>{`
+        .action-buttons {
+          display: flex;
+          gap: 10px;
+        }
+        
+        .action-button-styled {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          border-radius: 6px;
+          background-color: #f3f4f6;
+          color: #4b5563;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .action-button-styled:hover {
+          background-color: #e5e7eb;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .action-button-styled.delete {
+          color: #ef4444;
+        }
+        
+        .action-button-styled.delete:hover {
+          background-color: #fee2e2;
+        }
+
+        .primary-button {
+          height: 40px;
+          background-color: #6366f1;
+          border-radius: 6px;
+          padding: 0 16px;
+          color: white;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        
+        .primary-button:hover {
+          background-color: #4f46e5;
+        }
+      `}</style>
     </SidebarLayout>
   );
 }
