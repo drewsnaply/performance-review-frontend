@@ -12,7 +12,6 @@ import MonthlyGoalTracking from './components/MonthlyGoalTracking';
 import KpiManager from './components/KpiManager';
 import TemplateAssignments from './components/TemplateAssignments';
 
-
 // Import pages
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -29,7 +28,16 @@ import ReviewCycles from './components/ReviewCycles';
 import ReviewTemplates from './components/ReviewTemplates';
 import ImportTool from './components/ImportTool';
 import ExportTool from './components/ExportTool';
-// EvaluationManagement import removed
+
+// Import Super Admin components
+import SuperAdminDashboard from './components/super-admin/SuperAdminDashboard';
+import CustomerDetailPage from './components/super-admin/CustomerDetailPage';
+import SuperAdminUsers from './components/super-admin/SuperAdminUsers';
+import SuperAdminAnalytics from './components/super-admin/SuperAdminAnalytics';
+import SuperAdminLogs from './components/super-admin/SuperAdminLogs';
+import SuperAdminSettings from './components/super-admin/SuperAdminSettings';
+import SuperAdminSessions from './components/super-admin/SuperAdminSessions';
+import ExitImpersonation from './components/super-admin/ExitImpersonation';
 
 // Title Updater Component
 const TitleUpdater = () => {
@@ -47,12 +55,20 @@ const TitleUpdater = () => {
         '/templates': 'Templates',
         '/templates/assignments': 'Template Assignments',
         '/templates/builder': 'Template Builder',
-        // '/evaluation-management': 'Evaluation Management', - Removed
         '/import-tool': 'Import Tool',
         '/export-tool': 'Export Tool',
         '/pending-reviews': 'Pending Reviews',
         '/goals': 'Monthly Goal Tracking',
-        '/kpis': 'KPI Management'
+        '/kpis': 'KPI Management',
+        
+        // Super Admin routes
+        '/super-admin': 'Super Admin Dashboard',
+        '/super-admin/customers': 'Customer Organizations',
+        '/super-admin/users': 'User Management',
+        '/super-admin/sessions': 'Active Sessions',
+        '/super-admin/analytics': 'System Analytics',
+        '/super-admin/logs': 'System Logs',
+        '/super-admin/settings': 'System Settings'
       };
 
       // Check if path is an employee profile page
@@ -73,6 +89,11 @@ const TitleUpdater = () => {
       // Check if path is goal tracking for a specific review
       if (location.pathname.startsWith('/goals/review/')) {
         return 'Review Goals';
+      }
+      
+      // Check if path is a customer detail page
+      if (location.pathname.match(/^\/super-admin\/customers\/[^/]+\/details$/)) {
+        return 'Customer Details';
       }
 
       return pathToTitleMap[location.pathname] || 'Performance Review System';
@@ -207,7 +228,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            {/* EvaluationManagement route removed */}
             <Route
               path="/pending-reviews"
               element={
@@ -255,6 +275,88 @@ function App() {
                   <KpiManager />
                 </PrivateRoute>
               }
+            />
+
+            {/* Super Admin Routes */}
+            <Route 
+              path="/super-admin" 
+              element={
+                <PrivateRoute allowedRoles={['superadmin', 'super_admin']}>
+                  <SuperAdminDashboard />
+                </PrivateRoute>
+              } 
+            />
+            
+            <Route 
+              path="/super-admin/customers" 
+              element={
+                <PrivateRoute allowedRoles={['superadmin', 'super_admin']}>
+                  <SuperAdminDashboard />
+                </PrivateRoute>
+              } 
+            />
+            
+            <Route 
+              path="/super-admin/customers/:customerId/details" 
+              element={
+                <PrivateRoute allowedRoles={['superadmin', 'super_admin']}>
+                  <CustomerDetailPage />
+                </PrivateRoute>
+              } 
+            />
+            
+            <Route 
+              path="/super-admin/users" 
+              element={
+                <PrivateRoute allowedRoles={['superadmin', 'super_admin']}>
+                  <SuperAdminUsers />
+                </PrivateRoute>
+              } 
+            />
+            
+            <Route 
+              path="/super-admin/sessions" 
+              element={
+                <PrivateRoute allowedRoles={['superadmin', 'super_admin']}>
+                  <SuperAdminSessions />
+                </PrivateRoute>
+              } 
+            />
+            
+            <Route 
+              path="/super-admin/analytics" 
+              element={
+                <PrivateRoute allowedRoles={['superadmin', 'super_admin']}>
+                  <SuperAdminAnalytics />
+                </PrivateRoute>
+              } 
+            />
+            
+            <Route 
+              path="/super-admin/logs" 
+              element={
+                <PrivateRoute allowedRoles={['superadmin', 'super_admin']}>
+                  <SuperAdminLogs />
+                </PrivateRoute>
+              } 
+            />
+            
+            <Route 
+              path="/super-admin/settings" 
+              element={
+                <PrivateRoute allowedRoles={['superadmin', 'super_admin']}>
+                  <SuperAdminSettings />
+                </PrivateRoute>
+              } 
+            />
+            
+            <Route 
+              path="/super-admin/exit-impersonation" 
+              element={
+                <PrivateRoute allowedRoles={['superadmin', 'super_admin']}>
+                  <ExitImpersonation />
+                </PrivateRoute>
+              } 
             />
 
             {/* Default Routes */}

@@ -19,6 +19,7 @@ const ExportTool = lazy(() => import('../components/ExportTool'));
 const Settings = lazy(() => import('./Settings'));
 const ViewEvaluation = lazy(() => import('../components/ViewEvaluation'));
 const PendingReviews = lazy(() => import('../components/PendingReviews'));
+const TemplateAssignments = lazy(() => import('../components/TemplateAssignments'));
 
 function Dashboard({ initialView = 'dashboard' }) {
   const { employees } = useDepartments();
@@ -257,6 +258,7 @@ function Dashboard({ initialView = 'dashboard' }) {
       case 'settings': return renderComponent(Settings);
       case 'review-cycles': return renderComponent(ReviewCycles);
       case 'templates': return renderComponent(ReviewTemplates);
+      case 'template-assignments': return renderComponent(TemplateAssignments);
       case 'kpis': return renderComponent(KpiManager);
       case 'tools-imports': return renderComponent(ImportTool);
       case 'tools-exports': return renderComponent(ExportTool);
@@ -289,8 +291,9 @@ function Dashboard({ initialView = 'dashboard' }) {
           <div 
             className="overview-card clickable" 
             onClick={() => {
-              setActiveView('pending-reviews');
-              navigate('/pending-reviews');
+              // Direct to template assignments instead of pending reviews
+              setActiveView('template-assignments');
+              navigate('/templates/assignments');
             }}
           >
             <h3>Pending Reviews</h3>
@@ -301,8 +304,9 @@ function Dashboard({ initialView = 'dashboard' }) {
           <div 
             className="overview-card clickable" 
             onClick={() => {
-              setActiveView('my-reviews');
-              navigate('/my-reviews');
+              // Direct to template assignments instead of my-reviews
+              setActiveView('template-assignments');
+              navigate('/templates/assignments');
             }}
           >
             <h3>Completed Reviews</h3>
@@ -313,8 +317,9 @@ function Dashboard({ initialView = 'dashboard' }) {
           <div 
             className="overview-card clickable" 
             onClick={() => {
-              setActiveView('my-reviews');
-              navigate('/my-reviews');
+              // Direct to template assignments instead of my-reviews
+              setActiveView('template-assignments');
+              navigate('/templates/assignments');
             }}
           >
             <h3>Upcoming Reviews</h3>

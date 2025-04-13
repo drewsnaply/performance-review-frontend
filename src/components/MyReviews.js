@@ -18,69 +18,12 @@ function MyReviews() {
     role: currentUser.role || 'USER'
   } : null;
 
-  // Mock review data - this would be fetched from an API in a real application
-  const mockReviews = [
-    { 
-      id: 'review_1', 
-      employee: 'John Doe', 
-      cycle: 'Q1 2025', 
-      dueDate: '2025-04-15', 
-      status: 'pending',
-      reviewType: 'annual',
-      completionPercentage: 0
-    },
-    { 
-      id: 'review_2', 
-      employee: 'Jane Smith', 
-      cycle: 'Q1 2025', 
-      dueDate: '2025-04-10', 
-      status: 'in-progress',
-      reviewType: 'mid-year',
-      completionPercentage: 40
-    },
-    { 
-      id: 'review_3', 
-      employee: 'Bob Johnson', 
-      cycle: 'Q1 2025', 
-      dueDate: '2025-04-12', 
-      status: 'completed',
-      reviewType: 'annual',
-      completionPercentage: 100
-    },
-    { 
-      id: 'review_4', 
-      employee: 'Alice Brown', 
-      cycle: 'Q1 2025', 
-      dueDate: '2025-04-18', 
-      status: 'pending',
-      reviewType: 'performance',
-      completionPercentage: 0
-    },
-    { 
-      id: 'review_5', 
-      employee: 'Charlie Wilson', 
-      cycle: 'Q1 2025', 
-      dueDate: '2025-04-20', 
-      status: 'completed',
-      reviewType: 'mid-year',
-      completionPercentage: 100
-    }
-  ];
+  // API base URL for fetching data
+  const API_BASE_URL = process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:5000' 
+    : 'https://performance-review-backend-ab8z.onrender.com';
 
   useEffect(() => {
-    // Simulate API fetch
-    const fetchReviews = () => {
-      setIsLoading(true);
-      
-      // In a real app, this would be an API call
-      setTimeout(() => {
-        setReviews(mockReviews);
-        setIsLoading(false);
-      }, 500);
-    };
-
-    fetchReviews();
-    
     // Check for filter in session storage (from dashboard navigation)
     const storedFilter = window.sessionStorage?.getItem('reviewFilter');
     if (storedFilter) {
@@ -88,7 +31,134 @@ function MyReviews() {
       // Clear the filter after using it once
       window.sessionStorage.removeItem('reviewFilter');
     }
-  }, []);
+    
+    // Fetch reviews data
+    fetchReviews();
+  }, [currentUser]);
+
+  const fetchReviews = async () => {
+    if (!currentUser) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Try fetching from API first
+      const response = await fetch(`${API_BASE_URL}/api/templates/assignments/my`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Map API data to the review format
+        const formattedReviews = data.map(item => ({
+          id: item._id,
+          employee: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.username || 'You',
+          cycle: item.template?.name || 'Q1 2025',
+          dueDate: new Date(item.dueDate || Date.now()).toLocaleDateString(),
+          status: formatStatus(item.status),
+          reviewType: item.template?.type || 'annual',
+          completionPercentage: item.progress || 0,
+          createdReview: item.createdReview || null
+        }));
+        
+        setReviews(formattedReviews);
+        setIsLoading(false);
+        return;
+      }
+      
+      throw new Error('Failed to fetch reviews from API');
+    } catch (error) {
+      console.error('Error fetching reviews from API:', error);
+      
+      // Try localStorage fallback for my reviews
+      try {
+        // Get assignments from localStorage
+        const allAssignments = JSON.parse(localStorage.getItem('assignments') || '[]');
+        
+        // Format assignments to match review format
+        const myReviews = allAssignments.map(assignment => ({
+          id: assignment.id,
+          employee: currentUser?.username || 'You',
+          cycle: assignment.templateTitle || 'Q1 2025',
+          dueDate: new Date(assignment.dueDate || Date.now()).toLocaleDateString(),
+          status: formatStatus(assignment.status),
+          reviewType: 'annual', // Default value
+          completionPercentage: calculateProgress(assignment.status),
+          createdReview: assignment.reviewId || null
+        }));
+        
+        setReviews(myReviews);
+      } catch (localStorageError) {
+        console.error('Error fetching from localStorage:', localStorageError);
+        // If localStorage also fails, use mock data
+        const mockReviews = [
+          { 
+            id: 'review_1', 
+            employee: currentUser?.username || 'John Doe', 
+            cycle: 'Q1 2025', 
+            dueDate: '2025-04-15', 
+            status: 'pending',
+            reviewType: 'annual',
+            completionPercentage: 0
+          },
+          { 
+            id: 'review_2', 
+            employee: currentUser?.username || 'John Doe', 
+            cycle: 'Q1 2025', 
+            dueDate: '2025-04-10', 
+            status: 'in-progress',
+            reviewType: 'mid-year',
+            completionPercentage: 40
+          },
+          { 
+            id: 'review_3', 
+            employee: currentUser?.username || 'John Doe', 
+            cycle: 'Q1 2025', 
+            dueDate: '2025-04-12', 
+            status: 'completed',
+            reviewType: 'annual',
+            completionPercentage: 100
+          }
+        ];
+        setReviews(mockReviews);
+      }
+      
+      setIsLoading(false);
+    }
+  };
+
+  // Helper function to format status
+  const formatStatus = (status) => {
+    if (!status) return 'pending';
+    
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus === 'inprogress') return 'in-progress';
+    if (lowerStatus === 'pending manager review') return 'in-progress';
+    
+    return lowerStatus;
+  };
+
+  // Helper function to calculate progress
+  const calculateProgress = (status) => {
+    if (!status) return 0;
+    
+    const lowerStatus = status.toLowerCase();
+    switch(lowerStatus) {
+      case 'completed': return 100;
+      case 'inprogress': 
+      case 'in-progress': return 40;
+      case 'pending manager review': return 75;
+      case 'pending': return 0;
+      default: return 0;
+    }
+  };
 
   // Handle filtering based on status
   const getFilteredReviews = () => {
@@ -104,8 +174,44 @@ function MyReviews() {
   };
 
   // Handle navigating to a specific review
-  const handleReviewAction = (review) => {
-    navigate(`/review/${review.id}`);
+  const handleReviewAction = async (review) => {
+    try {
+      if (review.status === 'completed') {
+        // If completed, just view the review
+        navigate(`/reviews/${review.id}`);
+        return;
+      }
+      
+      // Otherwise try to continue the review
+      if (review.createdReview) {
+        // If there's already a started review, navigate to it
+        navigate(`/reviews/edit/${review.createdReview}`);
+        return;
+      }
+      
+      // Try to start a new review through the API
+      const response = await fetch(`${API_BASE_URL}/api/templates/assignments/${review.id}/start`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        navigate(`/reviews/edit/${data.review._id}`);
+        return;
+      }
+      
+      // If API fails, use a fallback approach
+      navigate(`/reviews/edit/placeholder-${Date.now()}`);
+      
+    } catch (error) {
+      console.error('Error handling review action:', error);
+      // Fallback to simple navigation
+      navigate(`/review/${review.id}`);
+    }
   };
 
   // Define inline styles
@@ -276,6 +382,7 @@ function MyReviews() {
         {filteredReviews.length === 0 ? (
           <div style={styles.emptyState}>
             <p>No reviews found matching the selected filter.</p>
+            <p>Your manager will assign reviews when they become available.</p>
           </div>
         ) : (
           <div>

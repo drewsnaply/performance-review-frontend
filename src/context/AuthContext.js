@@ -16,6 +16,8 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [impersonating, setImpersonating] = useState(false);
+  const [originalUser, setOriginalUser] = useState(null);
 
   const isTokenExpired = (token) => {
     try {
@@ -46,6 +48,12 @@ export const AuthProvider = ({ children }) => {
             console.log('Restored user from token:', decodedToken);
             setCurrentUser(decodedToken);
             setIsAuthenticated(true);
+            
+            // Check if we're impersonating
+            const impersonationInfo = JSON.parse(localStorage.getItem('impersonatedCustomer') || 'null');
+            if (impersonationInfo) {
+              setImpersonating(true);
+            }
           }
         } catch (error) {
           console.error('Authentication check error:', error);
@@ -96,9 +104,101 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('authToken');
+    localStorage.removeItem('impersonatedCustomer');
+    localStorage.removeItem('impersonationToken');
     setCurrentUser(null);
     setIsAuthenticated(false);
+    setImpersonating(false);
+    setOriginalUser(null);
     window.location.replace('/login');
+  };
+
+  // Impersonate customer function (for super admins)
+  const impersonateCustomer = async (customerId) => {
+    try {
+      // Store original user if not already impersonating
+      if (!impersonating) {
+        setOriginalUser(currentUser);
+      }
+      
+      // In a real implementation, you would make an API call to get customer admin token
+      try {
+        const response = await AuthService.impersonateCustomer(customerId);
+        const { token, user } = response;
+        
+        // Store impersonation token and update user
+        localStorage.setItem('impersonationToken', token);
+        localStorage.setItem('impersonatedCustomer', JSON.stringify({
+          id: customerId,
+          name: user.organizationName || 'Customer Organization'
+        }));
+        
+        // Update current user to the impersonated admin
+        setCurrentUser({
+          ...user,
+          impersonated: true,
+          customerId: customerId
+        });
+        
+        setImpersonating(true);
+        return user;
+      } catch (apiError) {
+        console.error('API impersonation error:', apiError);
+        
+        // For demo purposes, create a mock impersonated user
+        const mockAdminUser = {
+          id: 'admin-' + customerId,
+          username: 'admin@acme.com',
+          firstName: 'Admin',
+          lastName: 'User',
+          role: 'admin',
+          impersonated: true,
+          customerId: customerId
+        };
+        
+        // Store impersonation info
+        localStorage.setItem('impersonatedCustomer', JSON.stringify({
+          id: customerId,
+          name: 'Acme Corporation'
+        }));
+        
+        setCurrentUser(mockAdminUser);
+        setImpersonating(true);
+        
+        return mockAdminUser;
+      }
+    } catch (error) {
+      console.error('Impersonation error:', error);
+      throw error;
+    }
+  };
+
+  // Exit impersonation
+  const exitImpersonation = () => {
+    if (originalUser) {
+      setCurrentUser(originalUser);
+      setOriginalUser(null);
+    } else {
+      // If original user is not available, try to get from token
+      const token = localStorage.getItem('authToken');
+      if (token && !isTokenExpired(token)) {
+        try {
+          const decodedToken = jwtDecode(token);
+          setCurrentUser(decodedToken);
+        } catch (error) {
+          console.error('Error restoring original user:', error);
+          logout();
+          return;
+        }
+      } else {
+        logout();
+        return;
+      }
+    }
+    
+    localStorage.removeItem('impersonatedCustomer');
+    localStorage.removeItem('impersonationToken');
+    setImpersonating(false);
   };
 
   // Enhanced role-based permission checking
@@ -108,7 +208,7 @@ export const AuthProvider = ({ children }) => {
     const role = currentUser.role.toLowerCase();
     
     // Super admin can do anything
-    if (role === 'superadmin') return true;
+    if (role === 'superadmin' || role === 'super_admin') return true;
     
     // Admin can do most things except manage super admins
     if (role === 'admin') {
@@ -164,7 +264,10 @@ export const AuthProvider = ({ children }) => {
       login, 
       logout, 
       loading,
-      hasPermission 
+      hasPermission,
+      impersonating,
+      impersonateCustomer,
+      exitImpersonation
     }}>
       {children}
     </AuthContext.Provider>
