@@ -10,6 +10,7 @@ import ViewEvaluation from './components/ViewEvaluation';
 import TemplateBuilder from './components/TemplateBuilder';
 import MonthlyGoalTracking from './components/MonthlyGoalTracking';
 import KpiManager from './components/KpiManager';
+import TemplateAssignments from './components/TemplateAssignments';
 
 
 // Import pages
@@ -44,6 +45,7 @@ const TitleUpdater = () => {
         '/settings': 'Settings',
         '/review-cycles': 'Review Cycles',
         '/templates': 'Templates',
+        '/templates/assignments': 'Template Assignments',
         '/templates/builder': 'Template Builder',
         // '/evaluation-management': 'Evaluation Management', - Removed
         '/import-tool': 'Import Tool',
@@ -159,6 +161,15 @@ function App() {
               element={
                 <PrivateRoute allowedRoles={['manager', 'admin']}>
                   <ReviewTemplates />
+                </PrivateRoute>
+              }
+            />
+            {/* Template Assignments route */}
+            <Route
+              path="/templates/assignments"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin']}>
+                  <TemplateAssignments />
                 </PrivateRoute>
               }
             />

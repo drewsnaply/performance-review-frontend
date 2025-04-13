@@ -1,5 +1,6 @@
 // components/Templates.js
 import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext'; // Import useAuth hook
 import SidebarLayout from '../components/SidebarLayout'; // Import SidebarLayout
 
@@ -15,6 +16,7 @@ const Templates = () => {
 
   // Get current user for SidebarLayout
   const { currentUser } = useAuth();
+  const location = useLocation();
   
   // Create user object for SidebarLayout
   const user = currentUser ? {
@@ -22,6 +24,9 @@ const Templates = () => {
     lastName: currentUser.lastName || '',
     role: currentUser.role || 'USER'
   } : null;
+
+  // Determine active tab based on current path
+  const activeTab = location.pathname === '/templates/assignments' ? 'assignments' : 'templates';
 
   useEffect(() => {
     // Load templates from localStorage
@@ -152,6 +157,40 @@ const Templates = () => {
   const renderTemplatesContent = () => {
     return (
       <div>
+        {/* Add the templates navbar */}
+        <div className="templates-navbar" style={{ 
+          display: 'flex', 
+          marginBottom: '20px', 
+          borderBottom: '1px solid #e2e8f0'
+        }}>
+          <Link 
+            to="/templates" 
+            className={`tab-button ${activeTab === 'templates' ? 'active' : ''}`}
+            style={{
+              padding: '10px 20px',
+              textDecoration: 'none',
+              color: activeTab === 'templates' ? '#4a5568' : '#718096',
+              fontWeight: 500,
+              borderBottom: activeTab === 'templates' ? '2px solid #6366f1' : 'none'
+            }}
+          >
+            Templates
+          </Link>
+          <Link 
+            to="/templates/assignments" 
+            className={`tab-button ${activeTab === 'assignments' ? 'active' : ''}`}
+            style={{
+              padding: '10px 20px',
+              textDecoration: 'none',
+              color: activeTab === 'assignments' ? '#4a5568' : '#718096',
+              fontWeight: 500,
+              borderBottom: activeTab === 'assignments' ? '2px solid #6366f1' : 'none'
+            }}
+          >
+            Assignments
+          </Link>
+        </div>
+        
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <h2 style={{ margin: 0 }}>Evaluation Templates</h2>
           <button
