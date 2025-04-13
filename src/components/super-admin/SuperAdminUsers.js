@@ -521,14 +521,14 @@ function SuperAdminUsers() {
                       <td>
                         <div className="action-buttons">
                           <button 
-                            className="action-button-styled"
+                            className="action-button-styled edit"
                             onClick={() => handleEditUser(user)}
                             title="Edit user"
                           >
                             <FaEdit />
                           </button>
                           <button 
-                            className="action-button-styled"
+                            className="action-button-styled reset"
                             onClick={() => handleResetPassword(user)}
                             title="Reset password"
                           >
@@ -563,42 +563,53 @@ function SuperAdminUsers() {
       </div>
       {renderModal()}
       
-      {/* Add this to your SuperAdmin.css file */}
       <style>{`
         .action-buttons {
           display: flex;
-          gap: 10px;
+          gap: 8px;
         }
         
         .action-button-styled {
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 36px;
-          height: 36px;
-          border-radius: 6px;
-          background-color: #f3f4f6;
-          color: #4b5563;
+          width: 34px;
+          height: 34px;
+          border-radius: 4px;
           border: none;
           cursor: pointer;
           transition: all 0.2s;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+          color: white;
+          font-size: 13px;
         }
         
-        .action-button-styled:hover {
-          background-color: #e5e7eb;
-          transform: translateY(-1px);
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        /* Edit button */
+        .action-button-styled.edit {
+          background-color: #f97316; /* Orange color to match your theme */
         }
         
+        .action-button-styled.edit:hover {
+          background-color: #ea580c;
+        }
+        
+        /* Reset password button */
+        .action-button-styled.reset {
+          background-color: #f97316; /* Orange color to match your theme */
+        }
+        
+        .action-button-styled.reset:hover {
+          background-color: #ea580c;
+        }
+        
+        /* Delete button */
         .action-button-styled.delete {
-          color: #ef4444;
+          background-color: #ef4444; /* Red color for delete action */
         }
         
         .action-button-styled.delete:hover {
-          background-color: #fee2e2;
+          background-color: #dc2626;
         }
-
+        
         .primary-button {
           height: 40px;
           background-color: #6366f1;
