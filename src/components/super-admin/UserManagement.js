@@ -396,6 +396,8 @@ function UserManagement() {
         bgColor = 'bg-yellow-100';
         textColor = 'text-yellow-800';
         break;
+      default:
+        break;
     }
     
     return (
