@@ -12,7 +12,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Include credentials in the request
+  withCredentials: false, // Changed to false to avoid CORS issues
 });
 
 const login = async (username, password) => {
@@ -24,6 +24,9 @@ const login = async (username, password) => {
     
     if (response.data && response.data.token) {
       localStorage.setItem('authToken', response.data.token);
+      
+      // Also store the user in localStorage for better state persistence
+      localStorage.setItem('user', JSON.stringify(response.data.user));
       
       return {
         token: response.data.token,
