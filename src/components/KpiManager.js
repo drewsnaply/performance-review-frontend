@@ -551,169 +551,179 @@ function KpiManager() {
     );
   };
   
-  // Create a user object for SidebarLayout to address "Missing 'user' prop" error
-  const user = currentUser || {
+  // Create a user object from currentUser for SidebarLayout
+  const user = currentUser ? {
+    firstName: currentUser.firstName || currentUser.username || 'Admin',
+    lastName: currentUser.lastName || 'User',
+    role: currentUser.role || 'ADMIN'
+  } : {
     firstName: 'Admin',
     lastName: 'User',
     role: 'ADMIN'
   };
-  
-  return (
-    <SidebarLayout user={user} activeView="kpis">
-      <div className="kpi-manager-container">
-        <div className="kpi-manager-header">
-          <h1 className="page-title">Key Performance Indicators</h1>
-          
-          <button 
-            className="add-kpi-button"
-            onClick={handleAddKpi}
+
+  // The KPI Manager content that will be wrapped by SidebarLayout
+  const renderContent = () => (
+    <div className="kpi-manager-container">
+      <div className="kpi-manager-header">
+        <h1 className="page-title">Key Performance Indicators</h1>
+        
+        <button 
+          className="add-kpi-button"
+          onClick={handleAddKpi}
+        >
+          <FaPlus /> Add New KPI
+        </button>
+      </div>
+      
+      <div className="filters-container">
+        <div className="filter">
+          <label><FaFilter /> Category:</label>
+          <select 
+            name="category" 
+            value={filters.category} 
+            onChange={handleFilterChange}
           >
-            <FaPlus /> Add New KPI
-          </button>
+            <option value="">All Categories</option>
+            <option value="Performance">Performance</option>
+            <option value="Development">Development</option>
+            <option value="Business">Business</option>
+            <option value="Customer">Customer</option>
+            <option value="Financial">Financial</option>
+            <option value="Team">Team</option>
+            <option value="Custom">Custom</option>
+          </select>
         </div>
         
-        <div className="filters-container">
+        {departments.length > 0 && (
           <div className="filter">
-            <label><FaFilter /> Category:</label>
+            <label>Department:</label>
             <select 
-              name="category" 
-              value={filters.category} 
+              name="department" 
+              value={filters.department} 
               onChange={handleFilterChange}
             >
-              <option value="">All Categories</option>
-              <option value="Performance">Performance</option>
-              <option value="Development">Development</option>
-              <option value="Business">Business</option>
-              <option value="Customer">Customer</option>
-              <option value="Financial">Financial</option>
-              <option value="Team">Team</option>
-              <option value="Custom">Custom</option>
+              <option value="">All Departments</option>
+              {departments.map(dept => (
+                <option key={dept._id} value={dept._id}>
+                  {dept.name}
+                </option>
+              ))}
             </select>
-          </div>
-          
-          {departments.length > 0 && (
-            <div className="filter">
-              <label>Department:</label>
-              <select 
-                name="department" 
-                value={filters.department} 
-                onChange={handleFilterChange}
-              >
-                <option value="">All Departments</option>
-                {departments.map(dept => (
-                  <option key={dept._id} value={dept._id}>
-                    {dept.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          
-          <div className="filter">
-            <label>Status:</label>
-            <select 
-              name="status" 
-              value={filters.status} 
-              onChange={handleFilterChange}
-            >
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-              <option value="Archived">Archived</option>
-              <option value="">All Statuses</option>
-            </select>
-          </div>
-        </div>
-        
-        {loading ? (
-          <div className="loading-state">Loading KPIs...</div>
-        ) : error ? (
-          <div className="error-state">{error}</div>
-        ) : (
-          <div className="kpi-grid">
-            {kpis.length === 0 ? (
-              <div className="empty-state">
-                <p>No KPIs found. Click "Add New KPI" to create one.</p>
-              </div>
-            ) : (
-              kpis.map(kpi => (
-                <div key={kpi._id} className="kpi-card">
-                  <div className="kpi-card-header">
-                    <h3 className="kpi-title">{kpi.title}</h3>
-                    <span className={getCategoryBadgeClass(kpi.category)}>
-                      {kpi.category}
-                    </span>
-                  </div>
-                  
-                  <div className="kpi-target-container">
-                    <div className="kpi-target">
-                      <strong>Target:</strong> {kpi.target}
-                      {kpi.targetValue && kpi.unit && (
-                        <span className="kpi-target-value">
-                          {kpi.targetValue}{kpi.unit}
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="kpi-meta">
-                      <span className={getFrequencyBadgeClass(kpi.frequency)}>
-                        {kpi.frequency}
-                      </span>
-                      <span className={getStatusBadgeClass(kpi.status)}>
-                        {kpi.status}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {kpi.description && (
-                    <div className="kpi-description">
-                      {kpi.description}
-                    </div>
-                  )}
-                  
-                  <div className="kpi-details">
-                    <div className="kpi-dates">
-                      <div><strong>Start:</strong> {formatDate(kpi.startDate)}</div>
-                      {kpi.endDate && (
-                        <div><strong>End:</strong> {formatDate(kpi.endDate)}</div>
-                      )}
-                    </div>
-                    
-                    <div className="kpi-scope">
-                      {kpi.isGlobal ? (
-                        <div className="kpi-global">Company-wide</div>
-                      ) : kpi.department ? (
-                        <div className="kpi-department">
-                          {kpi.department.name || 'Department'}
-                        </div>
-                      ) : (
-                        <div className="kpi-department">No department</div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="kpi-actions">
-                    <button 
-                      className="edit-button"
-                      onClick={() => handleEditKpi(kpi)}
-                    >
-                      <FaEdit /> Edit
-                    </button>
-                    
-                    <button 
-                      className="delete-button"
-                      onClick={() => handleDeleteKpi(kpi)}
-                    >
-                      <FaTrash /> Delete
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
           </div>
         )}
         
-        {renderKpiModal()}
+        <div className="filter">
+          <label>Status:</label>
+          <select 
+            name="status" 
+            value={filters.status} 
+            onChange={handleFilterChange}
+          >
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+            <option value="Archived">Archived</option>
+            <option value="">All Statuses</option>
+          </select>
+        </div>
       </div>
+      
+      {loading ? (
+        <div className="loading-state">Loading KPIs...</div>
+      ) : error ? (
+        <div className="error-state">{error}</div>
+      ) : (
+        <div className="kpi-grid">
+          {kpis.length === 0 ? (
+            <div className="empty-state">
+              <p>No KPIs found. Click "Add New KPI" to create one.</p>
+            </div>
+          ) : (
+            kpis.map(kpi => (
+              <div key={kpi._id} className="kpi-card">
+                <div className="kpi-card-header">
+                  <h3 className="kpi-title">{kpi.title}</h3>
+                  <span className={getCategoryBadgeClass(kpi.category)}>
+                    {kpi.category}
+                  </span>
+                </div>
+                
+                <div className="kpi-target-container">
+                  <div className="kpi-target">
+                    <strong>Target:</strong> {kpi.target}
+                    {kpi.targetValue && kpi.unit && (
+                      <span className="kpi-target-value">
+                        {kpi.targetValue}{kpi.unit}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="kpi-meta">
+                    <span className={getFrequencyBadgeClass(kpi.frequency)}>
+                      {kpi.frequency}
+                    </span>
+                    <span className={getStatusBadgeClass(kpi.status)}>
+                      {kpi.status}
+                    </span>
+                  </div>
+                </div>
+                
+                {kpi.description && (
+                  <div className="kpi-description">
+                    {kpi.description}
+                  </div>
+                )}
+                
+                <div className="kpi-details">
+                  <div className="kpi-dates">
+                    <div><strong>Start:</strong> {formatDate(kpi.startDate)}</div>
+                    {kpi.endDate && (
+                      <div><strong>End:</strong> {formatDate(kpi.endDate)}</div>
+                    )}
+                  </div>
+                  
+                  <div className="kpi-scope">
+                    {kpi.isGlobal ? (
+                      <div className="kpi-global">Company-wide</div>
+                    ) : kpi.department ? (
+                      <div className="kpi-department">
+                        {kpi.department.name || 'Department'}
+                      </div>
+                    ) : (
+                      <div className="kpi-department">No department</div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="kpi-actions">
+                  <button 
+                    className="edit-button"
+                    onClick={() => handleEditKpi(kpi)}
+                  >
+                    <FaEdit /> Edit
+                  </button>
+                  
+                  <button 
+                    className="delete-button"
+                    onClick={() => handleDeleteKpi(kpi)}
+                  >
+                    <FaTrash /> Delete
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+      
+      {renderKpiModal()}
+    </div>
+  );
+  
+  // Wrap the content with SidebarLayout to maintain consistent navigation style
+  return (
+    <SidebarLayout user={user} activeView="kpis">
+      {renderContent()}
     </SidebarLayout>
   );
 }
