@@ -61,21 +61,26 @@ function ViewEvaluation() {
         setLoading(true);
         setError(null);
         
+        // FIXED: Using the correct token key (authToken)
+        const token = localStorage.getItem('authToken');
+        
+        if (!token) {
+          throw new Error('Authentication token not found. Please log in again.');
+        }
+        
         console.log('Attempting to fetch review data for ID:', reviewId);
-        console.log('Using token:', localStorage.getItem('token'));
         
         const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}`, {
           headers: {
-            // Changed from 'authToken' to 'token'
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
         
         if (!response.ok) {
-          const errorMessage = `Failed to fetch review data (Status: ${response.status})`;
-          console.error(errorMessage);
-          throw new Error(errorMessage);
+          const errorText = await response.text();
+          console.error('Review fetch failed:', response.status, errorText);
+          throw new Error(`Failed to fetch review data (Status: ${response.status})`);
         }
         
         const data = await response.json();
@@ -85,8 +90,7 @@ function ViewEvaluation() {
         try {
           const kpisResponse = await fetch(`${API_BASE_URL}/api/kpis`, {
             headers: {
-              // Changed from 'authToken' to 'token'
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
             }
           });
@@ -107,8 +111,7 @@ function ViewEvaluation() {
           try {
             const goalsResponse = await fetch(`${API_BASE_URL}/api/goals?reviewId=${reviewId}`, {
               headers: {
-                // Changed from 'authToken' to 'token'
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
               }
             });
@@ -175,11 +178,17 @@ function ViewEvaluation() {
     try {
       setSubmitting(true);
       
+      // FIXED: Using the correct token key (authToken)
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+      
       const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}`, {
         method: 'PUT',
         headers: {
-          // Changed from 'authToken' to 'token'
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(reviewData)
@@ -217,6 +226,13 @@ function ViewEvaluation() {
     try {
       setSubmitting(true);
       
+      // FIXED: Using the correct token key (authToken)
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+      
       const reviewToSubmit = {
         ...reviewData,
         status: 'Submitted',
@@ -226,8 +242,7 @@ function ViewEvaluation() {
       const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}/submit`, {
         method: 'PUT',
         headers: {
-          // Changed from 'authToken' to 'token'
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(reviewToSubmit)
@@ -262,6 +277,13 @@ function ViewEvaluation() {
     try {
       setSubmitting(true);
       
+      // FIXED: Using the correct token key (authToken)
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+      
       const reviewToComplete = {
         ...reviewData,
         status: 'Completed'
@@ -270,8 +292,7 @@ function ViewEvaluation() {
       const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}/complete`, {
         method: 'PUT',
         headers: {
-          // Changed from 'authToken' to 'token'
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(reviewToComplete)
@@ -301,6 +322,13 @@ function ViewEvaluation() {
     
     try {
       setSubmitting(true);
+      
+      // FIXED: Using the correct token key (authToken)
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
       
       // Prepare progress snapshot
       const progressSnapshot = {
@@ -337,8 +365,7 @@ function ViewEvaluation() {
       const response = await fetch(`${API_BASE_URL}/api/reviews/${reviewId}/checkin`, {
         method: 'POST',
         headers: {
-          // Changed from 'authToken' to 'token'
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -456,6 +483,13 @@ function ViewEvaluation() {
         return;
       }
       
+      // FIXED: Using the correct token key (authToken)
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+      
       // Prepare goal data
       const goalData = {
         ...goalForm,
@@ -474,8 +508,7 @@ function ViewEvaluation() {
       const response = await fetch(url, {
         method,
         headers: {
-          // Changed from 'authToken' to 'token'
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(goalData)
@@ -517,11 +550,17 @@ function ViewEvaluation() {
     }
     
     try {
+      // FIXED: Using the correct token key (authToken)
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+      
       const response = await fetch(`${API_BASE_URL}/api/goals/${goal._id}`, {
         method: 'DELETE',
         headers: {
-          // Changed from 'authToken' to 'token'
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
       
@@ -1073,8 +1112,15 @@ function ViewEvaluation() {
     return (
       <SidebarLayout user={user}>
         <div className="error-container">
+          <FaExclamationTriangle style={{ fontSize: '3rem', color: '#e53e3e', marginBottom: '20px' }} />
+          <h2>Error Loading Review</h2>
           <p>{error}</p>
-          <button onClick={() => navigate('/reviews')}>Back to Reviews</button>
+          <button 
+            className="primary-button" 
+            onClick={() => navigate('/reviews')}
+          >
+            <FaArrowLeft /> Back to Reviews
+          </button>
         </div>
       </SidebarLayout>
     );
@@ -1084,8 +1130,14 @@ function ViewEvaluation() {
     return (
       <SidebarLayout user={user}>
         <div className="error-container">
-          <p>Review data not found. It may have been deleted or you don't have permission to view it.</p>
-          <button onClick={() => navigate('/reviews')}>Back to Reviews</button>
+          <h2>Review Not Found</h2>
+          <p>The requested review could not be found or you do not have permission to view it.</p>
+          <button 
+            onClick={() => navigate('/reviews')}
+            className="primary-button"
+          >
+            <FaArrowLeft /> Back to Reviews
+          </button>
         </div>
       </SidebarLayout>
     );
@@ -1203,7 +1255,7 @@ function ViewEvaluation() {
                   )}
                   
                   <div className="section-questions">
-                    {section.questions.map((question, questionIndex) => (
+                    {section.questions && section.questions.map((question, questionIndex) => (
                       <div key={questionIndex} className="question-item">
                         <label className="question-text">
                           {question.text}
