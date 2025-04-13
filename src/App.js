@@ -20,6 +20,7 @@ import Employees from './pages/Employees';
 import Settings from './pages/Settings';
 import Unauthorized from './pages/Unauthorized';
 import Test from './pages/Test';
+import SetupPassword from './pages/SetupPassword';
 
 // Import components for routes
 import MyReviews from './components/MyReviews';
@@ -60,6 +61,7 @@ const TitleUpdater = () => {
         '/pending-reviews': 'Pending Reviews',
         '/goals': 'Monthly Goal Tracking',
         '/kpis': 'KPI Management',
+        '/setup-password': 'Setup Your Password',
         
         // Super Admin routes
         '/super-admin': 'Super Admin Dashboard',
@@ -95,6 +97,11 @@ const TitleUpdater = () => {
       if (location.pathname.match(/^\/super-admin\/customers\/[^/]+\/details$/)) {
         return 'Customer Details';
       }
+      
+      // Check if path is password setup page
+      if (location.pathname.startsWith('/setup-password/')) {
+        return 'Account Setup';
+      }
 
       return pathToTitleMap[location.pathname] || 'Performance Review System';
     };
@@ -118,6 +125,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="/setup-password/:token" element={<SetupPassword />} />
 
             {/* Private Routes */}
             <Route

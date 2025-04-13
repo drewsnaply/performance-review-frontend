@@ -221,7 +221,7 @@ function SuperAdminUsers() {
     
     if (!formData.username) errors.username = 'Username is required';
     if (!formData.email) errors.email = 'Email is required';
-    if (modalMode === 'create' && !formData.password) errors.password = 'Password is required';
+    // Only validate password for password reset mode, not for user creation
     if (modalMode === 'password' && !formData.password) errors.password = 'New password is required';
     
     setFormErrors(errors);
@@ -240,15 +240,23 @@ function SuperAdminUsers() {
       let response;
       
       if (modalMode === 'create') {
-        // Create new user
+        // For new users, we don't need to send a password - the backend will generate one
+        const userData = { ...formData };
+        // Remove password since the backend will handle this
+        delete userData.password;
+        
         response = await fetch(`${API_BASE_URL}/api/users`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(formData)
+          body: JSON.stringify(userData)
         });
+        
+        if (response.ok) {
+          alert('User created successfully. A welcome email has been sent with instructions to set up their password.');
+        }
       } else if (modalMode === 'edit') {
         // Update existing user
         const updateData = { ...formData };
@@ -367,18 +375,28 @@ function SuperAdminUsers() {
                 </>
               )}
               
-              <div className="form-group">
-                <label>{modalMode === 'password' ? 'New Password' : 'Password'}</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  className={`form-control ${formErrors.password ? 'error' : ''}`}
-                  placeholder={modalMode === 'edit' ? '(Leave blank to keep current)' : ''}
-                />
-                {formErrors.password && <div className="error-message">{formErrors.password}</div>}
-              </div>
+              {modalMode === 'create' && (
+                <div className="form-group">
+                  <p className="text-gray-600 text-sm bg-blue-50 p-3 rounded">
+                    A welcome email will be sent to the user with instructions to set up their password.
+                  </p>
+                </div>
+              )}
+
+              {modalMode === 'password' && (
+                <div className="form-group">
+                  <label>New Password</label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className={`form-control ${formErrors.password ? 'error' : ''}`}
+                    required
+                  />
+                  {formErrors.password && <div className="error-message">{formErrors.password}</div>}
+                </div>
+              )}
               
               <div className="modal-actions">
                 <button 
