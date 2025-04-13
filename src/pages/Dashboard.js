@@ -21,6 +21,9 @@ const ViewEvaluation = lazy(() => import('../components/ViewEvaluation'));
 const PendingReviews = lazy(() => import('../components/PendingReviews'));
 const TemplateAssignments = lazy(() => import('../components/TemplateAssignments'));
 
+// Import Super Admin components
+const SuperAdminDashboard = lazy(() => import('../components/super-admin/SuperAdminDashboard'));
+
 function Dashboard({ initialView = 'dashboard' }) {
   const { employees } = useDepartments();
   const [activeView, setActiveView] = useState(initialView);
@@ -234,6 +237,12 @@ function Dashboard({ initialView = 'dashboard' }) {
       setActiveView('templates');
     }
   };
+
+  // Handle navigation to Super Admin Dashboard
+  const goToSuperAdmin = () => {
+    setActiveView('super-admin');
+    navigate('/super-admin/customers');
+  };
   
   // Calculate active employees count safely
   const activeEmployeesCount = Array.isArray(employees) ? 
@@ -262,9 +271,9 @@ function Dashboard({ initialView = 'dashboard' }) {
       case 'kpis': return renderComponent(KpiManager);
       case 'tools-imports': return renderComponent(ImportTool);
       case 'tools-exports': return renderComponent(ExportTool);
-      // EvaluationManagement case removed
       case 'evaluation-detail': return renderComponent(ViewEvaluation);
       case 'pending-reviews': return renderComponent(PendingReviews);
+      case 'super-admin': return renderComponent(SuperAdminDashboard);
       default: return renderDashboardDefault();
     }
   };
@@ -274,6 +283,22 @@ function Dashboard({ initialView = 'dashboard' }) {
     return (
       <>
         <h1 className="page-title">Dashboard Overview</h1>
+        
+        {/* Super Admin Access Panel - Only visible to superadmin users */}
+        {user && user.role === 'superadmin' && (
+          <div className="super-admin-access-panel mb-6 p-4 bg-indigo-100 rounded-lg border border-indigo-200">
+            <h3 className="text-lg font-medium text-indigo-800 mb-2">Super Admin Access</h3>
+            <p className="text-indigo-700 mb-3">
+              You are logged in as a Super Admin. Access advanced administrative features below.
+            </p>
+            <button
+              onClick={goToSuperAdmin}
+              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
+            >
+              Go to Super Admin Dashboard
+            </button>
+          </div>
+        )}
         
         <div className="dashboard-overview">
           <div 
