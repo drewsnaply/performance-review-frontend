@@ -8,10 +8,13 @@ const AuthInitCheck = () => {
     if (!checked) {
       const currentPath = window.location.pathname;
       
-      // Skip for login, register, unauthorized and test pages
-      if (currentPath === '/login' || currentPath === '/register' || 
-          currentPath === '/unauthorized' || currentPath === '/test' ||
-          currentPath === '/direct-dashboard') {
+      // Skip for login, register, unauthorized, test pages, and setup-password
+      if (currentPath === '/login' || 
+          currentPath === '/register' || 
+          currentPath === '/unauthorized' || 
+          currentPath === '/test' ||
+          currentPath === '/direct-dashboard' ||
+          currentPath.startsWith('/setup-password')) {
         setChecked(true);
         return;
       }
