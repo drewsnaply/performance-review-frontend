@@ -68,7 +68,8 @@ export const AuthProvider = ({ children }) => {
         
         if (
           window.location.pathname !== '/login' && 
-          window.location.pathname !== '/register'
+          window.location.pathname !== '/register' &&
+          !window.location.pathname.startsWith('/setup-password')
         ) {
           window.location.replace('/login');
         }
