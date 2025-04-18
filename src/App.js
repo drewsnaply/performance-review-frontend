@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { DepartmentProvider } from './context/DepartmentContext';
 import PrivateRoute from './components/PrivateRoute';
 import AuthInitCheck from './components/AuthInitCheck';
@@ -40,6 +40,15 @@ import SuperAdminSettings from './components/super-admin/SuperAdminSettings';
 import SuperAdminSessions from './components/super-admin/SuperAdminSessions';
 import ExitImpersonation from './components/super-admin/ExitImpersonation';
 
+// Import Manager Dashboard components
+import ManagerDashboard from './components/Manager/ManagerDashboard';
+import TeamMember from './components/Manager/TeamMember';
+import ReviewForm from './components/Manager/ReviewForm';
+import ManagerSidebar from './components/Manager/ManagerSidebar';
+
+// Import CSS files - correct path within src directory
+import './styles/Manager/ManagerLayout.css';
+
 // Title Updater Component
 const TitleUpdater = () => {
   const location = useLocation();
@@ -70,7 +79,12 @@ const TitleUpdater = () => {
         '/super-admin/sessions': 'Active Sessions',
         '/super-admin/analytics': 'System Analytics',
         '/super-admin/logs': 'System Logs',
-        '/super-admin/settings': 'System Settings'
+        '/super-admin/settings': 'System Settings',
+        
+        // Manager Dashboard routes
+        '/manager/dashboard': 'Manager Dashboard',
+        '/manager/reviews/new': 'New Performance Review',
+        '/manager/employees': 'Team Members'
       };
 
       // Check if path is an employee profile page
@@ -102,6 +116,16 @@ const TitleUpdater = () => {
       if (location.pathname.startsWith('/setup-password/')) {
         return 'Account Setup';
       }
+      
+      // Check if path is a team member profile page
+      if (location.pathname.match(/^\/manager\/employees\/[^/]+$/)) {
+        return 'Team Member Profile';
+      }
+      
+      // Check if path is editing a review
+      if (location.pathname.match(/^\/manager\/reviews\/[^/]+$/)) {
+        return 'Edit Performance Review';
+      }
 
       return pathToTitleMap[location.pathname] || 'Performance Review System';
     };
@@ -112,7 +136,75 @@ const TitleUpdater = () => {
   return null;
 };
 
+// Manager Layout Component
+const ManagerLayout = ({ children, activeView }) => {
+  const auth = useAuth();
+  
+  return (
+    <div className="manager-layout">
+      <ManagerSidebar user={auth.user} activeView={activeView} />
+      <div className="manager-content">
+        {children}
+      </div>
+    </div>
+  );
+};
+
+// Add styles for manager layout directly in the component
+const injectManagerStyles = () => {
+  // Create a style element if it doesn't already exist
+  if (!document.getElementById('manager-layout-styles')) {
+    const styleElement = document.createElement('style');
+    styleElement.id = 'manager-layout-styles';
+    styleElement.innerHTML = `
+      /* Manager Layout Styles */
+      .manager-layout {
+        display: flex;
+        width: 100%;
+        min-height: 100vh;
+        background-color: #f9fafb;
+      }
+      
+      .manager-content {
+        flex: 1;
+        margin-left: 250px;
+        transition: margin-left 0.3s ease;
+        padding: 20px;
+        min-height: 100vh;
+        background-color: #f9fafb;
+      }
+      
+      .manager-content.sidebar-collapsed {
+        margin-left: 60px;
+        width: calc(100% - 60px);
+      }
+      
+      /* Responsive adjustments */
+      @media (max-width: 768px) {
+        .manager-content {
+          margin-left: 200px;
+          padding: 16px;
+        }
+      }
+    `;
+    document.head.appendChild(styleElement);
+  }
+};
+
 function App() {
+  // Inject manager styles when App mounts
+  useEffect(() => {
+    injectManagerStyles();
+    
+    // Cleanup on unmount
+    return () => {
+      const styleElement = document.getElementById('manager-layout-styles');
+      if (styleElement) {
+        styleElement.remove();
+      }
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <DepartmentProvider>
@@ -127,7 +219,7 @@ function App() {
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/setup-password/:token" element={<SetupPassword />} />
 
-            {/* Private Routes */}
+            {/* Private Routes - Regular users and admins */}
             <Route
               path="/dashboard"
               element={
@@ -144,6 +236,8 @@ function App() {
                 </PrivateRoute>
               }
             />
+            
+            {/* Admin and Manager Routes */}
             <Route
               path="/employees"
               element={
@@ -152,20 +246,11 @@ function App() {
                 </PrivateRoute>
               }
             />
-            {/* New route for employee profile */}
             <Route
               path="/employees/:id"
               element={
                 <PrivateRoute allowedRoles={['manager', 'admin']}>
                   <EmployeeProfile />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <PrivateRoute allowedRoles={['admin']}>
-                  <Settings />
                 </PrivateRoute>
               }
             />
@@ -193,7 +278,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            {/* Template Assignments route */}
             <Route
               path="/templates/assignments"
               element={
@@ -202,7 +286,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-            {/* New route for template builder */}
             <Route
               path="/templates/builder"
               element={
@@ -211,12 +294,45 @@ function App() {
                 </PrivateRoute>
               }
             />
-            {/* New route for editing existing templates */}
             <Route
               path="/templates/builder/:id"
               element={
                 <PrivateRoute allowedRoles={['manager', 'admin']}>
                   <TemplateBuilder />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/pending-reviews"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin']}>
+                  <PendingReviews />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/reviews/edit/:id"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin']}>
+                  <ViewEvaluation />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/kpis"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin']}>
+                  <KpiManager />
+                </PrivateRoute>
+              }
+            />
+            
+            {/* Admin-only Routes */}
+            <Route
+              path="/settings"
+              element={
+                <PrivateRoute allowedRoles={['admin']}>
+                  <Settings />
                 </PrivateRoute>
               }
             />
@@ -236,26 +352,8 @@ function App() {
                 </PrivateRoute>
               }
             />
-            <Route
-              path="/pending-reviews"
-              element={
-                <PrivateRoute allowedRoles={['manager', 'admin']}>
-                  <PendingReviews />
-                </PrivateRoute>
-              }
-            />
             
-            {/* New route for editing reviews */}
-            <Route
-              path="/reviews/edit/:id"
-              element={
-                <PrivateRoute allowedRoles={['manager', 'admin']}>
-                  <ViewEvaluation />
-                </PrivateRoute>
-              }
-            />
-            
-            {/* New route for goal tracking */}
+            {/* Routes accessible by all users */}
             <Route
               path="/goals"
               element={
@@ -264,23 +362,11 @@ function App() {
                 </PrivateRoute>
               }
             />
-            
-            {/* New route for goal tracking for a specific review */}
             <Route
               path="/goals/review/:reviewId"
               element={
                 <PrivateRoute>
                   <MonthlyGoalTracking />
-                </PrivateRoute>
-              }
-            />
-            
-            {/* New route for KPI management */}
-            <Route
-              path="/kpis"
-              element={
-                <PrivateRoute allowedRoles={['manager', 'admin']}>
-                  <KpiManager />
                 </PrivateRoute>
               }
             />
@@ -294,7 +380,6 @@ function App() {
                 </PrivateRoute>
               } 
             />
-            
             <Route 
               path="/super-admin/customers" 
               element={
@@ -303,7 +388,6 @@ function App() {
                 </PrivateRoute>
               } 
             />
-            
             <Route 
               path="/super-admin/customers/:customerId/details" 
               element={
@@ -312,7 +396,6 @@ function App() {
                 </PrivateRoute>
               } 
             />
-            
             <Route 
               path="/super-admin/users" 
               element={
@@ -321,7 +404,6 @@ function App() {
                 </PrivateRoute>
               } 
             />
-            
             <Route 
               path="/super-admin/sessions" 
               element={
@@ -330,7 +412,6 @@ function App() {
                 </PrivateRoute>
               } 
             />
-            
             <Route 
               path="/super-admin/analytics" 
               element={
@@ -339,7 +420,6 @@ function App() {
                 </PrivateRoute>
               } 
             />
-            
             <Route 
               path="/super-admin/logs" 
               element={
@@ -348,7 +428,6 @@ function App() {
                 </PrivateRoute>
               } 
             />
-            
             <Route 
               path="/super-admin/settings" 
               element={
@@ -357,7 +436,6 @@ function App() {
                 </PrivateRoute>
               } 
             />
-            
             <Route 
               path="/super-admin/exit-impersonation" 
               element={
@@ -365,6 +443,48 @@ function App() {
                   <ExitImpersonation />
                 </PrivateRoute>
               } 
+            />
+
+            {/* Manager Dashboard Routes - Using ManagerLayout */}
+            <Route
+              path="/manager/dashboard"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin', 'superadmin', 'super_admin']}>
+                  <ManagerLayout activeView="manager-dashboard">
+                    <ManagerDashboard />
+                  </ManagerLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/manager/employees/:employeeId"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin', 'superadmin', 'super_admin']}>
+                  <ManagerLayout activeView="team-members">
+                    <TeamMember />
+                  </ManagerLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/manager/reviews/new"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin', 'superadmin', 'super_admin']}>
+                  <ManagerLayout activeView="create-review">
+                    <ReviewForm />
+                  </ManagerLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/manager/reviews/:reviewId"
+              element={
+                <PrivateRoute allowedRoles={['manager', 'admin', 'superadmin', 'super_admin']}>
+                  <ManagerLayout activeView="create-review">
+                    <ReviewForm />
+                  </ManagerLayout>
+                </PrivateRoute>
+              }
             />
 
             {/* Default Routes */}

@@ -32,7 +32,7 @@ const AuthInitCheck = () => {
             return;
           }
           
-          // Check if we need to redirect to Super Admin dashboard
+          // Check if we need to redirect to role-specific dashboard
           if (currentPath === '/' || currentPath === '/dashboard') {
             // Get user data to check role
             const userData = localStorage.getItem('user');
@@ -41,9 +41,38 @@ const AuthInitCheck = () => {
                 const user = JSON.parse(userData);
                 
                 // If user is superadmin, redirect to Super Admin dashboard
-                if (user.role === 'superadmin') {
+                if (user.role === 'superadmin' || user.role === 'super_admin') {
                   console.log('Super Admin detected, redirecting to Super Admin dashboard');
                   window.location.href = '/super-admin/customers';
+                  return;
+                }
+                
+                // If user is manager, redirect to Manager dashboard
+                if (user.role === 'manager') {
+                  console.log('Manager detected, redirecting to Manager dashboard');
+                  window.location.href = '/manager/dashboard';
+                  return;
+                }
+              } catch (parseError) {
+                console.error('Error parsing user data:', parseError);
+              }
+            }
+          }
+          
+          // Check if manager is trying to access admin-only pages
+          if ((currentPath.startsWith('/settings') || 
+              currentPath.startsWith('/import-tool') || 
+              currentPath.startsWith('/export-tool'))) {
+            
+            const userData = localStorage.getItem('user');
+            if (userData) {
+              try {
+                const user = JSON.parse(userData);
+                
+                // If user is manager, redirect to manager dashboard
+                if (user.role === 'manager') {
+                  console.log('Manager trying to access admin-only page, redirecting to manager dashboard');
+                  window.location.href = '/manager/dashboard';
                   return;
                 }
               } catch (parseError) {
