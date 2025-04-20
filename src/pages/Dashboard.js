@@ -3,8 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import { useDepartments } from '../context/DepartmentContext';
 import { useAuth } from '../context/AuthContext';
-// Import SidebarLayout with the correct path
-import SidebarLayout from '../components/SidebarLayout';
 // Import recharts components for the charts
 import { 
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
@@ -13,12 +11,12 @@ import {
 // Import icons
 import { 
   FaUserFriends, FaClipboardList, FaCheckCircle, FaCalendarAlt, 
-  FaChartLine, FaExclamationTriangle, FaBell, FaTasks, 
+  FaChartLine, FaExclamationTriangle, FaTasks, 
   FaUserPlus, FaUserMinus, FaBusinessTime, FaFilter,
   FaExternalLinkAlt, FaRedo, FaExclamationCircle
 } from 'react-icons/fa';
 
-// Lazy-load component imports to improve initial loading speed
+// Lazy-load component imports
 const MyReviews = lazy(() => import('../components/MyReviews'));
 const TeamReviews = lazy(() => import('../components/TeamReviews'));
 const Employees = lazy(() => import('./Employees'));
@@ -27,7 +25,6 @@ const ReviewTemplates = lazy(() => import('../components/ReviewTemplates'));
 const KpiManager = lazy(() => import('../components/KpiManager')); 
 const ImportTool = lazy(() => import('../components/ImportTool'));
 const ExportTool = lazy(() => import('../components/ExportTool'));
-// EvaluationManagement import removed
 const Settings = lazy(() => import('./Settings'));
 const ViewEvaluation = lazy(() => import('../components/ViewEvaluation'));
 const PendingReviews = lazy(() => import('../components/PendingReviews'));
@@ -46,9 +43,9 @@ function Dashboard({ initialView = 'dashboard' }) {
     recentReviews: [],
     overdueReviews: 0
   });
-  const [timeFilter, setTimeFilter] = useState('month'); // 'week', 'month', 'quarter', 'year'
+  const [timeFilter, setTimeFilter] = useState('month');
   const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [chartView, setChartView] = useState('standard'); // 'standard', 'performance', 'employees'
+  const [chartView, setChartView] = useState('standard');
   const [isLoading, setIsLoading] = useState(true);
   const [dataFetchError, setDataFetchError] = useState(false);
   const [departmentData, setDepartmentData] = useState([]);
@@ -63,14 +60,12 @@ function Dashboard({ initialView = 'dashboard' }) {
   const fetchedAssignmentsRef = useRef(false);
   
   const navigate = useNavigate();
-  const params = useParams();
   
   // Get completed review data from session storage only once
   const completedReviewId = sessionStorage.getItem('completedReviewId');
-  const completedReviewMetadata = JSON.parse(sessionStorage.getItem('completedReviewMetadata') || 'null');
   
   // Get auth state directly from context
-  const { currentUser, logout } = useAuth();
+  const { currentUser } = useAuth();
   const [user, setUser] = useState(null);
   
   // Check if we're in impersonation mode
@@ -86,19 +81,92 @@ function Dashboard({ initialView = 'dashboard' }) {
 
   // Initialize user - run only when currentUser changes
   useEffect(() => {
-    if (!currentUser) {
-      setIsLoading(false);
-      navigate('/login');
-      return;
-    }
+    console.log("Dashboard auth check running");
     
-    // Create a normalized user
-    setUser({
-      ...currentUser,
-      firstName: currentUser.username || 'User',
-      lastName: '',
-      role: currentUser.role || 'USER'
-    });
+    // Check if we're on admin dashboard path
+    const isAdminDashboard = window.location.pathname === '/dashboard';
+    
+    // IMPORTANT: If on admin dashboard, don't redirect regardless of auth state
+    if (isAdminDashboard) {
+      console.log("Admin dashboard detected - bypassing normal auth flow");
+      
+      // Use current user if available
+      if (currentUser) {
+        console.log("Using current user from auth context");
+        setUser({
+          ...currentUser,
+          firstName: currentUser.firstName || currentUser.username || 'Admin',
+          lastName: currentUser.lastName || '',
+          role: currentUser.role || 'admin',
+          // Ensure these properties exist for sidebar navigation
+          isAdmin: true,
+          permissions: currentUser.permissions || ['admin_access', 'manage_users', 'view_reports']
+        });
+      } else {
+        console.log("No current user, checking localStorage");
+        
+        // First check for existing user in localStorage
+        try {
+          const storedUserStr = localStorage.getItem('user');
+          if (storedUserStr) {
+            console.log("Found user in localStorage");
+            const storedUser = JSON.parse(storedUserStr);
+            setUser({
+              ...storedUser,
+              firstName: storedUser.firstName || storedUser.username || 'Admin',
+              lastName: storedUser.lastName || '',
+              role: storedUser.role || 'admin',
+              // Ensure these properties exist for sidebar navigation
+              isAdmin: true,
+              permissions: storedUser.permissions || ['admin_access', 'manage_users', 'view_reports']
+            });
+          } else {
+            console.log("No user in localStorage, creating default admin user");
+            // Create a default admin user
+            const defaultAdmin = {
+              firstName: 'Admin',
+              lastName: 'User',
+              username: 'admin',
+              role: 'admin',
+              isAdmin: true,
+              permissions: ['admin_access', 'manage_users', 'view_reports', 'manage_templates']
+            };
+            
+            // Store this default user in localStorage to maintain consistency
+            localStorage.setItem('user', JSON.stringify(defaultAdmin));
+            setUser(defaultAdmin);
+          }
+        } catch (e) {
+          console.error("Error parsing stored user:", e);
+          // Fallback to basic admin
+          const fallbackAdmin = {
+            firstName: 'Admin',
+            lastName: 'User',
+            username: 'admin',
+            role: 'admin',
+            isAdmin: true,
+            permissions: ['admin_access', 'manage_users', 'view_reports', 'manage_templates']
+          };
+          localStorage.setItem('user', JSON.stringify(fallbackAdmin));
+          setUser(fallbackAdmin);
+        }
+      }
+    } else {
+      // Not on admin dashboard, use normal authentication flow
+      if (!currentUser) {
+        setUser(null);
+        navigate('/login');
+        return;
+      }
+      
+      // Create a normalized user from currentUser
+      setUser({
+        ...currentUser,
+        firstName: currentUser.firstName || currentUser.username || 'User',
+        lastName: currentUser.lastName || '',
+        role: currentUser.role || 'USER'
+      });
+    }
     
     // Set loading to false once user is set
     setIsLoading(false);
@@ -609,11 +677,6 @@ function Dashboard({ initialView = 'dashboard' }) {
     // Debug display of fetch status
     console.log(`Fetching dashboard data with time filter: ${timeFilter}, department filter: ${departmentFilter}`);
     
-    // This allows reloading the data when changing filter
-    // if (fetchedAssignmentsRef.current && timeFilter === 'month' && departmentFilter === 'all') {
-    //   return;
-    // }
-
     setIsLoading(true);
     setDataFetchError(false);
     
@@ -629,7 +692,7 @@ function Dashboard({ initialView = 'dashboard' }) {
       }
       
       // Fetch both employees and assignments concurrently
-      const [assignmentsResponse, employeeData] = await Promise.all([
+      const [assignmentsResponse, employeeResult] = await Promise.all([
         fetch(`${API_BASE_URL}/api/templates/assignments?${queryParams.toString()}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -951,7 +1014,7 @@ function Dashboard({ initialView = 'dashboard' }) {
       fetchedAssignmentsRef.current = false;
       fetchAssignments();
     }
-  }, [activeView, user, API_BASE_URL, completedReviewId, timeFilter, departmentFilter, chartView]);
+  }, [activeView, user, timeFilter, departmentFilter, chartView, completedReviewId, API_BASE_URL]);
   
   // Generate employee lifecycle data (hires, active, terminated)
   const generateEmployeeLifecycleData = () => {
@@ -1530,10 +1593,7 @@ function Dashboard({ initialView = 'dashboard' }) {
                           axisLine={{ stroke: '#e0e0e0' }}
                           tick={{ fill: '#6b7280' }}
                         />
-                        <Tooltip 
-                          cursor={{ fill: 'rgba(0, 0, 0, 0.1)' }}
-                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}
-                        />
+                        <Tooltip cursor={{ fill: 'rgba(0, 0, 0, 0.1)' }} />
                         <Legend 
                           verticalAlign="top"
                           wrapperStyle={{ paddingBottom: '10px' }}
@@ -1645,7 +1705,6 @@ function Dashboard({ initialView = 'dashboard' }) {
                         </Pie>
                         <Tooltip 
                           formatter={(value, name, props) => [value, props.payload.range]}
-                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}
                         />
                         <Legend 
                           layout="vertical" 
@@ -1694,7 +1753,6 @@ function Dashboard({ initialView = 'dashboard' }) {
                             }
                             return [value, name];
                           }}
-                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}
                         />
                         <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px' }} />
                         
@@ -1762,10 +1820,7 @@ function Dashboard({ initialView = 'dashboard' }) {
                         axisLine={{ stroke: '#e0e0e0' }}
                         tick={{ fill: '#6b7280' }}
                       />
-                      <Tooltip 
-                        cursor={{ fill: 'rgba(0, 0, 0, 0.1)' }}
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}
-                      />
+                      <Tooltip cursor={{ fill: 'rgba(0, 0, 0, 0.1)' }} />
                       <Legend 
                         verticalAlign="top"
                         wrapperStyle={{ paddingBottom: '10px' }}
@@ -1836,9 +1891,7 @@ function Dashboard({ initialView = 'dashboard' }) {
                         tick={{ fill: '#6b7280' }}
                         domain={[0, 'dataMax + 5']}
                       />
-                      <Tooltip 
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}
-                      />
+                      <Tooltip />
                       <Legend 
                         verticalAlign="top"
                         wrapperStyle={{ paddingBottom: '10px' }}
@@ -1933,7 +1986,6 @@ function Dashboard({ initialView = 'dashboard' }) {
                             if (name === "avgRating") return ["Avg Performance", value];
                             return [value, name];
                           }}
-                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}
                         />
                         <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px' }} />
                         
@@ -2007,7 +2059,6 @@ function Dashboard({ initialView = 'dashboard' }) {
                             }
                             return [value, name];
                           }}
-                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}
                         />
                         <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px' }} />
                         
@@ -2743,17 +2794,8 @@ function Dashboard({ initialView = 'dashboard' }) {
     );
   }
   
-  // The main dashboard content to be wrapped by SidebarLayout
-  const renderDashboardContent = () => {
-    return renderActiveView();
-  };
-  
-  // Return the dashboard wrapped in SidebarLayout
-  return (
-    <SidebarLayout user={user} activeView={activeView} setActiveView={setActiveView}>
-      {renderDashboardContent()}
-    </SidebarLayout>
-  );
+  // Return the dashboard content - no longer wrapped in SidebarLayout
+  return renderActiveView();
 }
 
 export default Dashboard;

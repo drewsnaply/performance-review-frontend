@@ -5,7 +5,8 @@ import { FaEdit, FaTrash, FaUserPlus, FaSearch, FaKey, FaSyncAlt, FaEye } from '
 import '../styles/Employees.css';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import SidebarLayout from '../components/SidebarLayout';
+
+// IMPORTANT: Removed the SidebarLayout import - this was causing the double sidebar
 
 function Employees() {
   const { departments, employees, setEmployees } = useDepartments();
@@ -21,12 +22,7 @@ function Employees() {
   const [sortConfig, setSortConfig] = useState({ key: 'lastName', direction: 'ascending' });
   const { currentUser } = useAuth();
 
-  // Create user object for SidebarLayout
-  const user = currentUser ? {
-    firstName: currentUser.firstName || currentUser.username || 'User',
-    lastName: currentUser.lastName || '',
-    role: currentUser.role || 'USER'
-  } : null;
+  // Removed the user object for SidebarLayout since we're not using it
 
   // Define the API base URL based on environment
   const API_BASE_URL = process.env.NODE_ENV === 'development' 
@@ -296,197 +292,190 @@ function Employees() {
     return sortConfig.direction === 'ascending' ? ' ▲' : ' ▼';
   };
 
-  // Content to be wrapped in the SidebarLayout
-  const renderEmployeesContent = () => {
-    if (isLoading && employees.length === 0) {
-      return <div className="loading-spinner">Loading employees...</div>;
-    }
+  // Removed the renderEmployeesContent function and SidebarLayout wrapper
 
-    if (error && employees.length === 0) {
-      return <div className="error-message">{error}</div>;
-    }
+  // Return the content directly
+  if (isLoading && employees.length === 0) {
+    return <div className="loading-spinner">Loading employees...</div>;
+  }
 
-    return (
-      <div className="employees-container">
-        <div className="employees-header">
-          <h1>Employees Management</h1>
-          <button 
-            onClick={openAddEmployeeModal} 
-            className="btn btn-primary add-employee-btn"
+  if (error && employees.length === 0) {
+    return <div className="error-message">{error}</div>;
+  }
+
+  return (
+    <div className="employees-container">
+      <div className="employees-header">
+        <h1>Employees Management</h1>
+        <button 
+          onClick={openAddEmployeeModal} 
+          className="btn btn-primary add-employee-btn"
+        >
+          <FaUserPlus /> Add Employee
+        </button>
+      </div>
+      
+      <div className="filters-container">
+        <div className="search-container">
+          <FaSearch className="search-icon" />
+          <input
+            type="text"
+            placeholder="Search employees by name, email, role..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="search-input"
+          />
+        </div>
+        
+        <div className="department-filter">
+          <select
+            value={selectedDepartment}
+            onChange={e => setSelectedDepartment(e.target.value)}
+            className="department-select"
           >
-            <FaUserPlus /> Add Employee
-          </button>
+            <option value="">All Departments</option>
+            {departments.map(dept => (
+              <option key={dept._id || dept.id || `dept-${dept.name}`} value={dept.name}>
+                {dept.name}
+              </option>
+            ))}
+          </select>
         </div>
-        
-        <div className="filters-container">
-          <div className="search-container">
-            <FaSearch className="search-icon" />
-            <input
-              type="text"
-              placeholder="Search employees by name, email, role..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="search-input"
-            />
-          </div>
-          
-          <div className="department-filter">
-            <select
-              value={selectedDepartment}
-              onChange={e => setSelectedDepartment(e.target.value)}
-              className="department-select"
-            >
-              <option value="">All Departments</option>
-              {departments.map(dept => (
-                <option key={dept._id || dept.id || `dept-${dept.name}`} value={dept.name}>
-                  {dept.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        
-        <div className="employee-count">
-          Showing {filteredEmployees.length} of {employees.length} employees
-        </div>
-        
-        <div className="employee-table-container">
-          <table className="employee-table">
-            <thead>
-              <tr>
-                <th onClick={() => requestSort('lastName')}>
-                  Name {getSortIndicator('lastName')}
-                </th>
-                <th onClick={() => requestSort('email')}>
-                  Email {getSortIndicator('email')}
-                </th>
-                <th onClick={() => requestSort('username')}>
-                  Username {getSortIndicator('username')}
-                </th>
-                <th onClick={() => requestSort('department')}>
-                  Department {getSortIndicator('department')}
-                </th>
-                <th onClick={() => requestSort('role')}>
-                  Role {getSortIndicator('role')}
-                </th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEmployees.length > 0 ? (
-                filteredEmployees.map(emp => (
-                  <tr key={emp._id || `emp-${emp.email}`}>
-                    <td>{emp.firstName} {emp.lastName}</td>
-                    <td>{emp.email}</td>
-                    <td>{emp.username || emp.email?.split('@')[0]}</td>
-                    <td>{emp.department}</td>
-                    <td>{emp.role}</td>
-                    <td className="actions-cell">
-                      <Link 
-                        to={`/employees/${emp._id}`}
-                        className="btn-action btn-view with-label"
-                        title="View Employee Profile"
-                      >
-                        <FaEye />
-                        <span>View</span>
-                        <div className="action-tooltip">View Profile</div>
-                      </Link>
-                      <button
-                        className="btn-action btn-edit with-label"
-                        onClick={() => openEditEmployeeModal(emp)}
-                        title="Edit Employee"
-                      >
-                        <FaEdit />
-                        <span>Edit</span>
-                        <div className="action-tooltip">Edit Employee</div>
-                      </button>
-                      <button 
-                        className="btn-action btn-reset with-label"
-                        onClick={() => openResetPasswordModal(emp._id)}
-                        title="Reset Password"
-                      >
-                        <FaKey />
-                        <span>Reset</span>
-                        <div className="action-tooltip">Reset Password</div>
-                      </button>
-                      <button 
-                        className="btn-action btn-delete with-label"
-                        onClick={() => handleDeleteEmployee(emp._id)}
-                        title="Delete Employee"
-                      >
-                        <FaTrash />
-                        <span>Delete</span>
-                        <div className="action-tooltip">Delete Employee</div>
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="no-results">
-                    No employees found matching your criteria
+      </div>
+      
+      <div className="employee-count">
+        Showing {filteredEmployees.length} of {employees.length} employees
+      </div>
+      
+      <div className="employee-table-container">
+        <table className="employee-table">
+          <thead>
+            <tr>
+              <th onClick={() => requestSort('lastName')}>
+                Name {getSortIndicator('lastName')}
+              </th>
+              <th onClick={() => requestSort('email')}>
+                Email {getSortIndicator('email')}
+              </th>
+              <th onClick={() => requestSort('username')}>
+                Username {getSortIndicator('username')}
+              </th>
+              <th onClick={() => requestSort('department')}>
+                Department {getSortIndicator('department')}
+              </th>
+              <th onClick={() => requestSort('role')}>
+                Role {getSortIndicator('role')}
+              </th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredEmployees.length > 0 ? (
+              filteredEmployees.map(emp => (
+                <tr key={emp._id || `emp-${emp.email}`}>
+                  <td>{emp.firstName} {emp.lastName}</td>
+                  <td>{emp.email}</td>
+                  <td>{emp.username || emp.email?.split('@')[0]}</td>
+                  <td>{emp.department}</td>
+                  <td>{emp.role}</td>
+                  <td className="actions-cell">
+                    <Link 
+                      to={`/employees/${emp._id}`}
+                      className="btn-action btn-view with-label"
+                      title="View Employee Profile"
+                    >
+                      <FaEye />
+                      <span>View</span>
+                      <div className="action-tooltip">View Profile</div>
+                    </Link>
+                    <button
+                      className="btn-action btn-edit with-label"
+                      onClick={() => openEditEmployeeModal(emp)}
+                      title="Edit Employee"
+                    >
+                      <FaEdit />
+                      <span>Edit</span>
+                      <div className="action-tooltip">Edit Employee</div>
+                    </button>
+                    <button 
+                      className="btn-action btn-reset with-label"
+                      onClick={() => openResetPasswordModal(emp._id)}
+                      title="Reset Password"
+                    >
+                      <FaKey />
+                      <span>Reset</span>
+                      <div className="action-tooltip">Reset Password</div>
+                    </button>
+                    <button 
+                      className="btn-action btn-delete with-label"
+                      onClick={() => handleDeleteEmployee(emp._id)}
+                      title="Delete Employee"
+                    >
+                      <FaTrash />
+                      <span>Delete</span>
+                      <div className="action-tooltip">Delete Employee</div>
+                    </button>
                   </td>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        
-        {isModalOpen && (
-          <div className="modal-overlay">
-            <div className="modal-container">
-              <div className="modal-header">
-                <h2>{isEditing ? 'Edit Employee' : 'Add New Employee'}</h2>
-                <button className="modal-close" onClick={() => setIsModalOpen(false)}>×</button>
-              </div>
-              <EmployeeForm
-                employee={currentEmployee}
-                departments={departments}
-                isEditing={isEditing}
-                onSave={handleSaveEmployee}
-                onCancel={() => setIsModalOpen(false)}
-              />
-            </div>
-          </div>
-        )}
-        
-        {showResetPasswordModal && (
-          <div className="modal-overlay">
-            <div className="modal-container reset-password-modal">
-              <div className="modal-header">
-                <h2>Reset Password</h2>
-                <button className="modal-close" onClick={() => setShowResetPasswordModal(false)}>×</button>
-              </div>
-              <div className="modal-content">
-                <p>Are you sure you want to reset this employee's password?</p>
-                <p>A password reset link will be sent to their email address.</p>
-                <div className="modal-actions">
-                  <button 
-                    className="btn btn-secondary"
-                    onClick={() => setShowResetPasswordModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    className="btn btn-primary"
-                    onClick={() => handlePasswordReset(resetUserId)}
-                  >
-                    <FaSyncAlt /> Send Reset Link
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+              ))
+            ) : (
+              <tr>
+                <td colSpan="6" className="no-results">
+                  No employees found matching your criteria
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
-    );
-  };
-
-  // Wrap the main content with SidebarLayout
-  return (
-    <SidebarLayout user={user} activeView="employees">
-      {renderEmployeesContent()}
-    </SidebarLayout>
+      
+      {isModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-header">
+              <h2>{isEditing ? 'Edit Employee' : 'Add New Employee'}</h2>
+              <button className="modal-close" onClick={() => setIsModalOpen(false)}>×</button>
+            </div>
+            <EmployeeForm
+              employee={currentEmployee}
+              departments={departments}
+              isEditing={isEditing}
+              onSave={handleSaveEmployee}
+              onCancel={() => setIsModalOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+      
+      {showResetPasswordModal && (
+        <div className="modal-overlay">
+          <div className="modal-container reset-password-modal">
+            <div className="modal-header">
+              <h2>Reset Password</h2>
+              <button className="modal-close" onClick={() => setShowResetPasswordModal(false)}>×</button>
+            </div>
+            <div className="modal-content">
+              <p>Are you sure you want to reset this employee's password?</p>
+              <p>A password reset link will be sent to their email address.</p>
+              <div className="modal-actions">
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => setShowResetPasswordModal(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => handlePasswordReset(resetUserId)}
+                >
+                  <FaSyncAlt /> Send Reset Link
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

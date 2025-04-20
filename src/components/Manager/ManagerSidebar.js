@@ -1,237 +1,96 @@
-import React, { useState } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-
-// Import icons
+import React from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { 
   MdDashboard, 
+  MdDescription, 
   MdPeople, 
-  MdAssignment, 
-  MdAssessment, 
+  MdPerson, 
   MdDateRange,
-  MdPerson,
-  MdSettings,
-  MdExpandLess,
-  MdExpandMore,
-  MdExitToApp
+  MdPendingActions 
 } from 'react-icons/md';
 
-const ManagerSidebar = ({ activeView, user }) => {
-  const navigate = useNavigate();
+// Remove incorrect CSS import
+// import '../styles/SidebarLayout.css';
+
+const ManagerSidebar = ({ collapsed }) => {
   const location = useLocation();
-  const { logout, impersonating, exitImpersonation } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
-  const [expandedSection, setExpandedSection] = useState(null);
-
-  // Detect if user is a super admin impersonating
-  const isSuperAdmin = user && (user.role === 'superadmin' || user.role === 'super_admin');
-  const isImpersonating = impersonating || localStorage.getItem('impersonatedCustomer');
-
-  const handleSectionToggle = (section) => {
-    if (expandedSection === section) {
-      setExpandedSection(null);
-    } else {
-      setExpandedSection(section);
-    }
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  // Handle exit impersonation
-  const handleExitImpersonation = () => {
-    if (typeof exitImpersonation === 'function') {
-      exitImpersonation();
-    } else {
-      // Fallback if context method is not available
-      localStorage.removeItem('impersonatedCustomer');
-    }
-    
-    // Navigate to Super Admin
-    navigate('/super-admin/customers');
-  };
-
-  // Check if a path is active
+  
+  // Improved active path detection
   const isActivePath = (path) => {
     return location.pathname.startsWith(path);
   };
 
-  // Navigation items for manager
-  const navItems = [
-    {
-      icon: <MdDashboard />,
-      label: 'Dashboard',
-      path: '/manager/dashboard',
-      isActive: activeView === 'manager-dashboard' || isActivePath('/manager/dashboard')
-    },
-    {
-      icon: <MdPeople />,
-      label: 'Team',
-      section: 'team',
-      isExpanded: expandedSection === 'team',
-      isActive: activeView === 'team' || isActivePath('/team-reviews'),
-      onClick: () => handleSectionToggle('team'),
-      subItems: [
-        {
-          label: 'Team Overview',
-          path: '/manager/dashboard?tab=team',
-          isActive: activeView === 'team-overview'
-        },
-        {
-          label: 'Team Reviews',
-          path: '/team-reviews',
-          isActive: activeView === 'team-reviews' || isActivePath('/team-reviews')
-        }
-      ]
-    },
-    {
-      icon: <MdAssignment />,
-      label: 'Reviews',
-      section: 'reviews',
-      isExpanded: expandedSection === 'reviews',
-      isActive: activeView === 'reviews' || isActivePath('/pending-reviews') || isActivePath('/manager/reviews'),
-      onClick: () => handleSectionToggle('reviews'),
-      subItems: [
-        {
-          label: 'Pending Reviews',
-          path: '/pending-reviews',
-          isActive: activeView === 'pending-reviews' || isActivePath('/pending-reviews')
-        },
-        {
-          label: 'Create Review',
-          path: '/manager/reviews/new',
-          isActive: activeView === 'create-review' || isActivePath('/manager/reviews/new')
-        }
-      ]
-    },
-    {
-      icon: <MdDateRange />,
-      label: 'Review Cycles',
-      path: '/review-cycles',
-      isActive: activeView === 'review-cycles' || isActivePath('/review-cycles')
-    },
-    {
-      icon: <MdAssessment />,
-      label: 'KPI Management',
-      path: '/kpis',
-      isActive: activeView === 'kpis' || isActivePath('/kpis')
-    },
-    {
-      icon: <MdPerson />,
-      label: 'My Profile',
-      path: '/profile',
-      isActive: activeView === 'profile' || isActivePath('/profile')
-    }
-  ];
-
-  // If super admin is impersonating, add exit option
-  if (isSuperAdmin && isImpersonating) {
-    navItems.push({
-      icon: <MdExitToApp />,
-      label: 'Exit Impersonation',
-      onClick: handleExitImpersonation,
-      isActive: false,
-      className: 'exit-impersonation'
-    });
-  }
-
   return (
-    <div className={`manager-sidebar ${collapsed ? 'collapsed' : ''}`}>
-      <div className="sidebar-header">
-        <div className="logo">
-          <img src="/logo.svg" alt="Logo" />
-          {!collapsed && <span>Performance Review</span>}
-        </div>
-        <button 
-          className="collapse-btn" 
-          onClick={() => setCollapsed(!collapsed)}
+    <nav className="sidebar-nav">
+      <div className="nav-item">
+        <NavLink 
+          to="/manager/dashboard" 
+          className={isActivePath('/manager/dashboard') ? 'active' : ''}
         >
-          {collapsed ? <MdExpandMore /> : <MdExpandLess />}
-        </button>
+          <span className="nav-icon"><MdDashboard /></span>
+          <span className={`nav-text ${collapsed ? 'hidden' : ''}`}>Dashboard</span>
+        </NavLink>
       </div>
-
-      <div className="sidebar-user">
-        <div className="user-avatar">
-          {user?.name?.charAt(0) || user?.firstName?.charAt(0) || 'U'}
-        </div>
-        {!collapsed && (
-          <div className="user-info">
-            <div className="user-name">{user?.name || `${user?.firstName || ''} ${user?.lastName || ''}`}</div>
-            <div className="user-role">Manager</div>
-          </div>
-        )}
+      
+      <div className="nav-item">
+        <NavLink 
+          to="/manager/my-reviews" 
+          className={isActivePath('/manager/my-reviews') ? 'active' : ''}
+        >
+          <span className="nav-icon"><MdDescription /></span>
+          <span className={`nav-text ${collapsed ? 'hidden' : ''}`}>My Reviews</span>
+        </NavLink>
       </div>
-
-      <nav className="sidebar-nav">
-        {navItems.map((item, index) => (
-          <div key={index} className="nav-item-container">
-            {item.subItems ? (
-              <>
-                <div 
-                  className={`nav-item ${item.isActive ? 'active' : ''} ${item.className || ''}`}
-                  onClick={item.onClick}
-                >
-                  <div className="nav-item-content">
-                    {item.icon}
-                    {!collapsed && <span>{item.label}</span>}
-                  </div>
-                  {!collapsed && (
-                    <span className="expand-icon">
-                      {item.isExpanded ? <MdExpandLess /> : <MdExpandMore />}
-                    </span>
-                  )}
-                </div>
-                {item.isExpanded && !collapsed && (
-                  <div className="sub-nav">
-                    {item.subItems.map((subItem, subIndex) => (
-                      <NavLink
-                        key={subIndex}
-                        to={subItem.path}
-                        className={({ isActive }) => 
-                          `sub-nav-item ${isActive || subItem.isActive ? 'active' : ''}`
-                        }
-                      >
-                        <span>{subItem.label}</span>
-                      </NavLink>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : item.path ? (
-              <NavLink
-                to={item.path}
-                className={({ isActive }) => 
-                  `nav-item ${isActive || item.isActive ? 'active' : ''} ${item.className || ''}`
-                }
-              >
-                <div className="nav-item-content">
-                  {item.icon}
-                  {!collapsed && <span>{item.label}</span>}
-                </div>
-              </NavLink>
-            ) : (
-              <div 
-                className={`nav-item ${item.isActive ? 'active' : ''} ${item.className || ''}`}
-                onClick={item.onClick}
-              >
-                <div className="nav-item-content">
-                  {item.icon}
-                  {!collapsed && <span>{item.label}</span>}
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </nav>
-
-      <div className="sidebar-footer">
-        <button className="logout-btn" onClick={handleLogout}>
-          {collapsed ? <MdExitToApp /> : <span>Logout</span>}
-        </button>
+      
+      <div className={`section-header ${collapsed ? 'hidden' : ''}`}>
+        TEAM MANAGEMENT
       </div>
-    </div>
+      
+      <div className="nav-item">
+        <NavLink 
+          to="/manager/team-reviews" 
+          className={isActivePath('/manager/team-reviews') ? 'active' : ''}
+        >
+          <span className="nav-icon"><MdPeople /></span>
+          <span className={`nav-text ${collapsed ? 'hidden' : ''}`}>Team Reviews</span>
+        </NavLink>
+      </div>
+      
+      <div className="nav-item">
+        <NavLink 
+          to="/manager/team-members" 
+          className={isActivePath('/manager/team-members') ? 'active' : ''}
+        >
+          <span className="nav-icon"><MdPerson /></span>
+          <span className={`nav-text ${collapsed ? 'hidden' : ''}`}>Team Members</span>
+        </NavLink>
+      </div>
+      
+      <div className="nav-item">
+        <NavLink 
+          to="/manager/pending-reviews" 
+          className={isActivePath('/manager/pending-reviews') ? 'active' : ''}
+        >
+          <span className="nav-icon"><MdPendingActions /></span>
+          <span className={`nav-text ${collapsed ? 'hidden' : ''}`}>Pending Reviews</span>
+        </NavLink>
+      </div>
+      
+      <div className={`section-header ${collapsed ? 'hidden' : ''}`}>
+        REVIEW MANAGEMENT
+      </div>
+      
+      <div className="nav-item">
+        <NavLink 
+          to="/manager/review-cycles" 
+          className={isActivePath('/manager/review-cycles') ? 'active' : ''}
+        >
+          <span className="nav-icon"><MdDateRange /></span>
+          <span className={`nav-text ${collapsed ? 'hidden' : ''}`}>Review Cycles</span>
+        </NavLink>
+      </div>
+      {/* Templates option removed for managers */}
+    </nav>
   );
 };
 

@@ -1,244 +1,344 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import SidebarLayout from './SidebarLayout';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FaEdit, FaCheck } from 'react-icons/fa';
 
+// This version uses no SidebarLayout to prevent admin sidebar from showing
 function PendingReviews() {
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+  const { user, currentUser, fetchWithAuth } = useAuth(); 
   const [pendingReviews, setPendingReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [notification, setNotification] = useState(location.state?.message || null);
-  const completedReviewId = location.state?.completedReview || null;
-
-  const API_BASE_URL = process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:5000' 
-    : 'https://performance-review-backend-ab8z.onrender.com';
-
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Create a safe user reference - use current user if available, otherwise use localStorage
+  const safeUser = user || currentUser || JSON.parse(localStorage.getItem('user') || '{}');
+  
   useEffect(() => {
     const fetchPendingReviews = async () => {
+      setIsLoading(true);
+      setError(null);
+      
       try {
-        setLoading(true);
-        console.log("Attempting to fetch pending reviews from API");
+        const response = await fetchWithAuth('/api/reviews/pending');
         
-        const response = await fetch(`${API_BASE_URL}/api/reviews/pending`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch pending reviews: ${response.status}`);
+        if (response.ok) {
+          const data = await response.json();
+          setPendingReviews(data);
+        } else {
+          throw new Error('Failed to fetch pending reviews');
         }
-
-        const data = await response.json();
+      } catch (error) {
+        console.error('Error fetching pending reviews:', error);
+        setError('Failed to load pending reviews. Please try again later.');
         
-        // Mark any review as completed if it was just completed in the other component
-        if (completedReviewId) {
-          data.forEach(review => {
-            if (review._id === completedReviewId) {
-              review.clientSideCompleted = true;
-            }
-          });
-        }
-        
-        setPendingReviews(data);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching pending reviews:', err);
-        
-        // Use mock data as fallback
-        console.log("Using mock data as fallback due to API error");
-        
-        // Create mock review data with the completed review ID if it exists
-        const mockData = [{
-          _id: completedReviewId || "mock-review-1",
-          employee: { firstName: "Dana", lastName: "Bear" },
-          reviewer: { firstName: "Andrew", lastName: "Mintzell" },
-          reviewPeriod: { 
-            start: "2024-10-12T00:00:00.000Z", 
-            end: "2025-04-10T00:00:00.000Z" 
+        // Set sample data for development/demo purposes
+        setPendingReviews([
+          { 
+            id: '1', 
+            employee: 'John Doe', 
+            employeeId: '1001',
+            department: 'Engineering',
+            position: 'Software Engineer',
+            reviewType: 'Annual',
+            submissionDate: '2023-04-10',
+            status: 'Pending Manager Review',
+            reviewPercentComplete: 100,
+            overdue: false
           },
-          status: "inProgress",
-          clientSideCompleted: completedReviewId ? true : false
-        }];
-        
-        setPendingReviews(mockData);
-        
-        // Still show notification but don't display error
-        if (completedReviewId) {
-          setNotification("Review marked as completed");
-        }
-        
-        setLoading(false);
+          { 
+            id: '2', 
+            employee: 'Jane Smith', 
+            employeeId: '1002',
+            department: 'Marketing',
+            position: 'Marketing Specialist',
+            reviewType: 'Quarterly',
+            submissionDate: '2023-04-05',
+            status: 'Pending Manager Review',
+            reviewPercentComplete: 100,
+            overdue: true
+          },
+          { 
+            id: '3', 
+            employee: 'Michael Johnson', 
+            employeeId: '1003',
+            department: 'Sales',
+            position: 'Sales Representative',
+            reviewType: 'Annual',
+            submissionDate: '2023-04-12',
+            status: 'In Progress',
+            reviewPercentComplete: 75,
+            overdue: false
+          },
+          { 
+            id: '4', 
+            employee: 'Emily Williams', 
+            employeeId: '1004',
+            department: 'Human Resources',
+            position: 'HR Coordinator',
+            reviewType: 'Quarterly',
+            submissionDate: '2023-03-28',
+            status: 'In Progress',
+            reviewPercentComplete: 50,
+            overdue: true
+          },
+          { 
+            id: '5', 
+            employee: 'David Brown', 
+            employeeId: '1005',
+            department: 'Finance',
+            position: 'Financial Analyst',
+            reviewType: 'Annual',
+            submissionDate: '2023-04-08',
+            status: 'Pending Self-Assessment',
+            reviewPercentComplete: 30,
+            overdue: false
+          }
+        ]);
+      } finally {
+        setIsLoading(false);
       }
     };
-
-    fetchPendingReviews();
     
-    // Clear notification after 5 seconds
-    if (notification) {
-      const timer = setTimeout(() => {
-        setNotification(null);
-      }, 5000);
-      return () => clearTimeout(timer);
+    fetchPendingReviews();
+  }, [fetchWithAuth]);
+  
+  const handleReviewAction = (reviewId, status) => {
+    if (status === 'Pending Manager Review') {
+      navigate(`/reviews/${reviewId}`);
+    } else {
+      navigate(`/reviews/edit/${reviewId}`);
     }
-  }, [API_BASE_URL, completedReviewId, notification]);
-
-  const handleReviewClick = (reviewId) => {
-    navigate(`/reviews/edit/${reviewId}`);
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
-  };
-
-  const extractName = (user) => {
-    if (!user) return 'Unknown';
-    return `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown';
-  };
-
-  // Style for the notification
-  const notificationStyle = {
-    padding: '10px 15px',
-    backgroundColor: '#4caf50',
-    color: 'white',
-    borderRadius: '4px',
-    marginBottom: '20px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px'
-  };
-
-  // Card design for the pending reviews
-  const cardStyle = {
-    padding: '15px',
-    borderRadius: '8px',
-    boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-    marginBottom: '15px',
-    backgroundColor: 'white',
-    cursor: 'pointer',
-    transition: 'transform 0.2s, box-shadow 0.2s',
-    position: 'relative'
-  };
-
-  const completedCardStyle = {
-    ...cardStyle,
-    backgroundColor: '#f0f9f0',
-    borderLeft: '4px solid #4caf50'
-  };
-
-  // Safe user data to prevent undefined undefined
-  const safeUser = user || {
-    firstName: '',
-    lastName: '',
-    role: 'employee'
   };
   
-  console.log("Current user data:", safeUser);
-
-  return (
-    <SidebarLayout user={safeUser} activeView="pending-reviews">
+  // Filter reviews based on status and search term
+  const filteredReviews = pendingReviews.filter(review => {
+    const matchesStatus = filterStatus === 'all' || (
+      filterStatus === 'overdue' ? review.overdue : 
+      review.status.toLowerCase().includes(filterStatus.toLowerCase())
+    );
+    
+    const matchesSearch = review.employee.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          review.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          review.position.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchesStatus && matchesSearch;
+  });
+  
+  // For manager role, use the manager layout
+  if (safeUser.role === 'manager') {
+    return (
       <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
-        <h1 style={{ marginBottom: '20px', color: '#333' }}>Pending Reviews</h1>
+        <h1>Pending Reviews</h1>
         
-        {notification && (
-          <div style={notificationStyle}>
-            <FaCheck />
-            <span>{notification}</span>
+        <div className="pending-reviews-filters">
+          <div className="filter-group">
+            <input 
+              type="text" 
+              placeholder="Search employee, department..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
           </div>
-        )}
+          
+          <div className="filter-group">
+            <label>Status:</label>
+            <select 
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="all">All Statuses</option>
+              <option value="pending manager review">Pending Manager Review</option>
+              <option value="in progress">In Progress</option>
+              <option value="pending self-assessment">Pending Self-Assessment</option>
+              <option value="overdue">Overdue</option>
+            </select>
+          </div>
+        </div>
         
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <div style={{
-              width: '50px',
-              height: '50px',
-              border: '5px solid #f3f3f3',
-              borderTop: '5px solid #5a189a',
-              borderRadius: '50%',
-              margin: '0 auto 20px',
-              animation: 'spin 1s linear infinite'
-            }}></div>
-            <p>Loading pending reviews...</p>
-            <style>
-              {`
-                @keyframes spin {
-                  0% { transform: rotate(0deg); }
-                  100% { transform: rotate(360deg); }
-                }
-              `}
-            </style>
-          </div>
-        ) : pendingReviews.length === 0 ? (
-          <div style={{ 
-            padding: '40px 20px', 
-            textAlign: 'center',
-            backgroundColor: '#f9f9f9',
-            borderRadius: '8px'
-          }}>
-            <p style={{ fontSize: '18px', color: '#666' }}>No pending reviews to display</p>
-          </div>
+        {isLoading ? (
+          <div className="loading-indicator">Loading pending reviews...</div>
+        ) : error ? (
+          <div className="error-message">{error}</div>
         ) : (
-          <div>
-            {pendingReviews.map((review, index) => (
-              <div 
-                key={review._id || index}
-                onClick={() => handleReviewClick(review._id)}
-                style={review.clientSideCompleted ? completedCardStyle : cardStyle}
-                onMouseEnter={(e) => {
-                  if (!review.clientSideCompleted) {
-                    e.currentTarget.style.transform = 'translateY(-3px)';
-                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!review.clientSideCompleted) {
-                    e.currentTarget.style.transform = 'none';
-                    e.currentTarget.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
-                  }
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>
-                      {review.clientSideCompleted && (
-                        <span style={{ color: '#4caf50', marginRight: '10px' }}>
-                          <FaCheck />
-                        </span>
-                      )}
-                      {extractName(review.employee)}
-                    </h3>
-                    <p style={{ margin: '5px 0', color: '#666' }}>
-                      <strong>Review Period:</strong> {review.reviewPeriod && 
-                        `${formatDate(review.reviewPeriod.start)} to ${formatDate(review.reviewPeriod.end)}`
-                      }
-                    </p>
-                    <p style={{ margin: '5px 0', color: '#666' }}>
-                      <strong>Status:</strong> {review.clientSideCompleted ? 'Completed' : (review.status || 'Pending')}
-                    </p>
-                  </div>
-                  
-                  <div style={{
-                    alignSelf: 'center',
-                    marginRight: '10px'
-                  }}>
-                    {!review.clientSideCompleted && (
-                      <FaEdit size={24} color="#5a189a" />
-                    )}
-                  </div>
-                </div>
+          <>
+            {filteredReviews.length > 0 ? (
+              <div className="pending-reviews-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th>Department</th>
+                      <th>Position</th>
+                      <th>Review Type</th>
+                      <th>Submission Date</th>
+                      <th>Status</th>
+                      <th>Progress</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredReviews.map(review => (
+                      <tr key={review.id} className={review.overdue ? 'overdue-row' : ''}>
+                        <td>{review.employee}</td>
+                        <td>{review.department}</td>
+                        <td>{review.position}</td>
+                        <td>{review.reviewType}</td>
+                        <td>{new Date(review.submissionDate).toLocaleDateString()}</td>
+                        <td>
+                          <span className={`status-badge ${review.status.toLowerCase().replace(/\s+/g, '-')}`}>
+                            {review.status}
+                          </span>
+                          {review.overdue && <span className="overdue-badge">Overdue</span>}
+                        </td>
+                        <td>
+                          <div className="progress-bar-container">
+                            <div 
+                              className="progress-bar" 
+                              style={{ width: `${review.reviewPercentComplete}%` }}
+                            ></div>
+                            <span className="progress-text">{review.reviewPercentComplete}%</span>
+                          </div>
+                        </td>
+                        <td>
+                          <button 
+                            className="action-button"
+                            onClick={() => handleReviewAction(review.id, review.status)}
+                          >
+                            {review.status === 'Pending Manager Review' ? (
+                              <>
+                                <FaCheck /> Review
+                              </>
+                            ) : (
+                              <>
+                                <FaEdit /> Edit
+                              </>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
+            ) : (
+              <div className="no-reviews-message">
+                No pending reviews match your filters.
+              </div>
+            )}
+          </>
         )}
       </div>
-    </SidebarLayout>
+    );
+  }
+  
+  // For other roles, return the standard content without any wrapper
+  return (
+    <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
+      <h1>Pending Reviews</h1>
+      
+      <div className="pending-reviews-filters">
+        <div className="filter-group">
+          <input 
+            type="text" 
+            placeholder="Search employee, department..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
+        
+        <div className="filter-group">
+          <label>Status:</label>
+          <select 
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending manager review">Pending Manager Review</option>
+            <option value="in progress">In Progress</option>
+            <option value="pending self-assessment">Pending Self-Assessment</option>
+            <option value="overdue">Overdue</option>
+          </select>
+        </div>
+      </div>
+      
+      {isLoading ? (
+        <div className="loading-indicator">Loading pending reviews...</div>
+      ) : error ? (
+        <div className="error-message">{error}</div>
+      ) : (
+        <>
+          {filteredReviews.length > 0 ? (
+            <div className="pending-reviews-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Department</th>
+                    <th>Position</th>
+                    <th>Review Type</th>
+                    <th>Submission Date</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredReviews.map(review => (
+                    <tr key={review.id} className={review.overdue ? 'overdue-row' : ''}>
+                      <td>{review.employee}</td>
+                      <td>{review.department}</td>
+                      <td>{review.position}</td>
+                      <td>{review.reviewType}</td>
+                      <td>{new Date(review.submissionDate).toLocaleDateString()}</td>
+                      <td>
+                        <span className={`status-badge ${review.status.toLowerCase().replace(/\s+/g, '-')}`}>
+                          {review.status}
+                        </span>
+                        {review.overdue && <span className="overdue-badge">Overdue</span>}
+                      </td>
+                      <td>
+                        <div className="progress-bar-container">
+                          <div 
+                            className="progress-bar" 
+                            style={{ width: `${review.reviewPercentComplete}%` }}
+                          ></div>
+                          <span className="progress-text">{review.reviewPercentComplete}%</span>
+                        </div>
+                      </td>
+                      <td>
+                        <button 
+                          className="action-button"
+                          onClick={() => handleReviewAction(review.id, review.status)}
+                        >
+                          {review.status === 'Pending Manager Review' ? (
+                            <>
+                              <FaCheck /> Review
+                            </>
+                          ) : (
+                            <>
+                              <FaEdit /> Edit
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="no-reviews-message">
+              No pending reviews match your filters.
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 

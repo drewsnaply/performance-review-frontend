@@ -29,11 +29,11 @@ const Login = () => {
       setIsLoading(true);
       setError('');
 
-      console.log('Attempting login with:', username, password);
+      console.log('Attempting login with:', username);
 
       // Use the login function from AuthContext
       const response = await login(username, password);
-      console.log('Full Login Response:', response);
+      console.log('Login successful, response:', response);
 
       // Ensure both token and user exist in the response
       const { token, user } = response;
@@ -42,18 +42,20 @@ const Login = () => {
         throw new Error('No token received from backend');
       }
 
-      // Save the token in localStorage
-      localStorage.setItem('authToken', token);
-      console.log('Token saved to localStorage:', token);
-
       // Decode the token to extract user details
       const decodedToken = jwtDecode(token);
       console.log('Decoded token:', decodedToken);
-      
+
+      // Save additional user data (role is critical here)
+      console.log('Saving user to localStorage:', user);
+      localStorage.setItem('user', JSON.stringify(user));
+
       // Check if user is a superadmin and redirect accordingly
-      if (user && user.role === 'superadmin') {
+      if (user && (user.role === 'superadmin' || user.role === 'super_admin')) {
         console.log('Superadmin detected, redirecting to Super Admin dashboard');
-        navigate('/super-admin/customers', { replace: true });
+        
+        // Use a direct browser-level redirect for superadmin
+        window.location.href = '/super-admin/customers';
       } else {
         // Navigate to the dashboard or the page they were trying to access
         navigate(from, { replace: true });

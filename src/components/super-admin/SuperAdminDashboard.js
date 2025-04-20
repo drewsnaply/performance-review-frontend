@@ -1,407 +1,347 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import SidebarLayout from '../SidebarLayout';
 import { FaSearch, FaUserShield, FaBuilding, FaUsers, FaChartLine, FaFilter } from 'react-icons/fa';
-import '../../styles/Dashboard.css';
+
+// Import styles
 import '../../styles/SuperAdmin.css';
 
-function SuperAdminDashboard() {
-  const [customers, setCustomers] = useState([]);
-  const [filteredCustomers, setFilteredCustomers] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [showModal, setShowModal] = useState(false);
+const SuperAdminDashboard = () => {
   const navigate = useNavigate();
+  const { currentUser, logout, isImpersonating, impersonateCustomer, exitImpersonation } = useAuth();
   
-  // Get current user for SidebarLayout
-  const { currentUser, impersonateCustomer } = useAuth();
+  // State for customer data
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
-  // Create user object for SidebarLayout
-  const user = currentUser ? {
-    firstName: currentUser.firstName || currentUser.username || 'User',
-    lastName: currentUser.lastName || '',
-    role: currentUser.role || 'superadmin'
-  } : null;
-
-  // API base URL for fetching data
-  const API_BASE_URL = process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:5000' 
-    : 'https://performance-review-backend-ab8z.onrender.com';
-
+  // State for metrics
+  const [metrics, setMetrics] = useState({
+    organizations: 0,
+    employees: 0,
+    activeReviews: 0
+  });
+  
+  // State for modals
+  const [showImpersonationModal, setShowImpersonationModal] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  
+  // Check if user is authorized - with safety checks
   useEffect(() => {
-    // Check if user is super admin (fixed to use lowercase and case-insensitive comparison)
-    if (currentUser && currentUser.role.toLowerCase() !== 'superadmin') {
-      navigate('/dashboard');
+    // Check token directly first
+    const token = localStorage.getItem('authToken');
+    const userData = localStorage.getItem('user');
+    
+    // Debug checks for troubleshooting
+    console.log('SuperAdminDashboard auth check:');
+    console.log('- Token exists:', !!token);
+    console.log('- User data exists:', !!userData);
+    console.log('- Current user from context:', currentUser);
+    
+    // Only redirect if we're sure the user isn't authorized
+    if (!token) {
+      console.log('No auth token, redirecting to login');
+      navigate('/login');
       return;
     }
     
-    // Fetch customers data
-    fetchCustomers();
-  }, [currentUser, navigate]);
-
-  const fetchCustomers = async () => {
-    setIsLoading(true);
-    
-    try {
-      // Try fetching from API first
-      const response = await fetch(`${API_BASE_URL}/api/customers`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
+    // Check if user data indicates superadmin
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        console.log('- User role from localStorage:', user.role);
+        
+        // Allow access if localStorage has superadmin role
+        if (user.role === 'superadmin' || user.role === 'super_admin') {
+          console.log('User is superadmin according to localStorage');
+          return; // Don't redirect, allow access
         }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Ensure we have an array, even if it's empty
-        const customerData = Array.isArray(data) ? data : [];
-        console.log('Fetched customer data:', customerData);
-        
-        // If we have real data, use it
-        if (customerData.length > 0) {
-          setCustomers(customerData);
-          setFilteredCustomers(customerData);
-        } else {
-          // If no real data, use minimal fallback
-          const fallbackCustomers = [
-            {
-              id: '1',
-              name: 'Your Organization',
-              industry: 'Technology',
-              plan: 'Enterprise',
-              activeEmployees: 2,
-              activeReviews: 0,
-              completedReviews: 0,
-              adminUser: 'admin@yourcompany.com',
-              status: 'active',
-              createdAt: new Date().toISOString().split('T')[0]
-            }
-          ];
-          setCustomers(fallbackCustomers);
-          setFilteredCustomers(fallbackCustomers);
-        }
-        
-        setIsLoading(false);
-        return;
+      } catch (e) {
+        console.error('Error parsing user data:', e);
       }
-      
-      throw new Error('Failed to fetch customers from API');
-    } catch (error) {
-      console.error('Error fetching customers from API:', error);
-      
-      // Use real data model with placeholder values
-      const fallbackCustomers = [
-        {
-          id: '1',
-          name: 'Your Organization',
-          industry: 'Technology',
-          plan: 'Enterprise',
-          activeEmployees: 2,
-          activeReviews: 0,
-          completedReviews: 0,
-          adminUser: 'admin@yourcompany.com',
-          status: 'active',
-          createdAt: new Date().toISOString().split('T')[0]
-        }
-      ];
-      
-      setCustomers(fallbackCustomers);
-      setFilteredCustomers(fallbackCustomers);
-      setIsLoading(false);
-    }
-  };
-
-  // Handle search
-  const handleSearch = (e) => {
-    const term = e.target.value;
-    setSearchTerm(term);
-    
-    if (!term.trim()) {
-      setFilteredCustomers(customers);
-      return;
     }
     
-    const filtered = customers.filter(customer => 
-      customer.name?.toLowerCase().includes(term.toLowerCase()) ||
-      customer.adminUser?.toLowerCase().includes(term.toLowerCase()) ||
-      customer.industry?.toLowerCase().includes(term.toLowerCase())
-    );
+    // Only redirect if context data is also loaded and confirms user is not authorized
+    if (currentUser) {
+      const isSuperAdmin = 
+        currentUser.role === 'superadmin' || 
+        currentUser.role === 'super_admin';
+      
+      console.log('- Current user role:', currentUser.role);
+      console.log('- Is superadmin:', isSuperAdmin);
+      console.log('- Is impersonating:', isImpersonating);
+      
+      if (!isSuperAdmin && !isImpersonating) {
+        console.log('User is not authorized, redirecting to login');
+        navigate('/login');
+      }
+    }
+  }, [currentUser, isImpersonating, navigate]);
+  
+  // Fetch customers data
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch API call would go here
+        // For now, using mock data
+        const mockCustomers = [
+          {
+            id: 1,
+            name: 'Acme Corporation',
+            email: 'admin@example.com',
+            industry: 'Technology',
+            plan: 'Enterprise',
+            employees: 2,
+            reviews: { active: 4, completed: 0 },
+            status: 'Active'
+          }
+        ];
+        
+        setCustomers(mockCustomers);
+        
+        // Set metrics
+        setMetrics({
+          organizations: mockCustomers.length,
+          employees: mockCustomers.reduce((sum, customer) => sum + customer.employees, 0),
+          activeReviews: mockCustomers.reduce((sum, customer) => sum + customer.reviews.active, 0)
+        });
+        
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching customers:', err);
+        setError('Failed to load customer data');
+        setLoading(false);
+      }
+    };
     
-    setFilteredCustomers(filtered);
-  };
-
-  // Handle customer selection
-  const handleSelectCustomer = (customer) => {
+    fetchCustomers();
+  }, []);
+  
+  // Handle access button click
+  const handleAccessCustomer = (customer) => {
     setSelectedCustomer(customer);
-    setShowModal(true);
+    setShowImpersonationModal(true);
   };
-
-  // Handle access customer account
-  const handleAccessCustomer = async () => {
+  
+  // Handle customer details
+  const handleCustomerDetails = (customerId) => {
+    navigate(`/super-admin/customers/${customerId}/details`);
+  };
+  
+  // Handle impersonation confirmation
+  const handleConfirmImpersonation = async () => {
     if (!selectedCustomer) return;
     
     try {
-      // Store customer info in localStorage FIRST
-      // This ensures the impersonation state is available immediately
+      console.log('Impersonating customer:', selectedCustomer);
+      
+      // Store customer information for impersonation
       localStorage.setItem('impersonatedCustomer', JSON.stringify({
         id: selectedCustomer.id,
         name: selectedCustomer.name
       }));
       
-      // Then call the impersonation function if it exists
-      if (typeof impersonateCustomer === 'function') {
-        await impersonateCustomer(selectedCustomer.id);
-      }
+      // Call the impersonateCustomer function from auth context
+      await impersonateCustomer(selectedCustomer.id);
       
-      // Use window.location.href instead of navigate for a full page refresh
-      // This ensures all components detect the impersonation state
-      window.location.href = '/dashboard';
+      // Close the modal
+      setShowImpersonationModal(false);
+      
+      // Navigate to the dashboard
+      navigate('/dashboard');
     } catch (error) {
-      console.error('Error accessing customer account:', error);
+      console.error('Error impersonating customer:', error);
       alert('Failed to access customer account. Please try again.');
     }
   };
-
-  // Handle customer navigation
-  const handleNavigateToCustomer = (customerId, route) => {
-    navigate(`/super-admin/customers/${customerId}/${route}`);
-  };
-
-  // Function to render the status badge
-  const renderStatusBadge = (status) => {
-    if (!status) return null;
+  
+  // Render customer table
+  const renderCustomerTable = () => {
+    if (loading) return <p>Loading...</p>;
+    if (error) return <p className="error-message">{error}</p>;
     
     return (
-      <span className={`status-badge ${status}`}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </span>
+      <div className="data-table-container">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Organization</th>
+              <th>Industry</th>
+              <th>Plan</th>
+              <th>Employees</th>
+              <th>Reviews</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {customers.map(customer => (
+              <tr key={customer.id}>
+                <td>
+                  {customer.name}
+                  <div style={{ fontSize: '12px', color: '#6b7280' }}>{customer.email}</div>
+                </td>
+                <td>{customer.industry}</td>
+                <td>{customer.plan}</td>
+                <td>{customer.employees}</td>
+                <td>
+                  {customer.reviews.active} active
+                  <br />
+                  {customer.reviews.completed} completed
+                </td>
+                <td>
+                  <span className={`badge-${customer.status.toLowerCase()}`}>
+                    {customer.status}
+                  </span>
+                </td>
+                <td>
+                  <div className="action-buttons">
+                    <button 
+                      className="button-access"
+                      onClick={() => handleAccessCustomer(customer)}
+                    >
+                      Access
+                    </button>
+                    <button 
+                      className="button-details"
+                      onClick={() => handleCustomerDetails(customer.id)}
+                    >
+                      Details
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   };
-
-  // Function to render the user impersonation modal
+  
+  // Render metrics cards
+  const renderMetricsCards = () => {
+    return (
+      <div className="stats-container">
+        <div className="stat-card">
+          <div className="stat-card-header">
+            <div className="stat-card-icon" style={{ backgroundColor: '#eff6ff', color: '#3b82f6' }}>
+              <FaBuilding />
+            </div>
+            <h3 className="stat-card-title">Organizations</h3>
+          </div>
+          <p className="stat-card-value">{metrics.organizations}</p>
+          <p className="stat-card-subtext">{metrics.organizations} active</p>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-card-header">
+            <div className="stat-card-icon" style={{ backgroundColor: '#f0fdf4', color: '#22c55e' }}>
+              <FaUsers />
+            </div>
+            <h3 className="stat-card-title">Employees</h3>
+          </div>
+          <p className="stat-card-value">{metrics.employees}</p>
+          <p className="stat-card-subtext">Across all orgs</p>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-card-header">
+            <div className="stat-card-icon" style={{ backgroundColor: '#f0f9ff', color: '#0ea5e9' }}>
+              <FaChartLine />
+            </div>
+            <h3 className="stat-card-title">Active Reviews</h3>
+          </div>
+          <p className="stat-card-value">{metrics.activeReviews}</p>
+          <p className="stat-card-subtext">{metrics.activeReviews} completed</p>
+        </div>
+      </div>
+    );
+  };
+  
+  // Render impersonation modal
   const renderImpersonationModal = () => {
-    if (!showModal || !selectedCustomer) return null;
+    if (!showImpersonationModal || !selectedCustomer) return null;
     
     return (
       <div className="modal-overlay">
         <div className="modal-container">
+          <div className="modal-header">
+            <h2>Impersonate Organization</h2>
+            <button 
+              className="modal-close-button"
+              onClick={() => setShowImpersonationModal(false)}
+            >
+              ×
+            </button>
+          </div>
           <div className="modal-content">
-            <h2 className="modal-title">Access Customer Account</h2>
-            <p className="modal-description">
-              You are about to access <strong>{selectedCustomer.name}</strong> as a super admin.
-              You will have full access to their account.
-            </p>
-            <div className="modal-warning">
-              <p>
-                <strong>Note:</strong> Your actions will be logged while accessing this customer's account.
-              </p>
-            </div>
-            <div className="modal-actions">
-              <button 
-                className="modal-button secondary"
-                onClick={() => setShowModal(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="modal-button primary"
-                onClick={handleAccessCustomer}
-              >
-                Access Account
-              </button>
-            </div>
+            <p>You are about to access <strong>{selectedCustomer.name}</strong> as an administrator.</p>
+            <p>This will allow you to view and manage their account as if you were logged in as their admin.</p>
+          </div>
+          <div className="modal-footer">
+            <button 
+              className="button-secondary"
+              onClick={() => setShowImpersonationModal(false)}
+            >
+              Cancel
+            </button>
+            <button 
+              className="button-primary"
+              onClick={handleConfirmImpersonation}
+            >
+              Continue as Admin
+            </button>
           </div>
         </div>
       </div>
     );
   };
-
-  // Render statistics cards
-  const renderStatCards = () => {
-    // Calculate totals with null/undefined checks
-    const totalEmployees = customers.reduce((sum, c) => sum + (c.activeEmployees || 0), 0);
-    const totalActive = customers.reduce((sum, c) => sum + (c.activeReviews || 0), 0);
-    const totalCompleted = customers.reduce((sum, c) => sum + (c.completedReviews || 0), 0);
-    const activeOrgs = customers.filter(c => c.status === 'active').length;
-    
-    return (
-      <div className="stats-container">
-        <div className="stat-card">
-          <div className="stat-icon"><FaBuilding /></div>
-          <div className="stat-content">
-            <div className="stat-value">{customers.length}</div>
-            <div className="stat-label">Organizations</div>
-          </div>
-          <div className="stat-info">{activeOrgs} active</div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon"><FaUsers /></div>
-          <div className="stat-content">
-            <div className="stat-value">{totalEmployees}</div>
-            <div className="stat-label">Employees</div>
-          </div>
-          <div className="stat-info">Across all orgs</div>
-        </div>
-        
-        <div className="stat-card">
-          <div className="stat-icon"><FaChartLine /></div>
-          <div className="stat-content">
-            <div className="stat-value">{totalActive}</div>
-            <div className="stat-label">Active Reviews</div>
-          </div>
-          <div className="stat-info">{totalCompleted} completed</div>
-        </div>
-      </div>
-    );
-  };
-
-  // Render the Super Admin content
+  
+  // Render super admin content
   const renderSuperAdminContent = () => {
-    if (isLoading) {
-      return (
-        <div className="loading-state">
-          <div className="spinner"></div>
-          <p>Loading organization data...</p>
-        </div>
-      );
-    }
-
-    // Handle the case where there are no customers
-    if (customers.length === 0) {
-      return (
-        <>
-          <h1 className="page-title">Customer Organizations</h1>
-          <div className="admin-panel-content">
-            <div className="empty-state">
-              <FaBuilding style={{ fontSize: '3rem', color: '#cbd5e0', marginBottom: '1rem' }} />
-              <h3>No Organizations Found</h3>
-              <p>There are currently no organizations in the system.</p>
-            </div>
-          </div>
-        </>
-      );
-    }
-
     return (
       <>
         <h1 className="page-title">Customer Organizations</h1>
+        {renderMetricsCards()}
         
-        {/* Stats Cards */}
-        {renderStatCards()}
-        
-        {/* Search and filters header */}
-        <div className="admin-panel-header">
-          <div className="admin-panel-title">
-            <h2>Organization Management</h2>
-            <p className="text-gray-600">
-              Manage all customer accounts and access their data.
-            </p>
+        <div className="org-management-header">
+          <div>
+            <h2 className="page-title">Organization Management</h2>
+            <p className="page-subtitle">Manage all customer accounts and access their data.</p>
           </div>
           
-          <div className="search-and-filters">
-            <div className="search-wrapper">
-              <FaSearch className="search-icon" />
-              <input
-                type="text"
-                placeholder="Search by name, admin email, or industry"
-                value={searchTerm}
-                onChange={handleSearch}
-                className="search-input"
+          <div className="search-filter-container">
+            <div className="search-box">
+              <span className="search-icon"><FaSearch /></span>
+              <input 
+                type="text" 
+                className="search-input" 
+                placeholder="Search by name, admin email..."
               />
             </div>
             
             <button className="filter-button">
-              <FaFilter className="mr-2" /> Filters
+              <FaFilter />
+              Filters
             </button>
           </div>
         </div>
         
-        {/* Customers list */}
-        <div className="admin-panel-content">
-          {filteredCustomers.length === 0 ? (
-            <div className="empty-state">
-              <p>No organizations found matching your search criteria.</p>
-            </div>
-          ) : (
-            <div className="customer-table-container">
-              <table className="customer-table">
-                <thead>
-                  <tr>
-                    <th>Organization</th>
-                    <th>Industry</th>
-                    <th>Plan</th>
-                    <th>Employees</th>
-                    <th>Reviews</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCustomers.map(customer => (
-                    <tr key={customer.id || Math.random().toString()}>
-                      <td className="customer-cell">
-                        <div className="customer-info">
-                          <div className="customer-name">{customer.name || 'Unnamed Organization'}</div>
-                          <div className="customer-email">{customer.adminUser || 'No admin email'}</div>
-                        </div>
-                      </td>
-                      <td>{customer.industry || 'Not specified'}</td>
-                      <td>
-                        <span className="plan-badge">{customer.plan || 'Standard'}</span>
-                      </td>
-                      <td className="numeric-cell">{customer.activeEmployees || 0}</td>
-                      <td className="reviews-cell">
-                        <div className="reviews-info">
-                          <div>{customer.activeReviews || 0} active</div>
-                          <div className="completed-reviews">{customer.completedReviews || 0} completed</div>
-                        </div>
-                      </td>
-                      <td>
-                        {renderStatusBadge(customer.status || 'active')}
-                      </td>
-                      <td>
-                        <div className="action-buttons">
-                          <button 
-                            className="action-button"
-                            onClick={() => handleSelectCustomer(customer)}
-                            title="Access customer account"
-                          >
-                            <FaUserShield className="mr-1" /> Access
-                          </button>
-                          <button 
-                            className="action-button secondary"
-                            onClick={() => handleNavigateToCustomer(customer.id, 'details')}
-                            title="View customer details"
-                          >
-                            <FaBuilding className="mr-1" /> Details
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        {renderCustomerTable()}
       </>
     );
   };
-
-  // Render impersonation modal
+  
   return (
-    <SidebarLayout user={user} activeView="super-admin">
+    <div className="dashboard-container">
       <div className="super-admin-container">
         {renderSuperAdminContent()}
+        {renderImpersonationModal()}
       </div>
-      {/* Render the modal at the root level, outside the normal document flow */}
-      {renderImpersonationModal()}
-    </SidebarLayout>
+    </div>
   );
-}
+};
 
 export default SuperAdminDashboard;

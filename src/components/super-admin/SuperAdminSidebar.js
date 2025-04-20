@@ -9,10 +9,12 @@ import {
   FaClipboardList,
   FaHome
 } from 'react-icons/fa';
+import { useAuth } from '../../context/AuthContext';
 
 function SuperAdminSidebar({ activeView, setActiveView }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { impersonating } = useAuth();
   
   // Check if current path matches the given path
   const isActive = (path) => {
@@ -79,14 +81,19 @@ function SuperAdminSidebar({ activeView, setActiveView }) {
         System Settings
       </button>
       
-      <div className="sidebar-heading">NAVIGATION</div>
-      
-      <button 
-        onClick={() => navigateTo('/dashboard')}
-      >
-        <span className="sidebar-icon"><FaHome /></span>
-        Return to Dashboard
-      </button>
+      {/* Only show the Return to Dashboard option when impersonating */}
+      {impersonating && (
+        <>
+          <div className="sidebar-heading">NAVIGATION</div>
+          
+          <button 
+            onClick={() => navigateTo('/dashboard')}
+          >
+            <span className="sidebar-icon"><FaHome /></span>
+            Return to Dashboard
+          </button>
+        </>
+      )}
     </nav>
   );
 }

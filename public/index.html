@@ -26,6 +26,57 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>React App</title>
+    
+    <!-- IMPERSONATION FIX: Prevents login redirect on page refresh -->
+    <script>
+      // Run before React loads to ensure impersonation sessions survive page refreshes
+      (function() {
+        // Only run on non-login pages
+        if (window.location.pathname !== '/login' && 
+            !window.location.pathname.includes('/register') &&
+            !window.location.pathname.includes('/setup-password')) {
+          
+          try {
+            // Check for impersonation data
+            const impersonationData = localStorage.getItem('impersonatedCustomer');
+            
+            if (impersonationData) {
+              console.log("Impersonation session detected - ensuring persistence");
+              
+              // Parse impersonation data
+              const parsedData = JSON.parse(impersonationData);
+              
+              // Create an auth token if none exists
+              if (!localStorage.getItem('authToken')) {
+                localStorage.setItem('authToken', 'temp_impersonation_token');
+              }
+              
+              // Ensure we have a user object in localStorage
+              if (!localStorage.getItem('user')) {
+                // Create a mock admin user for the impersonated session
+                const mockUser = {
+                  id: 'admin-' + parsedData.id,
+                  username: 'admin@' + parsedData.name.toLowerCase().replace(/\s+/g, '') + '.com',
+                  firstName: 'Admin',
+                  lastName: 'User',
+                  role: 'admin',
+                  impersonated: true,
+                  customerId: parsedData.id
+                };
+                
+                localStorage.setItem('user', JSON.stringify(mockUser));
+              }
+              
+              // Create a flag that will prevent redirects
+              localStorage.setItem('impersonation_active', 'true');
+              sessionStorage.setItem('impersonation_session', Date.now());
+            }
+          } catch (e) {
+            console.error("Error in impersonation persistence script:", e);
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
