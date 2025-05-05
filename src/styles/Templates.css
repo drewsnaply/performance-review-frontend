@@ -1,123 +1,287 @@
-/* styles/Templates.css */
-.template-page-container {
-    padding: 20px;
-  }
-  
-  .templates-navbar {
-    display: flex;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #e2e8f0;
-  }
-  
-  .tab-button {
-    padding: 10px 20px;
-    text-decoration: none;
-    color: #718096;
-    font-weight: 500;
-  }
-  
-  .tab-button.active {
-    color: #4a5568;
-    border-bottom: 2px solid #6366f1;
-  }
-  
-  .template-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-  }
-  
-  .assign-button {
-    padding: 8px 16px;
-    background-color: #6366f1;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  
-  .filter-section {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-  
-  .status-filter {
-    padding: 8px;
-    border: 1px solid #e2e8f0;
-    border-radius: 4px;
-    min-width: 150px;
-  }
-  
-  .assignments-table-container {
-    overflow-x: auto;
-  }
-  
-  .assignments-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  
-  .assignments-table th, 
-  .assignments-table td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid #e2e8f0;
-  }
-  
-  .status-badge {
-    display: inline-block;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 500;
-  }
-  
-  .status-badge.inprogress {
-    background-color: #e3f2fd;
-    color: #1565c0;
-  }
-  
-  .status-badge.completed {
-    background-color: #e8f5e9;
-    color: #2e7d32;
-  }
-  
-  .status-badge.pending {
-    background-color: #fff8e1;
-    color: #f57f17;
-  }
-  
-  .action-buttons {
-    display: flex;
-    gap: 8px;
-  }
-  
-  .view-button {
-    padding: 6px 12px;
-    background-color: #4299e1;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  
-  .cancel-button {
-    padding: 6px 12px;
-    background-color: #f56565;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  
-  .no-assignments {
-    padding: 40px;
-    text-align: center;
-    color: #718096;
-    background-color: #f9fafb;
-    border-radius: 4px;
-    margin-top: 20px;
-  }
+/* styles/Templates.css - COMPLETE REPLACEMENT WITH SPACING FIXES */
+
+/* Reset spacing */
+* {
+  box-sizing: border-box;
+}
+
+/* Main container */
+.templates-container {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  width: 100%;
+}
+
+/* Templates header */
+.templates-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.templates-header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Create button */
+.btn-create {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.3s;
+}
+
+.btn-create:hover {
+  background-color: #45a049;
+}
+
+/* Templates grid */
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 20px;
+}
+
+/* Template card */
+.template-card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: box-shadow 0.3s;
+}
+
+.template-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Template card header */
+.template-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.template-card-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Status badges */
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.status-badge.active {
+  background-color: #e6f7e6;
+  color: #4CAF50;
+}
+
+.status-badge.inactive {
+  background-color: #ffebee;
+  color: #f44336;
+}
+
+/* Template card body */
+.template-card-body {
+  padding: 16px 20px;
+}
+
+.template-description {
+  color: #666;
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.template-details {
+  margin-bottom: 16px;
+}
+
+.template-details p {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.template-details span {
+  font-weight: 500;
+  color: #333;
+}
+
+/* Review type badges */
+.template-review-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.review-type-badge {
+  background-color: #f0f4f8;
+  color: #3f51b5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Template card actions */
+.template-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 20px;
+  background-color: #f9f9f9;
+  gap: 8px;
+}
+
+.btn-edit, .btn-delete {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.btn-edit {
+  background-color: #e3f2fd;
+  color: #2196F3;
+  border: 1px solid #bbdefb;
+}
+
+.btn-edit:hover {
+  background-color: #bbdefb;
+}
+
+.btn-delete {
+  background-color: #ffebee;
+  color: #f44336;
+  border: 1px solid #ffcdd2;
+}
+
+.btn-delete:hover {
+  background-color: #ffcdd2;
+}
+
+/* Template form */
+.template-form-container {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.form-title {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 20px;
+  color: #212529;
+  border-bottom: none !important;
+}
+
+.template-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #333;
+}
+
+.form-group textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.btn-cancel {
+  padding: 10px 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.btn-cancel:hover {
+  background-color: #f5f5f5;
+}
+
+.btn-primary {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 4px;
+  background-color: #4CAF50;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.btn-primary:hover {
+  background-color: #45a049;
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  font-size: 16px;
+  color: #666;
+}

@@ -1,37 +1,42 @@
 import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import { useDepartments } from '../context/DepartmentContext';
 import { useAuth } from '../context/AuthContext';
 // Import recharts components for the charts
 import { 
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
-  ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area
 } from 'recharts';
 // Import icons
 import { 
   FaUserFriends, FaClipboardList, FaCheckCircle, FaCalendarAlt, 
-  FaChartLine, FaExclamationTriangle, FaTasks, 
-  FaUserPlus, FaUserMinus, FaBusinessTime, FaFilter,
-  FaExternalLinkAlt, FaRedo, FaExclamationCircle
+  FaChartLine, FaTasks, FaExternalLinkAlt, FaRedo, FaExclamationCircle
 } from 'react-icons/fa';
 
-// Lazy-load component imports
-const MyReviews = lazy(() => import('../components/MyReviews'));
-const TeamReviews = lazy(() => import('../components/TeamReviews'));
-const Employees = lazy(() => import('./Employees'));
-const ReviewCycles = lazy(() => import('../components/ReviewCycles'));
-const ReviewTemplates = lazy(() => import('../components/ReviewTemplates'));
-const KpiManager = lazy(() => import('../components/KpiManager')); 
-const ImportTool = lazy(() => import('../components/ImportTool'));
-const ExportTool = lazy(() => import('../components/ExportTool'));
-const Settings = lazy(() => import('./Settings'));
-const ViewEvaluation = lazy(() => import('../components/ViewEvaluation'));
-const PendingReviews = lazy(() => import('../components/PendingReviews'));
-const TemplateAssignments = lazy(() => import('../components/TemplateAssignments'));
+// Import component directly
+import Metrics from '../components/Metrics';
+// Import Reports component directly
+import Reports from '../components/Reports';
+
+// MODIFIED: Create component placeholders - these will prevent errors when removing MyReviews and TeamReviews
+const EmptyPlaceholder = () => <div>This component is no longer available</div>;
+
+// MODIFIED: Removed MyReviews and TeamReviews components and replaced with placeholder
+// IMPORTANT: Keep all other lazy-loaded components to maintain existing functionality
+const EmployeesPage = lazy(() => import('./Employees'));
+const ReviewCyclesComponent = lazy(() => import('../components/ReviewCycles'));
+const ReviewTemplatesComponent = lazy(() => import('../components/ReviewTemplates'));
+const KpiManagerComponent = lazy(() => import('../components/KpiManager')); 
+const ImportToolComponent = lazy(() => import('../components/ImportTool'));
+const ExportToolComponent = lazy(() => import('../components/ExportTool'));
+const SettingsPage = lazy(() => import('./Settings'));
+const ViewEvaluationComponent = lazy(() => import('../components/ViewEvaluation'));
+const PendingReviewsComponent = lazy(() => import('../components/PendingReviews'));
+const TemplateAssignmentsComponent = lazy(() => import('../components/TemplateAssignments'));
 
 // Import Super Admin components
-const SuperAdminDashboard = lazy(() => import('../components/super-admin/SuperAdminDashboard'));
+const SuperAdminDashboardComponent = lazy(() => import('../components/super-admin/SuperAdminDashboard'));
 
 function Dashboard({ initialView = 'dashboard' }) {
   const { employees } = useDepartments();
@@ -43,14 +48,10 @@ function Dashboard({ initialView = 'dashboard' }) {
     recentReviews: [],
     overdueReviews: 0
   });
-  const [timeFilter, setTimeFilter] = useState('month');
-  const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [chartView, setChartView] = useState('standard');
   const [isLoading, setIsLoading] = useState(true);
   const [dataFetchError, setDataFetchError] = useState(false);
   const [departmentData, setDepartmentData] = useState([]);
   const [reviewsTrend, setReviewsTrend] = useState([]);
-  const [priorityActions, setPriorityActions] = useState([]);
   const [employeeLifecycleData, setEmployeeLifecycleData] = useState([]);
   const [tenureDistribution, setTenureDistribution] = useState([]);
   const [ratingsByManager, setRatingsByManager] = useState([]);
@@ -58,8 +59,14 @@ function Dashboard({ initialView = 'dashboard' }) {
   
   // Simple flag to prevent repeated API calls
   const fetchedAssignmentsRef = useRef(false);
+  // Add refs to track API calls and component lifecycle
+  const apiCallInProgress = useRef(false);
+  const componentMounted = useRef(true);
+  const userInitialized = useRef(false);
+  const impersonationActive = useRef(!!localStorage.getItem('impersonatedCustomer'));
   
   const navigate = useNavigate();
+  const location = useLocation(); // Added for URL-based view detection
   
   // Get completed review data from session storage only once
   const completedReviewId = sessionStorage.getItem('completedReviewId');
@@ -79,8 +86,63 @@ function Dashboard({ initialView = 'dashboard' }) {
   // Color palette for charts
   const COLORS = ['#6366F1', '#8B5CF6', '#EC4899', '#F97316', '#10B981', '#3B82F6'];
 
+  // ADDED: Update activeView based on URL path
+  useEffect(() => {
+    const path = location.pathname;
+    console.log('Current path:', path);
+    
+    // Map paths to views
+    if (path === '/dashboard') {
+      setActiveView('dashboard');
+    } else if (path === '/employees') {
+      setActiveView('employees');
+    } else if (path === '/templates') {
+      setActiveView('templates');
+    } else if (path === '/review-cycles') {
+      setActiveView('review-cycles');
+    } else if (path === '/templates/assignments') {
+      setActiveView('template-assignments');
+    } else if (path === '/metrics') {
+      console.log('Setting active view to metrics');
+      setActiveView('metrics');
+    } else if (path === '/reports') {
+      console.log('Setting active view to reports');
+      setActiveView('reports');
+    } else if (path === '/kpis') {
+      setActiveView('kpis');
+    }
+  }, [location.pathname]);
+
+  // Component lifecycle tracking
+  useEffect(() => {
+    // Set mounted flag
+    componentMounted.current = true;
+    
+    // Clear any existing API flags at component mount
+    apiCallInProgress.current = false;
+    
+    // Check if impersonation is active
+    if (localStorage.getItem('impersonatedCustomer')) {
+      console.log("Dashboard: Impersonation mode detected, using special handling");
+      impersonationActive.current = true;
+    }
+    
+    return () => {
+      // Mark component as unmounted when it's destroyed
+      componentMounted.current = false;
+      // Clear API flag on unmount
+      apiCallInProgress.current = false;
+    };
+  }, []);
+
   // Initialize user - run only when currentUser changes
   useEffect(() => {
+    // Skip if already initialized
+    if (userInitialized.current) {
+      console.log("Dashboard: User already initialized, skipping");
+      return;
+    }
+    
     console.log("Dashboard auth check running");
     
     // Check if we're on admin dashboard path
@@ -168,12 +230,48 @@ function Dashboard({ initialView = 'dashboard' }) {
       });
     }
     
+    // Mark user as initialized
+    userInitialized.current = true;
+    
     // Set loading to false once user is set
     setIsLoading(false);
   }, [currentUser, navigate]);
 
+  // MODIFIED: Debug logging for activeView changes
+  useEffect(() => {
+    console.log('Active view changed to:', activeView);
+  }, [activeView]);
+
+  // Effect to fetch data when the dashboard is first loaded
+  useEffect(() => {
+    // Only fetch if we haven't already and we're showing the dashboard view
+    if (activeView === 'dashboard' && !fetchedAssignmentsRef.current && !apiCallInProgress.current) {
+      fetchAssignments();
+    }
+  }, [activeView]);
+
+  // FIXED: Special navigation handler to ensure proper page loads
+  const navigateToEmployees = () => {
+    // Force navigation with a page reload to ensure clean component mounting
+    window.location.href = '/employees';
+  };
+
+  const navigateToTemplates = () => {
+    // Force navigation with a page reload to ensure clean component mounting
+    window.location.href = '/templates';
+  };
+
   // Enhanced fetchEmployeeData function with better error handling
   const fetchEmployeeData = async () => {
+    // Skip if API call already in progress or component unmounted
+    if (apiCallInProgress.current || !componentMounted.current) {
+      console.log('API call already in progress or component unmounted, skipping fetchEmployeeData');
+      return [];
+    }
+    
+    // Mark API call as in progress
+    apiCallInProgress.current = true;
+    
     console.log('Fetching employee data for analytics');
     try {
       // Enhanced fetch with retry logic
@@ -245,44 +343,45 @@ function Dashboard({ initialView = 'dashboard' }) {
       
       console.log(`Combined data contains ${combinedData.length} employees/users`);
       
-      // Process employee data for lifecycle analytics with improved error handling
-      const employeesByMonth = processEmployeeLifecycleData(combinedData);
-      setEmployeeLifecycleData(employeesByMonth);
+      // Only update state if component is still mounted
+      if (componentMounted.current) {
+        // Process employee data for lifecycle analytics with improved error handling
+        const employeesByMonth = processEmployeeLifecycleData(combinedData);
+        setEmployeeLifecycleData(employeesByMonth);
+        
+        // Process tenure distribution
+        const tenureData = processTenureDistribution(combinedData);
+        setTenureDistribution(tenureData);
+        
+        // Process manager ratings
+        const managerData = processManagerRatings(combinedData);
+        setRatingsByManager(managerData);
+        
+        // Process performance distribution
+        const performanceData = processPerformanceDistribution(combinedData);
+        setPerformanceDistribution(performanceData);
+      }
       
-      // Process tenure distribution
-      const tenureData = processTenureDistribution(combinedData);
-      setTenureDistribution(tenureData);
-      
-      // Process manager ratings
-      const managerData = processManagerRatings(combinedData);
-      setRatingsByManager(managerData);
-      
-      // Process performance distribution (new)
-      const performanceData = processPerformanceDistribution(combinedData);
-      setPerformanceDistribution(performanceData);
+      // Reset API call flag
+      apiCallInProgress.current = false;
       
       return combinedData;
     } catch (error) {
       console.error('Error fetching employee data:', error);
-      setDataFetchError(true);
       
-      // Fall back to mock data after a short delay to allow for potential retry
-      setTimeout(() => {
-        if (dataFetchError) {
-          console.log('Falling back to mock employee data');
-          setEmployeeLifecycleData(generateEmployeeLifecycleData());
-          setTenureDistribution(generateTenureDistribution());
-          setRatingsByManager(generateManagerRatingsData());
-          setPerformanceDistribution(generatePerformanceDistribution());
-          setDataFetchError(false);
-        }
-      }, 3000);
+      // Only update state if component is still mounted
+      if (componentMounted.current) {
+        setDataFetchError(true);
+      }
+      
+      // Reset API call flag
+      apiCallInProgress.current = false;
       
       return [];
     }
   };
 
-  // Process performance distribution for new chart
+  // Process performance distribution for chart
   const processPerformanceDistribution = (employees) => {
     // Define rating buckets
     const ratingBuckets = {
@@ -295,7 +394,7 @@ function Dashboard({ initialView = 'dashboard' }) {
     
     if (!Array.isArray(employees)) {
       console.warn('processPerformanceDistribution: employees is not an array');
-      return generatePerformanceDistribution();
+      return [];
     }
     
     // Process each employee
@@ -327,25 +426,7 @@ function Dashboard({ initialView = 'dashboard' }) {
       count
     }));
     
-    // If we have no real data, fall back to sample data
-    if (performanceData.every(item => item.count === 0)) {
-      console.log('No performance distribution data found, using sample data');
-      return generatePerformanceDistribution();
-    }
-    
-    console.log('Using real performance distribution data:', performanceData);
     return performanceData;
-  };
-
-  // Generate performance distribution data
-  const generatePerformanceDistribution = () => {
-    return [
-      { range: 'Outstanding (4.5-5.0)', count: 8 },
-      { range: 'Exceeds Expectations (4.0-4.4)', count: 15 },
-      { range: 'Meets Expectations (3.0-3.9)', count: 22 },
-      { range: 'Needs Improvement (2.0-2.9)', count: 6 },
-      { range: 'Unsatisfactory (0-1.9)', count: 2 }
-    ];
   };
 
   // Process actual employee data into lifecycle chart format
@@ -354,7 +435,7 @@ function Dashboard({ initialView = 'dashboard' }) {
     
     if (!Array.isArray(employees)) {
       console.warn('processEmployeeLifecycleData: employees is not an array');
-      return generateEmployeeLifecycleData();
+      return [];
     }
     
     // Get last 6 months for analysis
@@ -421,14 +502,6 @@ function Dashboard({ initialView = 'dashboard' }) {
     });
     
     console.log(`Processed ${processedCount} employees for lifecycle data`);
-    
-    // If we have no real data, use some sample data
-    if (months.every(m => m.active === 0)) {
-      console.log('No active employees found, using sample data');
-      return generateEmployeeLifecycleData();
-    }
-    
-    console.log('Using real employee lifecycle data');
     return months;
   };
   
@@ -438,7 +511,7 @@ function Dashboard({ initialView = 'dashboard' }) {
     
     if (!Array.isArray(employees)) {
       console.warn('processTenureDistribution: employees is not an array');
-      return generateTenureDistribution();
+      return [];
     }
     
     // Initialize tenure ranges
@@ -509,14 +582,6 @@ function Dashboard({ initialView = 'dashboard' }) {
     });
     
     console.log(`Processed ${processedCount} employees for tenure distribution`);
-    
-    // If we have no real data, use sample data
-    if (tenureRanges.every(r => r.count === 0)) {
-      console.log('No tenure data found, using sample data');
-      return generateTenureDistribution();
-    }
-    
-    console.log('Using real tenure distribution data');
     return tenureRanges;
   };
   
@@ -526,7 +591,7 @@ function Dashboard({ initialView = 'dashboard' }) {
     
     if (!Array.isArray(employees)) {
       console.warn('processManagerRatings: employees is not an array');
-      return generateManagerRatingsData();
+      return [];
     }
     
     // First, create a map of all employees by ID for easy lookup
@@ -657,26 +722,31 @@ function Dashboard({ initialView = 'dashboard' }) {
     
     console.log(`Found ${managerArray.length} managers with ratings`);
     
-    // If we have no managers with ratings, use sample data
-    if (managerArray.length === 0) {
-      console.log('No manager ratings found, using sample data');
-      return generateManagerRatingsData();
-    }
-    
     // Sort by average rating (highest first) and take top 5
-    const result = managerArray
+    return managerArray
       .sort((a, b) => b.avgRating - a.avgRating)
       .slice(0, 5);
-      
-    console.log('Using real manager ratings data');
-    return result;
   };
 
   // Enhanced function to fetch assignments with better error handling
   const fetchAssignments = async () => {
-    // Debug display of fetch status
-    console.log(`Fetching dashboard data with time filter: ${timeFilter}, department filter: ${departmentFilter}`);
+    // Skip if fetch already in progress or component unmounted
+    if (apiCallInProgress.current || !componentMounted.current) {
+      console.log('API call already in progress or component unmounted, skipping fetchAssignments');
+      return;
+    }
     
+    // Skip if already fetched
+    if (fetchedAssignmentsRef.current) {
+      console.log('Already fetched assignments, skipping');
+      return;
+    }
+    
+    // Debug display of fetch status
+    console.log('Fetching dashboard data');
+    
+    // Set API call flag
+    apiCallInProgress.current = true;
     setIsLoading(true);
     setDataFetchError(false);
     
@@ -684,30 +754,68 @@ function Dashboard({ initialView = 'dashboard' }) {
       // Mark that we're fetching to prevent duplicate calls
       fetchedAssignmentsRef.current = true;
       
-      // Build the query string with all active filters
-      const queryParams = new URLSearchParams();
-      queryParams.append('timeFilter', timeFilter);
-      if (departmentFilter !== 'all') {
-        queryParams.append('department', departmentFilter);
-      }
+      // Enhanced fetch with retry logic
+      const fetchWithRetry = async (url, options, retries = 2) => {
+        try {
+          const response = await fetch(url, options);
+          if (!response.ok) throw new Error(`Failed to fetch from ${url}`);
+          return await response.json();
+        } catch (error) {
+          if (retries === 0) throw error;
+          console.log(`Retrying fetch for ${url}, ${retries} attempts left`);
+          await new Promise(resolve => setTimeout(resolve, 500)); // Wait before retry
+          return fetchWithRetry(url, options, retries - 1);
+        }
+      };
+
+      // Fetch assignments with retry
+      const authHeaders = {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      };
       
-      // Fetch both employees and assignments concurrently
-      const [assignmentsResponse, employeeResult] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/templates/assignments?${queryParams.toString()}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Content-Type': 'application/json'
+      // For impersonation, use a simpler approach
+      let assignments = [];
+      if (impersonationActive.current) {
+        console.log("Fetching assignments in impersonation mode");
+        try {
+          assignments = await fetchWithRetry(`${API_BASE_URL}/api/templates/assignments`, authHeaders);
+        } catch (error) {
+          console.warn('Failed to fetch assignments, falling back to empty array', error);
+          assignments = [];
+        }
+      } else {
+        try {
+          // Fetch both employees and assignments concurrently for non-impersonation mode
+          const [assignmentsResponse, employeeResult] = await Promise.all([
+            fetchWithRetry(`${API_BASE_URL}/api/templates/assignments`, authHeaders),
+            fetchEmployeeData() // This will update employee-related state variables
+          ]);
+          
+          assignments = assignmentsResponse;
+        } catch (error) {
+          console.warn('Failed to fetch data concurrently, trying sequential fallback', error);
+          
+          // Try sequential fetching as fallback
+          try {
+            assignments = await fetchWithRetry(`${API_BASE_URL}/api/templates/assignments`, authHeaders);
+            await fetchEmployeeData();
+          } catch (fallbackError) {
+            console.error('Sequential fallback failed:', fallbackError);
+            assignments = [];
           }
-        }),
-        fetchEmployeeData() // This will update employee-related state variables
-      ]);
-
-      if (!assignmentsResponse.ok) {
-        throw new Error(`Failed to fetch assignments: ${assignmentsResponse.status} ${assignmentsResponse.statusText}`);
+        }
+      }
+      
+      // Only proceed if component is still mounted
+      if (!componentMounted.current) {
+        console.log('Component unmounted, aborting data processing');
+        apiCallInProgress.current = false;
+        return;
       }
 
-      const assignments = await assignmentsResponse.json();
-      
       // Process assignments in a more efficient way
       let pendingCount = 0;
       let completedCount = 0;
@@ -813,10 +921,16 @@ function Dashboard({ initialView = 'dashboard' }) {
         });
       }
       
+      // Only update state if still mounted
+      if (!componentMounted.current) {
+        apiCallInProgress.current = false;
+        return;
+      }
+      
       // Convert department map to array for the chart
       const departmentStats = Array.from(deptMap.values());
       
-      console.log('Real department data before processing:', departmentStats);
+      console.log('Department data before processing:', departmentStats);
       
       // Better handling of departments - ensure we track "Unknown" department
       if (!deptMap.has('Unknown') && assignments.some(a => !a.employee?.department)) {
@@ -844,14 +958,14 @@ function Dashboard({ initialView = 'dashboard' }) {
         }
       }
       
-      // Only fall back to sample data if we have no real data after our fixes
+      // Add empty departments array if none found
       if (departmentStats.length === 0) {
-        console.log('No department data found, using sample data');
+        console.log('No department data found, creating empty array');
         departmentStats.push(
-          { name: 'Engineering', pending: 3, completed: 7, total: 10 },
-          { name: 'Sales', pending: 2, completed: 5, total: 7 }
+          { name: 'No Data', pending: 0, completed: 0, total: 0 }
         );
       }
+      
       console.log('Final department data:', departmentStats);
       setDepartmentData(departmentStats);
       
@@ -859,24 +973,15 @@ function Dashboard({ initialView = 'dashboard' }) {
       const trendData = Array.from(monthMap.values())
         .sort((a, b) => a.date - b.date); // Sort by date ascending
       
-      console.log('Real trend data before processing:', trendData);
+      console.log('Trend data before processing:', trendData);
       
-      // Ensure we have data for trend chart
+      // Use empty trend data if none found
       if (trendData.every(item => item.completed === 0 && item.pending === 0 && item.upcoming === 0)) {
-        console.log('No trend data found, using sample data');
-        // If no real data, add some sample data
-        trendData.forEach((item, index) => {
-          item.completed = Math.floor(Math.random() * 5) + 1;
-          item.pending = Math.floor(Math.random() * 4) + 1;
-          item.upcoming = index > 3 ? Math.floor(Math.random() * 3) + 1 : 0;
-        });
+        console.log('No trend data found, keeping empty data');
       }
+      
       console.log('Final trend data:', trendData);
       setReviewsTrend(trendData);
-      
-      // Generate priority actions
-      const actions = generatePriorityActions(overdueCount, pendingCount, assignments);
-      setPriorityActions(actions);
       
       // Map only the first 5 assignments for display
       const recentReviews = processRecentReviews(assignments.slice(0, 5));
@@ -890,18 +995,31 @@ function Dashboard({ initialView = 'dashboard' }) {
         recentReviews
       });
       
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error fetching assignments:', error);
-      setDataFetchError(true);
+      // Ensure we also have employee data if in impersonation mode
+      if (impersonationActive.current && componentMounted.current) {
+        // Fetch employee data separately for impersonation mode
+        try {
+          await fetchEmployeeData();
+        } catch (error) {
+          console.warn('Error fetching employee data in impersonation mode:', error);
+        }
+      }
+      
       setIsLoading(false);
       
-      // Wait a bit before falling back to mock data
-      setTimeout(() => {
-        if (dataFetchError) {
-          fallbackToMockData();
-        }
-      }, 3000);
+      // Reset API call flag - must be the last thing we do
+      apiCallInProgress.current = false;
+    } catch (error) {
+      console.error('Error fetching assignments:', error);
+      
+      // Only update state if component is still mounted
+      if (componentMounted.current) {
+        setDataFetchError(true);
+        setIsLoading(false);
+      }
+      
+      // Reset API call flag
+      apiCallInProgress.current = false;
     }
   };
   
@@ -941,213 +1059,6 @@ function Dashboard({ initialView = 'dashboard' }) {
     });
   };
   
-  // Fallback to mock data if API fails
-  const fallbackToMockData = () => {
-    console.warn('Falling back to mock data due to API errors');
-    setDataFetchError(false);
-    
-    setDepartmentData(generateMockDepartmentData());
-    setReviewsTrend(generateMockTrendData());
-    
-    // Employee data fallbacks are handled in fetchEmployeeData
-    
-    const actions = generateMockPriorityActions();
-    setPriorityActions(actions);
-    
-    // Attempt to use localStorage as fallback for review data
-    const storedReviews = localStorage.getItem('reviews');
-    if (storedReviews) {
-      try {
-        const parsedReviews = JSON.parse(storedReviews);
-        // Process localStorage data (simplified)
-        setReviewData({
-          pending: parsedReviews.filter(r => 
-            r.status?.toLowerCase() === 'pending' || 
-            r.status?.toLowerCase() === 'pending manager review'
-          ).length,
-          completed: parsedReviews.filter(r => 
-            r.status?.toLowerCase() === 'completed'
-          ).length,
-          upcoming: parsedReviews.filter(r => 
-            r.status?.toLowerCase() === 'upcoming'
-          ).length,
-          overdueReviews: 2, // Mock data
-          recentReviews: parsedReviews.slice(0, 5).map(review => ({
-            id: review.id,
-            employee: review.employeeName || 'Unknown',
-            cycle: review.reviewCycle || 'Annual Review',
-            dueDate: review.submissionDate || 'N/A',
-            reviewType: 'Performance',
-            status: review.status?.toLowerCase() || 'pending',
-            createdReview: review.reviewId || null,
-            department: review.department || 'General'
-          }))
-        });
-      } catch (localStorageError) {
-        console.error('Error parsing reviews from localStorage:', localStorageError);
-        // If localStorage parsing fails, set default review data
-        setReviewData({
-          pending: 5,
-          completed: 8,
-          upcoming: 3,
-          overdueReviews: 2,
-          recentReviews: []
-        });
-      }
-    } else {
-      // No localStorage data, set defaults
-      setReviewData({
-        pending: 5,
-        completed: 8,
-        upcoming: 3,
-        overdueReviews: 2,
-        recentReviews: []
-      });
-    }
-  };
-
-  // Fetch data on component mount or when filters change
-  useEffect(() => {
-    // Only call the fetch function when on the dashboard view
-    if (activeView === 'dashboard' && user) {
-      // Force reset of fetch flag to ensure we always get fresh data
-      fetchedAssignmentsRef.current = false;
-      fetchAssignments();
-    }
-  }, [activeView, user, timeFilter, departmentFilter, chartView, completedReviewId, API_BASE_URL]);
-  
-  // Generate employee lifecycle data (hires, active, terminated)
-  const generateEmployeeLifecycleData = () => {
-    // In a real application, this would come from your API
-    const mockData = [
-      { month: 'Jan', hired: 3, terminated: 1, active: 42 },
-      { month: 'Feb', hired: 2, terminated: 0, active: 44 },
-      { month: 'Mar', hired: 5, terminated: 2, active: 47 },
-      { month: 'Apr', hired: 4, terminated: 1, active: 50 },
-      { month: 'May', hired: 3, terminated: 3, active: 50 },
-      { month: 'Jun', hired: 6, terminated: 2, active: 54 }
-    ];
-    console.log('Using mock employee lifecycle data');
-    return mockData;
-  };
-  
-  // Generate tenure distribution data
-  const generateTenureDistribution = () => {
-    const mockData = [
-      { range: '0-6 mo', count: 12, avgRating: 3.2 },
-      { range: '6-12 mo', count: 15, avgRating: 3.5 },
-      { range: '1-2 yr', count: 20, avgRating: 3.7 },
-      { range: '2-5 yr', count: 18, avgRating: 4.1 },
-      { range: '5+ yr', count: 8, avgRating: 4.3 }
-    ];
-    console.log('Using mock tenure distribution data');
-    return mockData;
-  };
-  
-  // Generate manager ratings data
-  const generateManagerRatingsData = () => {
-    const mockData = [
-      { manager: 'Sarah Johnson', avgRating: 4.2, minRating: 3.7, maxRating: 4.8, count: 8 },
-      { manager: 'Michael Chen', avgRating: 3.8, minRating: 3.0, maxRating: 4.5, count: 6 },
-      { manager: 'David Wilson', avgRating: 4.0, minRating: 3.5, maxRating: 4.7, count: 9 },
-      { manager: 'Lisa Rodriguez', avgRating: 3.9, minRating: 3.2, maxRating: 4.6, count: 7 },
-      { manager: 'James Martin', avgRating: 3.7, minRating: 2.9, maxRating: 4.4, count: 5 }
-    ];
-    console.log('Using mock manager ratings data');
-    return mockData;
-  };
-  
-  // Generate mock data for charts and visualizations (fallback only)
-  const generateMockDepartmentData = () => {
-    return [
-      { name: 'Engineering', pending: 5, completed: 12, total: 17 },
-      { name: 'Marketing', pending: 3, completed: 7, total: 10 },
-      { name: 'HR', pending: 1, completed: 5, total: 6 },
-      { name: 'Sales', pending: 6, completed: 9, total: 15 },
-      { name: 'Support', pending: 2, completed: 8, total: 10 }
-    ];
-  };
-  
-  const generateMockTrendData = () => {
-    return [
-      { month: 'Jan', completed: 4, pending: 2, upcoming: 0 },
-      { month: 'Feb', completed: 6, pending: 3, upcoming: 0 },
-      { month: 'Mar', completed: 8, pending: 5, upcoming: 0 },
-      { month: 'Apr', completed: 10, pending: 4, upcoming: 0 },
-      { month: 'May', completed: 11, pending: 6, upcoming: 0 },
-      { month: 'Jun', completed: 9, pending: 4, upcoming: 3 }
-    ];
-  };
-  
-  const generateMockPriorityActions = () => {
-    return [
-      { id: 1, title: 'Send reminders for overdue reviews', count: 3, type: 'warning' },
-      { id: 2, title: 'Approve pending reviews', count: 5, type: 'info' },
-      { id: 3, title: 'Create templates for next quarter', count: 1, type: 'task' }
-    ];
-  };
-  
-  const generatePriorityActions = (overdueCount, pendingCount, assignments) => {
-    const actions = [];
-    
-    // Add overdue review action if there are any
-    if (overdueCount > 0) {
-      actions.push({
-        id: 1,
-        title: `Send reminders for overdue reviews`,
-        count: overdueCount,
-        type: 'warning'
-      });
-    }
-    
-    // Add pending reviews action if there are any
-    if (pendingCount > 0) {
-      actions.push({
-        id: 2,
-        title: 'Reviews awaiting your approval',
-        count: pendingCount,
-        type: 'info'
-      });
-    }
-    
-    // Find upcoming reviews in the next 7 days
-    const now = new Date();
-    const nextWeek = new Date(now);
-    nextWeek.setDate(now.getDate() + 7);
-    
-    let upcomingThisWeek = 0;
-    if (Array.isArray(assignments)) {
-      upcomingThisWeek = assignments.filter(a => {
-        if (!a || !a.dueDate) return false;
-        try {
-          const dueDate = new Date(a.dueDate);
-          return dueDate >= now && dueDate <= nextWeek;
-        } catch (error) {
-          return false;
-        }
-      }).length;
-    }
-    
-    if (upcomingThisWeek > 0) {
-      actions.push({
-        id: 3,
-        title: 'Reviews due in the next 7 days',
-        count: upcomingThisWeek,
-        type: 'upcoming'
-      });
-    }
-    
-    // Add a template-related action if needed
-    actions.push({
-      id: 4,
-      title: 'Prepare for next review cycle',
-      count: 1,
-      type: 'task'
-    });
-    
-    return actions;
-  };
-  
   // Handle review actions 
   const handleReviewAction = (review) => {
     if (review.status === 'completed') {
@@ -1177,37 +1088,7 @@ function Dashboard({ initialView = 'dashboard' }) {
       }
     } else {
       // Navigate to templates page instead of evaluation management
-      navigate(`/templates`);
-      setActiveView('templates');
-    }
-  };
-  
-  // Handle priority action click
-  const handlePriorityAction = (action) => {
-    switch (action.type) {
-      case 'warning':
-        // Navigate to pending reviews/template assignments for overdue reviews
-        setActiveView('template-assignments');
-        navigate('/templates/assignments');
-        break;
-      case 'info':
-        // Navigate to pending reviews for approvals
-        setActiveView('pending-reviews');
-        navigate('/pending-reviews');
-        break;
-      case 'upcoming':
-        // Navigate to upcoming reviews
-        setActiveView('template-assignments');
-        navigate('/templates/assignments');
-        break;
-      case 'task':
-        // Navigate to templates for review cycle preparation
-        setActiveView('templates');
-        navigate('/templates');
-        break;
-      default:
-        // Default to dashboard
-        break;
+      navigateToTemplates(); // FIXED: Use the force reload function
     }
   };
 
@@ -1224,29 +1105,11 @@ function Dashboard({ initialView = 'dashboard' }) {
       employee.status?.toLowerCase() === 'active')
     ).length : 0;
   
-  // Handler for time filter changes
-  const handleTimeFilterChange = (filter) => {
-    setTimeFilter(filter);
-    // Reset the fetch flag to ensure data is refetched with new time filter
-    fetchedAssignmentsRef.current = false;
-  };
-  
-  // Handler for department filter changes
-  const handleDepartmentFilterChange = (filter) => {
-    setDepartmentFilter(filter);
-    // Reset the fetch flag to ensure data is refetched with new department filter
-    fetchedAssignmentsRef.current = false;
-  };
-  
-  // Handler for chart view changes
-  const handleChartViewChange = (view) => {
-    setChartView(view);
-  };
-  
   // Function to retry data fetching
   const handleRetryFetch = () => {
     setDataFetchError(false);
     fetchedAssignmentsRef.current = false;
+    apiCallInProgress.current = false;
     fetchAssignments();
   };
   
@@ -1273,8 +1136,12 @@ function Dashboard({ initialView = 'dashboard' }) {
     </div>
   );
   
-  // Render the active view with Suspense for lazy-loaded components
+  // MODIFIED: Render the active view with Suspense for lazy-loaded components
+  // Fixed to use placeholder components for removed views and added reports component support
   const renderActiveView = () => {
+    // Add debug logging
+    console.log('renderActiveView called with activeView:', activeView, 'initialView:', initialView);
+    
     // Return a Suspense wrapped component
     const renderComponent = (Component, props = {}) => (
       <Suspense fallback={<div className="loading-state">Loading component...</div>}>
@@ -1282,20 +1149,46 @@ function Dashboard({ initialView = 'dashboard' }) {
       </Suspense>
     );
     
+    // MODIFIED: Use placeholder component for my-reviews and team-reviews, and added metrics and reports
     switch (activeView) {
-      case 'my-reviews': return renderComponent(MyReviews);
-      case 'team-reviews': return renderComponent(TeamReviews);
-      case 'employees': return renderComponent(Employees);
-      case 'settings': return renderComponent(Settings);
-      case 'review-cycles': return renderComponent(ReviewCycles);
-      case 'templates': return renderComponent(ReviewTemplates);
-      case 'template-assignments': return renderComponent(TemplateAssignments);
-      case 'kpis': return renderComponent(KpiManager);
-      case 'tools-imports': return renderComponent(ImportTool);
-      case 'tools-exports': return renderComponent(ExportTool);
-      case 'evaluation-detail': return renderComponent(ViewEvaluation);
-      case 'pending-reviews': return renderComponent(PendingReviews);
-      case 'super-admin': return renderComponent(SuperAdminDashboard);
+      // MODIFIED: Use EmptyPlaceholder for removed components
+      case 'my-reviews': 
+      case 'team-reviews': 
+        return renderDashboardDefault(); // Redirect to dashboard instead of showing placeholder
+        
+      case 'employees': 
+        // FIXED: Add key to force render and check location to ensure we're on the right page
+        if (window.location.pathname === '/employees') {
+          return renderComponent(EmployeesPage, { key: `emp-${Date.now()}` });
+        } else {
+          navigateToEmployees();
+          return <div className="loading-state">Redirecting to Employees page...</div>;
+        }
+      case 'settings': return renderComponent(SettingsPage);
+      case 'review-cycles': return renderComponent(ReviewCyclesComponent);
+      case 'templates': 
+        // FIXED: Add key to force render and check location to ensure we're on the right page
+        if (window.location.pathname === '/templates') {
+          return renderComponent(ReviewTemplatesComponent, { key: `templ-${Date.now()}` });
+        } else {
+          navigateToTemplates();
+          return <div className="loading-state">Redirecting to Templates page...</div>;
+        }
+      case 'template-assignments': return renderComponent(TemplateAssignmentsComponent);
+      case 'kpis': return renderComponent(KpiManagerComponent);
+      // ADDED: Support for metrics component
+      case 'metrics': 
+        console.log('Rendering Metrics component directly');
+        return <Metrics />;
+      // ADDED: Support for reports component
+      case 'reports': 
+        console.log('Rendering Reports component directly');
+        return <Reports />;
+      case 'tools-imports': return renderComponent(ImportToolComponent);
+      case 'tools-exports': return renderComponent(ExportToolComponent);
+      case 'evaluation-detail': return renderComponent(ViewEvaluationComponent);
+      case 'pending-reviews': return renderComponent(PendingReviewsComponent);
+      case 'super-admin': return renderComponent(SuperAdminDashboardComponent);
       default: return renderDashboardDefault();
     }
   };
@@ -1306,62 +1199,6 @@ function Dashboard({ initialView = 'dashboard' }) {
       <>
         <div className="dashboard-header">
           <h1 className="page-title">Dashboard Overview</h1>
-        </div>
-        
-        {/* Enhanced Filters Section */}
-        <div className="dashboard-filters">
-          <div className="filter-group">
-            <span className="filter-label">
-              <FaFilter className="mr-2" /> Time Period:
-            </span>
-            <select 
-              value={timeFilter} 
-              onChange={(e) => handleTimeFilterChange(e.target.value)}
-              className="filter-select"
-            >
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-              <option value="quarter">This Quarter</option>
-              <option value="year">This Year</option>
-            </select>
-          </div>
-          
-          <div className="filter-group">
-            <span className="filter-label">Department:</span>
-            <select 
-              value={departmentFilter} 
-              onChange={(e) => handleDepartmentFilterChange(e.target.value)}
-              className="filter-select"
-            >
-              <option value="all">All Departments</option>
-              {Array.isArray(departmentData) && departmentData.map(dept => (
-                <option key={dept.name} value={dept.name}>
-                  {dept.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="filter-group ml-auto">
-            <button 
-              className={`filter-button ${chartView === 'standard' ? 'active' : ''}`}
-              onClick={() => handleChartViewChange('standard')}
-            >
-              Standard
-            </button>
-            <button 
-              className={`filter-button ${chartView === 'performance' ? 'active' : ''}`}
-              onClick={() => handleChartViewChange('performance')}
-            >
-              Performance
-            </button>
-            <button 
-              className={`filter-button ${chartView === 'employees' ? 'active' : ''}`}
-              onClick={() => handleChartViewChange('employees')}
-            >
-              Employees
-            </button>
-          </div>
         </div>
         
         {/* Super Admin Access Panel - Only visible to superadmin users who are NOT impersonating */}
@@ -1380,43 +1217,6 @@ function Dashboard({ initialView = 'dashboard' }) {
           </div>
         )}
         
-        {/* Priority Actions Section */}
-        <div className="priority-actions-section">
-          <div className="dashboard-section-title">
-            <div className="section-title-main">
-              <FaExclamationTriangle className="section-icon" />
-              Priority Actions
-            </div>
-            <div className="section-actions">
-              <span className="action-link" onClick={() => {
-                setActiveView('template-assignments');
-                navigate('/templates/assignments');
-              }}>
-                View All <FaExternalLinkAlt />
-              </span>
-            </div>
-          </div>
-          <div className="priority-actions-container">
-            {priorityActions.length > 0 ? (
-              priorityActions.map(action => (
-                <div 
-                  key={action.id} 
-                  className={`priority-action-card ${action.type}`}
-                  onClick={() => handlePriorityAction(action)}
-                >
-                  <div className="action-badge">{action.count}</div>
-                  <div className="action-title">{action.title}</div>
-                  <div className="action-cta">Take action →</div>
-                </div>
-              ))
-            ) : (
-              <div className="empty-priorities">
-                <p>No priority actions at this time. Everything is up to date!</p>
-              </div>
-            )}
-          </div>
-        </div>
-        
         {/* Main KPI Cards */}
         <div className="dashboard-metrics">
           <div className="dashboard-section-title">
@@ -1428,10 +1228,7 @@ function Dashboard({ initialView = 'dashboard' }) {
           <div className="dashboard-overview">
             <div 
               className="overview-card enhanced clickable" 
-              onClick={() => {
-                setActiveView('employees');
-                navigate('/employees');
-              }}
+              onClick={navigateToEmployees} // FIXED: Use force reload function
             >
               <div className="card-icon">
                 <FaUserFriends />
@@ -1440,7 +1237,7 @@ function Dashboard({ initialView = 'dashboard' }) {
                 <h3>Active Employees</h3>
                 <div className="value">{activeEmployeesCount || employeeLifecycleData[employeeLifecycleData.length - 1]?.active || 0}</div>
                 <div className="trend positive">
-                  <span className="trend-arrow">↑</span> {employeeLifecycleData[employeeLifecycleData.length - 1]?.hired || 2} new this month
+                  <span className="trend-arrow">↑</span> {employeeLifecycleData[employeeLifecycleData.length - 1]?.hired || 0} new this month
                 </div>
               </div>
             </div>
@@ -1482,7 +1279,7 @@ function Dashboard({ initialView = 'dashboard' }) {
                 <h3>Completed Reviews</h3>
                 <div className="value">{reviewData.completed}</div>
                 <div className="trend positive">
-                  <span className="trend-arrow">↑</span> {Math.max(1, Math.floor(reviewData.completed * 0.1))} from last cycle
+                  <span className="trend-arrow">↑</span> {Math.max(0, Math.floor(reviewData.completed * 0.1))} from last cycle
                 </div>
               </div>
             </div>
@@ -1506,298 +1303,70 @@ function Dashboard({ initialView = 'dashboard' }) {
           </div>
         </div>
         
-        {/* Render different chart sections based on selected view */}
-        {chartView === 'standard' && (
-          <div className="dashboard-charts animate-chart">
-            {/* Review Trends Chart */}
-            {isLoading ? renderLoadingState() : (
-              dataFetchError ? renderErrorState() : (
-                <div className="chart-container review-trends">
-                  <h3 className="chart-title">Review Activity Trends</h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <ComposedChart data={reviewsTrend} margin={{ top: 20, right: 30, left: 20, bottom: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                      <XAxis 
-                        dataKey="month" 
-                        axisLine={{ stroke: '#e0e0e0' }}
-                        tick={{ fill: '#6b7280' }}
-                      />
-                      <YAxis 
-                        axisLine={{ stroke: '#e0e0e0' }}
-                        tick={{ fill: '#6b7280' }}
-                      />
-                      <Tooltip formatter={(value, name) => [value, name]} />
-                      <Legend 
-                        verticalAlign="top"
-                        wrapperStyle={{ paddingBottom: '10px' }}
-                      />
-                      <defs>
-                        <linearGradient id="completedFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#10B981" stopOpacity={0.1}/>
-                        </linearGradient>
-                      </defs>
-                      <Area 
-                        type="monotone" 
-                        dataKey="completed" 
-                        name="Completed" 
-                        fill="url(#completedFill)" 
-                        stroke="#10B981" 
-                        strokeWidth={2} 
-                        dot={{ r: 4, strokeWidth: 2, fill: "white" }} 
-                        activeDot={{ r: 6 }}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="pending" 
-                        name="Pending" 
-                        stroke="#F97316" 
-                        strokeWidth={2} 
-                        dot={{ r: 4, strokeWidth: 2, fill: "white" }} 
-                        activeDot={{ r: 6 }}
-                      />
-                      <Bar 
-                        dataKey="upcoming" 
-                        name="Upcoming" 
-                        barSize={20} 
-                        fill="#6366F1" 
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              )
-            )}
-            
-            {/* Department and Status Charts */}
-            <div className="chart-row">
-              {isLoading ? renderLoadingState() : (
-                dataFetchError ? renderErrorState() : (
-                  <div className="chart-container department-performance">
-                    <h3 className="chart-title">Department Performance</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart 
-                        data={[...departmentData].sort((a, b) => b.total - a.total)} 
-                        margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                        barGap={0}
-                        barCategoryGap="15%"
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" vertical={false} />
-                        <XAxis 
-                          dataKey="name" 
-                          axisLine={{ stroke: '#e0e0e0' }}
-                          tick={{ fill: '#6b7280', angle: -45, textAnchor: 'end', dy: 10 }}
-                          height={60}
-                        />
-                        <YAxis 
-                          axisLine={{ stroke: '#e0e0e0' }}
-                          tick={{ fill: '#6b7280' }}
-                        />
-                        <Tooltip cursor={{ fill: 'rgba(0, 0, 0, 0.1)' }} />
-                        <Legend 
-                          verticalAlign="top"
-                          wrapperStyle={{ paddingBottom: '10px' }}
-                        />
-                        <Bar 
-                          dataKey="completed" 
-                          name="Completed" 
-                          stackId="a" 
-                          fill="#10B981" 
-                          radius={[4, 4, 0, 0]}
-                          animationDuration={1500}
-                          animationEasing="ease-out"
-                        />
-                        <Bar 
-                          dataKey="pending" 
-                          name="Pending" 
-                          stackId="a" 
-                          fill="#F97316" 
-                          radius={[4, 4, 0, 0]}
-                          animationDuration={1500}
-                          animationEasing="ease-out"
-                          animationBegin={300}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )
-              )}
-              
-              {isLoading ? renderLoadingState() : (
-                dataFetchError ? renderErrorState() : (
-                  <div className="chart-container review-status">
-                    <h3 className="chart-title">Review Status Distribution</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={[
-                            { name: 'Completed', value: reviewData.completed || 0 },
-                            { name: 'Pending', value: reviewData.pending || 0 },
-                            { name: 'Upcoming', value: reviewData.upcoming || 0 }
-                          ]}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={70}
-                          outerRadius={100}
-                          paddingAngle={5}
-                          dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        >
-                          <Cell fill="#10B981" />
-                          <Cell fill="#F97316" />
-                          <Cell fill="#6366F1" />
-                        </Pie>
-                        <Tooltip formatter={(value, name) => [value, name]} />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-        )}
-        
-        {chartView === 'performance' && (
-          <div className="dashboard-charts animate-chart">
-            {/* Performance Distribution Chart */}
-            <div className="chart-row">
-              {isLoading ? renderLoadingState() : (
-                dataFetchError ? renderErrorState() : (
-                  <div className="chart-container review-status">
-                    <h3 className="chart-title">Performance Rating Distribution</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={performanceDistribution}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ name, percent, cx, cy, midAngle, innerRadius, outerRadius }) => {
-                            const RADIAN = Math.PI / 180;
-                            const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                            
-                            return (
-                              <text 
-                                x={x} 
-                                y={y} 
-                                fill="white" 
-                                textAnchor={x > cx ? 'start' : 'end'} 
-                                dominantBaseline="central"
-                                fontWeight="bold"
-                              >
-                                {`${(percent * 100).toFixed(0)}%`}
-                              </text>
-                            );
-                          }}
-                          innerRadius={60}
-                          outerRadius={120}
-                          paddingAngle={5}
-                          dataKey="count"
-                        >
-                          <Cell fill="#10B981" />
-                          <Cell fill="#6366F1" />
-                          <Cell fill="#3B82F6" />
-                          <Cell fill="#F97316" />
-                          <Cell fill="#EF4444" />
-                        </Pie>
-                        <Tooltip 
-                          formatter={(value, name, props) => [value, props.payload.range]}
-                        />
-                        <Legend 
-                          layout="vertical" 
-                          verticalAlign="middle" 
-                          align="right"
-                          wrapperStyle={{ fontSize: '12px' }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                )
-              )}
-              
-              {isLoading ? renderLoadingState() : (
-                dataFetchError ? renderErrorState() : (
-                  <div className="chart-container">
-                    <h3 className="chart-title">
-                      <FaUserMinus className="chart-title-icon" />
-                      Rating Distribution By Manager
-                    </h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <ComposedChart 
-                        data={ratingsByManager} 
-                        layout="vertical" 
-                        margin={{ top: 20, right: 80, left: 70, bottom: 10 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" horizontal={true} />
-                        <XAxis 
-                          type="number" 
-                          domain={[0, 5]} 
-                          axisLine={{ stroke: '#e0e0e0' }}
-                          tick={{ fill: '#6b7280' }}
-                        />
-                        <YAxis 
-                          dataKey="manager" 
-                          type="category" 
-                          axisLine={{ stroke: '#e0e0e0' }}
-                          tick={{ fill: '#6b7280' }}
-                          width={70}
-                        />
-                        <Tooltip 
-                          formatter={(value, name, props) => {
-                            // Show team size in tooltip
-                            if (name === 'avgRating') {
-                              return [`${value.toFixed(1)} (Team: ${props.payload.count || 0})`];
-                            }
-                            return [value, name];
-                          }}
-                        />
-                        <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px' }} />
-                        
-                        {/* Rating range (min to max) shown as an error bar */}
-                        {ratingsByManager.map((entry, index) => (
-                          <Line
-                            key={`line-${index}`}
-                            dataKey="avgRating"
-                            data={[entry]}
-                            stroke={COLORS[index % COLORS.length]}
-                            strokeWidth={2}
-                            dot={false}
-                            isAnimationActive={false}
-                            label={false}
-                          />
-                        ))}
-                        
-                        {/* Average rating shown as bar */}
-                        <Bar 
-                          dataKey="avgRating" 
-                          name="Average Rating" 
-                          barSize={20} 
-                          radius={[0, 4, 4, 0]}
-                          label={({ x, y, width, value }) => (
-                            <text x={x + width - 5} y={y + 19} fill="#fff" textAnchor="end" dominantBaseline="middle">
-                              {value.toFixed(1)}
-                            </text>
-                          )}
-                        >
-                          {ratingsByManager.map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={COLORS[index % COLORS.length]} 
-                              fillOpacity={0.9}
-                            />
-                          ))}
-                        </Bar>
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                )
-              )}
-            </div>
-            
-            {/* Department Performance Chart */}
+        {/* Standard Dashboard Charts */}
+        <div className="dashboard-charts animate-chart">
+          {/* Review Trends Chart */}
+          {isLoading ? renderLoadingState() : (
+            dataFetchError ? renderErrorState() : (
+              <div className="chart-container review-trends">
+                <h3 className="chart-title">Review Activity Trends</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={reviewsTrend} margin={{ top: 20, right: 30, left: 20, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                    <XAxis 
+                      dataKey="month" 
+                      axisLine={{ stroke: '#e0e0e0' }}
+                      tick={{ fill: '#6b7280' }}
+                    />
+                    <YAxis 
+                      axisLine={{ stroke: '#e0e0e0' }}
+                      tick={{ fill: '#6b7280' }}
+                    />
+                    <Tooltip formatter={(value, name) => [value, name]} />
+                    <Legend 
+                      verticalAlign="top"
+                      wrapperStyle={{ paddingBottom: '10px' }}
+                    />
+                    <defs>
+                      <linearGradient id="completedFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <Area 
+                      type="monotone" 
+                      dataKey="completed" 
+                      name="Completed" 
+                      fill="url(#completedFill)" 
+                      stroke="#10B981" 
+                      strokeWidth={2} 
+                      dot={{ r: 4, strokeWidth: 2, fill: "white" }} 
+                      activeDot={{ r: 6 }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="pending" 
+                      name="Pending" 
+                      stroke="#F97316" 
+                      strokeWidth={2} 
+                      dot={{ r: 4, strokeWidth: 2, fill: "white" }} 
+                      activeDot={{ r: 6 }}
+                    />
+                    <Bar 
+                      dataKey="upcoming" 
+                      name="Upcoming" 
+                      barSize={20} 
+                      fill="#6366F1" 
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            )
+          )}
+          
+          {/* Department and Status Charts */}
+          <div className="chart-row">
             {isLoading ? renderLoadingState() : (
               dataFetchError ? renderErrorState() : (
                 <div className="chart-container department-performance">
@@ -1849,261 +1418,40 @@ function Dashboard({ initialView = 'dashboard' }) {
                 </div>
               )
             )}
-          </div>
-        )}
-        
-        {chartView === 'employees' && (
-          <div className="dashboard-charts animate-chart">
-            {/* Employee Lifecycle Analytics Section */}
-            <div className="dashboard-section-title">
-              <div className="section-title-main">
-                <FaUserPlus className="section-icon" />
-                Employee Lifecycle Analytics
-              </div>
-            </div>
             
-            {/* Employee Headcount Trends */}
             {isLoading ? renderLoadingState() : (
               dataFetchError ? renderErrorState() : (
-                <div className="chart-container">
-                  <h3 className="chart-title">Employee Headcount Trends</h3>
-                  <ResponsiveContainer width="100%" height={350}>
-                    <ComposedChart 
-                      data={employeeLifecycleData} 
-                      margin={{ top: 20, right: 30, left: 20, bottom: 10 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                      <XAxis 
-                        dataKey="month" 
-                        axisLine={{ stroke: '#e0e0e0' }}
-                        tick={{ fill: '#6b7280' }}
-                      />
-                      <YAxis 
-                        yAxisId="left"
-                        axisLine={{ stroke: '#e0e0e0' }}
-                        tick={{ fill: '#6b7280' }}
-                        domain={['auto', 'auto']}
-                      />
-                      <YAxis 
-                        yAxisId="right"
-                        orientation="right"
-                        axisLine={{ stroke: '#e0e0e0' }}
-                        tick={{ fill: '#6b7280' }}
-                        domain={[0, 'dataMax + 5']}
-                      />
-                      <Tooltip />
-                      <Legend 
-                        verticalAlign="top"
-                        wrapperStyle={{ paddingBottom: '10px' }}
-                      />
-                      <defs>
-                        <linearGradient id="activeEmployeesFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366F1" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#6366F1" stopOpacity={0.1}/>
-                        </linearGradient>
-                      </defs>
-                      <Area 
-                        yAxisId="right"
-                        type="monotone" 
-                        dataKey="active" 
-                        name="Active Employees" 
-                        fill="url(#activeEmployeesFill)"
-                        stroke="#6366F1" 
-                        strokeWidth={2}
-                        dot={{ r: 4, strokeWidth: 2, fill: "white" }}
-                        activeDot={{ r: 6 }}
-                      />
-                      <Bar 
-                        yAxisId="left"
-                        dataKey="hired" 
-                        name="New Hires" 
-                        barSize={20} 
-                        fill="#10B981" 
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar 
-                        yAxisId="left"
-                        dataKey="terminated" 
-                        name="Terminations" 
-                        barSize={20} 
-                        fill="#F97316" 
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Line 
-                        yAxisId="right"
-                        type="monotone" 
-                        dataKey="active" 
-                        name="" 
-                        stroke="#6366F1" 
-                        dot={false}
-                        activeDot={false}
-                        hide={true}
-                      />
-                    </ComposedChart>
+                <div className="chart-container review-status">
+                  <h3 className="chart-title">Review Status Distribution</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Completed', value: reviewData.completed || 0 },
+                          { name: 'Pending', value: reviewData.pending || 0 },
+                          { name: 'Upcoming', value: reviewData.upcoming || 0 }
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={70}
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      >
+                        <Cell fill="#10B981" />
+                        <Cell fill="#F97316" />
+                        <Cell fill="#6366F1" />
+                      </Pie>
+                      <Tooltip formatter={(value, name) => [value, name]} />
+                      <Legend />
+                    </PieChart>
                   </ResponsiveContainer>
                 </div>
               )
             )}
-            
-            {/* Tenure and Manager Rating Row */}
-            <div className="chart-row">
-              {isLoading ? renderLoadingState() : (
-                dataFetchError ? renderErrorState() : (
-                  <div className="chart-container">
-                    <h3 className="chart-title">
-                      <FaBusinessTime className="chart-title-icon" />
-                      Employee Tenure Distribution
-                    </h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <ComposedChart
-                        data={tenureDistribution}
-                        margin={{ top: 20, right: 30, left: 20, bottom: 10 }}
-                        barCategoryGap="15%"
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                        <XAxis 
-                          dataKey="range" 
-                          axisLine={{ stroke: '#e0e0e0' }}
-                          tick={{ fill: '#6b7280' }}
-                        />
-                        <YAxis 
-                          yAxisId="left" 
-                          orientation="left" 
-                          domain={[0, 'dataMax + 5']} 
-                          axisLine={{ stroke: '#e0e0e0' }}
-                          tick={{ fill: '#6b7280' }}
-                        />
-                        <YAxis 
-                          yAxisId="right" 
-                          orientation="right" 
-                          domain={[0, 5]} 
-                          axisLine={{ stroke: '#e0e0e0' }}
-                          tick={{ fill: '#6b7280' }}
-                        />
-                        <Tooltip 
-                          formatter={(value, name) => {
-                            if (name === "count") return ["Employee Count", value];
-                            if (name === "avgRating") return ["Avg Performance", value];
-                            return [value, name];
-                          }}
-                        />
-                        <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px' }} />
-                        
-                        <defs>
-                          <linearGradient id="countGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#6366F1" stopOpacity={0.8}/>
-                            <stop offset="95%" stopColor="#6366F1" stopOpacity={0.2}/>
-                          </linearGradient>
-                        </defs>
-                        
-                        <Bar 
-                          yAxisId="left" 
-                          dataKey="count" 
-                          name="Employee Count" 
-                          fill="url(#countGradient)" 
-                          radius={[4, 4, 0, 0]}
-                          barSize={30}
-                          animationDuration={1500}
-                        />
-                        
-                        <Line 
-                          yAxisId="right" 
-                          type="monotone" 
-                          dataKey="avgRating" 
-                          name="Avg Performance" 
-                          stroke="#F97316" 
-                          strokeWidth={3}
-                          dot={{ r: 6, strokeWidth: 2, stroke: '#F97316', fill: 'white' }}
-                          activeDot={{ r: 8, stroke: '#F97316', strokeWidth: 2 }}
-                          connectNulls
-                          animationDuration={2000}
-                        />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                )
-              )}
-              
-              {isLoading ? renderLoadingState() : (
-                dataFetchError ? renderErrorState() : (
-                  <div className="chart-container">
-                    <h3 className="chart-title">
-                      <FaUserMinus className="chart-title-icon" />
-                      Rating Distribution By Manager
-                    </h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <ComposedChart 
-                        data={ratingsByManager} 
-                        layout="vertical" 
-                        margin={{ top: 20, right: 80, left: 70, bottom: 10 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" horizontal={true} />
-                        <XAxis 
-                          type="number" 
-                          domain={[0, 5]} 
-                          axisLine={{ stroke: '#e0e0e0' }}
-                          tick={{ fill: '#6b7280' }}
-                        />
-                        <YAxis 
-                          dataKey="manager" 
-                          type="category" 
-                          axisLine={{ stroke: '#e0e0e0' }}
-                          tick={{ fill: '#6b7280' }}
-                          width={70}
-                        />
-                        <Tooltip 
-                          formatter={(value, name, props) => {
-                            // Show team size in tooltip
-                            if (name === 'avgRating') {
-                              return [`${value.toFixed(1)} (Team: ${props.payload.count || 0})`];
-                            }
-                            return [value, name];
-                          }}
-                        />
-                        <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px' }} />
-                        
-                        {/* Rating range (min to max) shown as an error bar */}
-                        {ratingsByManager.map((entry, index) => (
-                          <Line
-                            key={`line-${index}`}
-                            dataKey="avgRating"
-                            data={[entry]}
-                            stroke={COLORS[index % COLORS.length]}
-                            strokeWidth={2}
-                            dot={false}
-                            isAnimationActive={false}
-                            label={false}
-                          />
-                        ))}
-                        
-                        {/* Average rating shown as bar */}
-                        <Bar 
-                          dataKey="avgRating" 
-                          name="Average Rating" 
-                          barSize={20} 
-                          radius={[0, 4, 4, 0]}
-                          label={({ x, y, width, value }) => (
-                            <text x={x + width - 5} y={y + 19} fill="#fff" textAnchor="end" dominantBaseline="middle">
-                              {value.toFixed(1)}
-                            </text>
-                          )}
-                        >
-                          {ratingsByManager.map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={COLORS[index % COLORS.length]} 
-                              fillOpacity={0.9}
-                            />
-                          ))}
-                        </Bar>
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                )
-              )}
-            </div>
           </div>
-        )}
+        </div>
         
         {/* Recent Reviews Table - Show in all views */}
         <div className="dashboard-recent enhanced">
@@ -2190,60 +1538,6 @@ function Dashboard({ initialView = 'dashboard' }) {
             margin-bottom: 24px;
           }
           
-          /* Enhanced Filters Section */
-          .dashboard-filters {
-            display: flex;
-            gap: 16px;
-            background-color: white;
-            padding: 16px;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-          }
-
-          .filter-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-          }
-
-          .filter-label {
-            font-weight: 500;
-            color: #4b5563;
-            white-space: nowrap;
-          }
-
-          .filter-select {
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            background-color: white;
-            color: #1f2937;
-            min-width: 120px;
-          }
-
-          .filter-button {
-            padding: 8px 16px;
-            background-color: #f3f4f6;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            color: #4b5563;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-          }
-
-          .filter-button:hover {
-            background-color: #e5e7eb;
-          }
-
-          .filter-button.active {
-            background-color: #6366F1;
-            border-color: #6366F1;
-            color: white;
-          }
-          
           /* Dashboard Section Title Enhancement */
           .dashboard-section-title {
             display: flex;
@@ -2310,76 +1604,6 @@ function Dashboard({ initialView = 'dashboard' }) {
           
           .mt-8 {
             margin-top: 2rem;
-          }
-          
-          /* Priority Actions */
-          .priority-actions-section {
-            margin-bottom: 32px;
-          }
-          
-          .priority-actions-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 16px;
-          }
-          
-          .priority-action-card {
-            position: relative;
-            padding: 16px;
-            border-radius: 8px;
-            background-color: white;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            border-left: 4px solid #6366F1;
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-          }
-          
-          .priority-action-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          }
-          
-          .priority-action-card.warning {
-            border-left-color: #F97316;
-          }
-          
-          .priority-action-card.info {
-            border-left-color: #3B82F6;
-          }
-          
-          .priority-action-card.task {
-            border-left-color: #8B5CF6;
-          }
-          
-          .priority-action-card.upcoming {
-            border-left-color: #10B981;
-          }
-          
-          .action-badge {
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            background-color: #ef4444;
-            color: white;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.75rem;
-            font-weight: 600;
-          }
-          
-          .action-title {
-            font-weight: 500;
-            margin-bottom: 8px;
-          }
-          
-          .action-cta {
-            font-size: 0.875rem;
-            color: #6366F1;
-            font-weight: 500;
           }
           
           /* Enhanced KPI Cards */
@@ -2479,6 +1703,7 @@ function Dashboard({ initialView = 'dashboard' }) {
             margin-bottom: 24px;
             transition: transform 0.2s, box-shadow 0.2s;
             overflow: hidden;
+            position: relative;
           }
 
           .chart-container:hover {
@@ -2581,17 +1806,13 @@ function Dashboard({ initialView = 'dashboard' }) {
 
           /* Chart Error State */
           .chart-error {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            height: 300px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background-color: rgba(255, 255, 255, 0.9);
-            border-radius: 12px;
+            background-color: #f9fafb;
+            border-radius: 8px;
             z-index: 2;
           }
 
@@ -2750,12 +1971,6 @@ function Dashboard({ initialView = 'dashboard' }) {
             border: 1px dashed #d1d5db;
           }
           
-          .empty-priorities {
-            padding: 16px;
-            text-align: center;
-            color: #6b7280;
-          }
-          
           /* Utilities */
           .ml-auto {
             margin-left: auto;
@@ -2767,6 +1982,57 @@ function Dashboard({ initialView = 'dashboard' }) {
           
           .mb-6 {
             margin-bottom: 1.5rem;
+          }
+          
+          /* Loading state for the entire dashboard */
+          .loading-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100%;
+            background-color: #f9fafb;
+            font-size: 1.25rem;
+            color: #6b7280;
+          }
+          
+          /* Error state for authentication issues */
+          .error-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            height: 50vh;
+            background-color: #f9fafb;
+            border-radius: 8px;
+            text-align: center;
+          }
+          
+          .error-state h1 {
+            font-size: 1.5rem;
+            color: #ef4444;
+            margin-bottom: 1rem;
+          }
+          
+          .error-state p {
+            color: #4b5563;
+            margin-bottom: 2rem;
+          }
+          
+          .return-login-button {
+            padding: 0.75rem 1.5rem;
+            background-color: #6366F1;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+          }
+          
+          .return-login-button:hover {
+            background-color: #4F46E5;
           }
         `}</style>
       </>
@@ -2794,7 +2060,7 @@ function Dashboard({ initialView = 'dashboard' }) {
     );
   }
   
-  // Return the dashboard content - no longer wrapped in SidebarLayout
+  // Return the dashboard content
   return renderActiveView();
 }
 

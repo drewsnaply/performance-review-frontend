@@ -8,6 +8,44 @@ const AuthInitCheck = () => {
     if (!checked) {
       const currentPath = window.location.pathname;
       
+      // CRITICAL: Special handling for exit impersonation process
+      // Check for multiple fallback flags - ANY of these should bypass checks
+      if (localStorage.getItem('exiting_impersonation') === 'true' || 
+          localStorage.getItem('superadmin_return') === 'true') {
+        console.log('AuthInitCheck: Exit impersonation flags detected, bypassing all checks');
+        
+        // Clear all flags for cleanup
+        localStorage.removeItem('exiting_impersonation');
+        localStorage.removeItem('superadmin_return');
+        localStorage.removeItem('manual_redirect_in_progress');
+        
+        // If we're on the super admin path AND have flags, ALWAYS bypass auth checks
+        if (currentPath.startsWith('/super-admin')) {
+          console.log('On super-admin path with exit flags - BYPASSING ALL AUTH CHECKS');
+          
+          // Check for original user data and restore it if available
+          const originalUserData = localStorage.getItem('originalUser');
+          if (originalUserData) {
+            try {
+              console.log('Restoring original superadmin user data');
+              localStorage.setItem('user', originalUserData);
+              localStorage.removeItem('originalUser');
+            } catch (e) {
+              console.error('Error restoring original user:', e);
+            }
+          }
+          
+          setChecked(true);
+          return;
+        }
+      }
+      
+      // CRITICAL: Always clear any redirect flags first
+      if(localStorage.getItem('manual_redirect_in_progress') === 'true') {
+        console.log('AuthInitCheck: Clearing redirect flag');
+        localStorage.removeItem('manual_redirect_in_progress');
+      }
+      
       // CRITICAL: Always skip for admin dashboard path
       if (currentPath === '/dashboard') {
         console.log('On admin dashboard, COMPLETELY skipping auth check');
@@ -27,18 +65,66 @@ const AuthInitCheck = () => {
         return;
       }
       
+      // CRITICAL: Add special handling for superadmin paths
+      if (currentPath.startsWith('/super-admin')) {
+        console.log('AuthInitCheck: On superadmin path, checking role');
+        
+        try {
+          // Check for original user data first (in case of impersonation exit)
+          const originalUserData = localStorage.getItem('originalUser');
+          if (originalUserData) {
+            console.log('Found original user data from impersonation, restoring it');
+            localStorage.setItem('user', originalUserData);
+            localStorage.removeItem('originalUser');
+          }
+          
+          // Get user data from localStorage
+          const userData = localStorage.getItem('user');
+          const token = localStorage.getItem('authToken');
+          
+          // Log for debugging
+          console.log('- Token exists:', token ? 'true' : 'false');
+          console.log('- User data exists:', userData ? 'true' : 'false');
+          
+          if (!token) {
+            console.log('No token found for superadmin path, redirecting to login');
+            window.location.href = '/login';
+            return;
+          }
+          
+          if (!userData) {
+            console.log('No user data found for superadmin path, redirecting to login');
+            window.location.href = '/login';
+            return;
+          }
+          
+          // Check if user is a superadmin
+          const user = JSON.parse(userData);
+          const role = user.role ? user.role.toLowerCase() : null;
+          console.log('- User role from localStorage:', role);
+          
+          if (role === 'superadmin' || role === 'super_admin') {
+            console.log('User is superadmin, allowing access to superadmin path');
+            // Clear any redirect flags to be safe
+            localStorage.removeItem('manual_redirect_in_progress');
+            setChecked(true);
+            return;
+          }
+          
+          console.log('User is not a superadmin, redirecting to unauthorized');
+          window.location.href = '/unauthorized';
+          return;
+        } catch (e) {
+          console.error('Error checking superadmin access:', e);
+          window.location.href = '/login';
+          return;
+        }
+      }
+      
       // Check if we're in impersonation mode - NEVER redirect if impersonating
       const impersonationData = localStorage.getItem('impersonatedCustomer');
       if (impersonationData) {
         console.log('Impersonation session active, skipping auth init checks');
-        setChecked(true);
-        return;
-      }
-      
-      // Check if manual redirect is in progress and skip if so
-      const manualRedirectInProgress = localStorage.getItem('manual_redirect_in_progress') === 'true';
-      if (manualRedirectInProgress) {
-        console.log('Manual redirect in progress, skipping AuthInitCheck');
         setChecked(true);
         return;
       }
@@ -166,7 +252,7 @@ const AuthInitCheck = () => {
         }
         
         setChecked(true);
-      }, 200); // Increased delay to 200ms to ensure AuthContext has time to initialize
+      }, 50); // Reduced delay to 50ms for faster checks
     }
   }, [checked]);
 

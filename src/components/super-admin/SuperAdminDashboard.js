@@ -14,6 +14,7 @@ const SuperAdminDashboard = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [initialized, setInitialized] = useState(false);
   
   // State for metrics
   const [metrics, setMetrics] = useState({
@@ -26,9 +27,34 @@ const SuperAdminDashboard = () => {
   const [showImpersonationModal, setShowImpersonationModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   
+  // Debug function
+  const debugAuthState = () => {
+    console.log('=== DEBUG AUTH STATE ===');
+    console.log('token:', localStorage.getItem('authToken') ? 'exists' : 'missing');
+    console.log('user:', localStorage.getItem('user'));
+    console.log('currentUser from context:', currentUser);
+    console.log('current path:', window.location.pathname);
+    console.log('========================');
+  };
+  
+  // CRITICAL: Clear any redirect flags on mount
+  useEffect(() => {
+    // Clear any manual redirect flag that might be stuck
+    localStorage.removeItem('manual_redirect_in_progress');
+    
+    // Debug auth state
+    debugAuthState();
+    
+    // Mark as initialized to prevent multiple data fetches
+    if (!initialized) {
+      fetchCustomers();
+      setInitialized(true);
+    }
+  }, [initialized]);
+  
   // Check if user is authorized - with safety checks
   useEffect(() => {
-    // Check token directly first
+    // CRITICAL: Check token directly first
     const token = localStorage.getItem('authToken');
     const userData = localStorage.getItem('user');
     
@@ -36,7 +62,6 @@ const SuperAdminDashboard = () => {
     console.log('SuperAdminDashboard auth check:');
     console.log('- Token exists:', !!token);
     console.log('- User data exists:', !!userData);
-    console.log('- Current user from context:', currentUser);
     
     // Only redirect if we're sure the user isn't authorized
     if (!token) {
@@ -45,79 +70,64 @@ const SuperAdminDashboard = () => {
       return;
     }
     
-    // Check if user data indicates superadmin
+    // Handle user data check
     if (userData) {
       try {
         const user = JSON.parse(userData);
-        console.log('- User role from localStorage:', user.role);
+        const role = user.role ? user.role.toLowerCase() : null;
+        console.log('- User role from localStorage:', role);
         
         // Allow access if localStorage has superadmin role
-        if (user.role === 'superadmin' || user.role === 'super_admin') {
+        if (role === 'superadmin' || role === 'super_admin') {
           console.log('User is superadmin according to localStorage');
-          return; // Don't redirect, allow access
+          return; // Continue with component render
         }
       } catch (e) {
         console.error('Error parsing user data:', e);
       }
     }
     
-    // Only redirect if context data is also loaded and confirms user is not authorized
-    if (currentUser) {
-      const isSuperAdmin = 
-        currentUser.role === 'superadmin' || 
-        currentUser.role === 'super_admin';
-      
-      console.log('- Current user role:', currentUser.role);
-      console.log('- Is superadmin:', isSuperAdmin);
-      console.log('- Is impersonating:', isImpersonating);
-      
-      if (!isSuperAdmin && !isImpersonating) {
-        console.log('User is not authorized, redirecting to login');
-        navigate('/login');
-      }
-    }
-  }, [currentUser, isImpersonating, navigate]);
+    // If execution reaches here, user is not a superadmin
+    console.log('User is not authorized as superadmin, redirecting to unauthorized');
+    navigate('/unauthorized');
+  }, [navigate]);
   
   // Fetch customers data
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch API call would go here
-        // For now, using mock data
-        const mockCustomers = [
-          {
-            id: 1,
-            name: 'Acme Corporation',
-            email: 'admin@example.com',
-            industry: 'Technology',
-            plan: 'Enterprise',
-            employees: 2,
-            reviews: { active: 4, completed: 0 },
-            status: 'Active'
-          }
-        ];
-        
-        setCustomers(mockCustomers);
-        
-        // Set metrics
-        setMetrics({
-          organizations: mockCustomers.length,
-          employees: mockCustomers.reduce((sum, customer) => sum + customer.employees, 0),
-          activeReviews: mockCustomers.reduce((sum, customer) => sum + customer.reviews.active, 0)
-        });
-        
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching customers:', err);
-        setError('Failed to load customer data');
-        setLoading(false);
-      }
-    };
-    
-    fetchCustomers();
-  }, []);
+  const fetchCustomers = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch API call would go here
+      // For now, using mock data
+      const mockCustomers = [
+        {
+          id: 1,
+          name: 'Acme Corporation',
+          email: 'admin@example.com',
+          industry: 'Technology',
+          plan: 'Enterprise',
+          employees: 2,
+          reviews: { active: 4, completed: 0 },
+          status: 'Active'
+        }
+      ];
+      
+      setCustomers(mockCustomers);
+      
+      // Set metrics
+      setMetrics({
+        organizations: mockCustomers.length,
+        employees: mockCustomers.reduce((sum, customer) => sum + customer.employees, 0),
+        activeReviews: mockCustomers.reduce((sum, customer) => sum + customer.reviews.active, 0)
+      });
+      
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching customers:', err);
+      setError('Failed to load customer data');
+      setLoading(false);
+    }
+  };
   
   // Handle access button click
   const handleAccessCustomer = (customer) => {
@@ -137,7 +147,8 @@ const SuperAdminDashboard = () => {
     try {
       console.log('Impersonating customer:', selectedCustomer);
       
-      // Store customer information for impersonation
+      // CRITICAL: Store customer information for impersonation BEFORE calling API
+      // This ensures other components know impersonation is active
       localStorage.setItem('impersonatedCustomer', JSON.stringify({
         id: selectedCustomer.id,
         name: selectedCustomer.name
@@ -149,11 +160,21 @@ const SuperAdminDashboard = () => {
       // Close the modal
       setShowImpersonationModal(false);
       
-      // Navigate to the dashboard
-      navigate('/dashboard');
+      // CRITICAL: Use direct navigation for reliability, window.location.href
+      // ensures a full page reload which resets any problematic state
+      console.log('Impersonation successful, navigating to dashboard');
+      window.location.href = '/dashboard';
     } catch (error) {
       console.error('Error impersonating customer:', error);
-      alert('Failed to access customer account. Please try again.');
+      
+      // If API call fails but we already set impersonation data, use fallback navigation
+      if (localStorage.getItem('impersonatedCustomer')) {
+        console.log('Using fallback impersonation navigation');
+        setShowImpersonationModal(false);
+        window.location.href = '/dashboard';
+      } else {
+        alert('Failed to access customer account. Please try again.');
+      }
     }
   };
   

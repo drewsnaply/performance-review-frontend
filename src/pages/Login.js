@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import '../styles/Login.css';
-import { jwtDecode } from 'jwt-decode';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -10,12 +9,19 @@ const Login = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const navigate = useNavigate();
-  const location = useLocation();
   const { login } = useAuth();
 
-  // Get the page the user was trying to access before logging in
-  const from = location.state?.from?.pathname || '/dashboard';
+  // CRITICAL: Always clear redirect flags on component mount
+  useEffect(() => {
+    console.log('Login component mounted, clearing any redirect flags');
+    localStorage.removeItem('manual_redirect_in_progress');
+    
+    // Debug current auth state
+    console.log('=== DEBUG AUTH STATE ON LOGIN MOUNT ===');
+    console.log('token:', localStorage.getItem('authToken') ? 'exists' : 'missing');
+    console.log('user:', localStorage.getItem('user'));
+    console.log('========================');
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,41 +35,36 @@ const Login = () => {
       setIsLoading(true);
       setError('');
 
-      console.log('Attempting login with:', username);
+      console.log('Attempting login with username:', username);
 
       // Use the login function from AuthContext
       const response = await login(username, password);
-      console.log('Login successful, response:', response);
+      console.log('Login Response:', response);
 
-      // Ensure both token and user exist in the response
-      const { token, user } = response;
-      if (!token) {
-        console.error('Token not found in the response:', response);
+      if (!response || !response.token) {
         throw new Error('No token received from backend');
       }
 
-      // Decode the token to extract user details
-      const decodedToken = jwtDecode(token);
-      console.log('Decoded token:', decodedToken);
+      const { token, user } = response;
 
-      // Save additional user data (role is critical here)
-      console.log('Saving user to localStorage:', user);
-      localStorage.setItem('user', JSON.stringify(user));
-
-      // Check if user is a superadmin and redirect accordingly
-      if (user && (user.role === 'superadmin' || user.role === 'super_admin')) {
-        console.log('Superadmin detected, redirecting to Super Admin dashboard');
-        
-        // Use a direct browser-level redirect for superadmin
+      // Handle direct navigation based on role
+      const role = user.role ? user.role.toLowerCase() : null;
+      console.log('User role:', role);
+      
+      if (role === 'superadmin' || role === 'super_admin') {
+        console.log('Redirect: Superadmin -> /super-admin/customers');
         window.location.href = '/super-admin/customers';
+      } else if (role === 'manager') {
+        console.log('Redirect: Manager -> /manager/dashboard');
+        window.location.href = '/manager/dashboard';
       } else {
-        // Navigate to the dashboard or the page they were trying to access
-        navigate(from, { replace: true });
+        console.log('Redirect: Admin/Other -> /dashboard');
+        window.location.href = '/dashboard';
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.message || 'Login failed');
-    } finally {
+      localStorage.removeItem('manual_redirect_in_progress');
+      setError(err.message || 'Login failed. Please check your credentials.');
       setIsLoading(false);
     }
   };

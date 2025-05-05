@@ -1,186 +1,175 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-function PrivateRoute({ children, allowedRoles = [], requiredPermissions = [] }) {
-  const { currentUser, isAuthenticated, loading, hasPermission, impersonating } = useAuth();
+const PrivateRoute = ({ children, allowedRoles = [] }) => {
+  const { isAuthenticated, currentUser, loading } = useAuth();
   const location = useLocation();
+  const [isAuthorized, setIsAuthorized] = useState(null);
+  const [isCheckComplete, setIsCheckComplete] = useState(false);
 
-  // CRITICAL BYPASS: Check for impersonation data directly in localStorage
-  // This will prevent redirect to login even if Auth context hasn't fully initialized
-  const impersonationData = localStorage.getItem('impersonatedCustomer');
-  if (impersonationData && location.pathname !== '/login') {
-    console.log('PrivateRoute: Impersonation data found, bypassing auth checks');
-    return children;
-  }
-
-  // CRITICAL BYPASS: If user data exists in localStorage, temporarily allow access
-  // This helps prevent refresh issues with regular admin users
-  const localUserData = localStorage.getItem('user');
-  const authToken = localStorage.getItem('authToken');
-  if (localUserData && authToken && location.pathname !== '/login') {
-    try {
-      const userData = JSON.parse(localUserData);
-      if (userData.role === 'admin') {
-        console.log('PrivateRoute: Admin user found in localStorage, temporarily allowing access');
-        // Continue with render while auth context catches up
-        if (loading) {
-          return children;
-        }
-      }
-    } catch (e) {
-      console.error('Error parsing local user data:', e);
-    }
-  }
-
-  // Check if manual redirect is in progress
-  const manualRedirectInProgress = localStorage.getItem('manual_redirect_in_progress') === 'true';
-  if (manualRedirectInProgress) {
-    console.log('Manual redirect in progress, passing through PrivateRoute');
-    return children;
-  }
-
-  // Special handling for superadmin routes
-  if (location.pathname.startsWith('/super-admin')) {
-    const token = localStorage.getItem('authToken');
+  useEffect(() => {
+    console.log('PrivateRoute Debug:');
+    console.log('Path:', location.pathname);
+    console.log('isAuthenticated:', isAuthenticated);
+    console.log('currentUser:', currentUser);
+    console.log('allowedRoles:', allowedRoles);
     
-    // For superadmin routes specifically, do additional checks
-    try {
-      // Check token directly from localStorage as a fallback
-      if (token) {
-        // If we have a token but currentUser isn't fully loaded yet, allow access to superadmin routes
-        // This helps during initial redirect from login
-        if (!currentUser && token) {
-          console.log('Token exists for superadmin route, temporarily allowing access');
-          localStorage.setItem('temp_superadmin_access', 'true');
-          // Return children without additional checks to allow superadmin access
-          return children;
-        }
-      }
-    } catch (err) {
-      console.error('Error in superadmin route check:', err);
-    }
-  }
-
-  // Handle loading state - show loading indicator
-  if (loading) {
-    return <div className="auth-loading">Authenticating...</div>;
-  }
-
-  // CRITICAL CHECK: Before redirecting to login, check again for impersonation data or valid admin in localStorage
-  // This covers cases where the auth context might not be fully loaded yet
-  if (!isAuthenticated || !currentUser) {
-    if (impersonationData) {
-      console.log('Auth not ready but impersonation data exists, allowing access');
-      return children;
+    // CRITICAL: Always check for and clean up any redirect flags
+    if(localStorage.getItem('manual_redirect_in_progress') === 'true') {
+      console.log('Clearing redirect flag from PrivateRoute');
+      localStorage.removeItem('manual_redirect_in_progress');
     }
     
-    // Check localStorage for valid user data as a fallback
-    try {
-      if (localUserData && authToken) {
-        const userData = JSON.parse(localUserData);
-        if (userData.role) {
-          console.log('Auth context not ready but valid user found in localStorage');
-          // Set a temporary flag to prevent future redirects
-          localStorage.setItem('pending_auth_validation', 'true');
-          // Allow access while auth context catches up
-          return children;
+    // CRITICAL: Superadmin path check
+    if (location.pathname.startsWith('/super-admin')) {
+      console.log('SUPERADMIN PATH DETECTED - Special handling');
+      // Direct localStorage check
+      try {
+        const token = localStorage.getItem('authToken');
+        const userData = localStorage.getItem('user');
+        
+        // Log token status and user data for debugging
+        console.log('- Token exists:', token ? 'true' : 'false');
+        console.log('- User data exists:', userData ? 'true' : 'false');
+        
+        if (userData) {
+          const user = JSON.parse(userData);
+          const userRole = user.role ? user.role.toLowerCase() : null;
+          console.log('- User role from localStorage:', userRole);
+          
+          if (userRole === 'superadmin' || userRole === 'super_admin') {
+            console.log('User is superadmin according to localStorage, allowing access');
+            setIsAuthorized(true);
+            setIsCheckComplete(true);
+            return;
+          }
         }
-      }
-    } catch (e) {
-      console.error('Error checking local user data:', e);
-    }
-  }
-
-  // Standard auth check - only redirect if no token AND no impersonation
-  const token = localStorage.getItem('authToken');
-  if (!token && !impersonationData) {
-    // Clear pending flag if redirecting
-    localStorage.removeItem('pending_auth_validation');
-    console.warn('No valid authentication, redirecting to login');
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  // If we reach here with a token but no authenticated user, it means auth context is still loading
-  // Let's be more patient and show loading instead of redirecting
-  if (!isAuthenticated && token) {
-    if (localStorage.getItem('pending_auth_validation') === 'true') {
-      console.log('Auth still pending, waiting instead of redirecting');
-      return <div className="auth-loading">Validating authentication...</div>;
-    }
-  }
-
-  // DEVELOPMENT MODE: Temporarily bypass role checks
-  // IMPORTANT: Remove this bypass before deploying to production
-  const isDevelopmentMode = process.env.NODE_ENV === 'development';
-  
-  // Check for Super Admin role first, which can access anything
-  const userRole = currentUser?.role?.toLowerCase();
-  const isSuperAdmin = userRole === 'superadmin' || userRole === 'super_admin';
-  
-  // Fix: Only apply impersonation restrictions if we're actually impersonating
-  // AND the impersonation is not for accessing Super Admin features
-  let impersonatedCustomer = null;
-  try {
-    impersonatedCustomer = JSON.parse(localStorage.getItem('impersonatedCustomer') || 'null');
-  } catch (e) {
-    console.error('Error parsing impersonatedCustomer:', e);
-  }
-  
-  const isActuallyImpersonating = (impersonating || !!impersonationData) && !!impersonatedCustomer;
-  
-  if (isActuallyImpersonating) {
-    // When impersonating, Super Admin can only access customer routes
-    if (isSuperAdmin && location.pathname.startsWith('/super-admin')) {
-      // Except for exit-impersonation route which is always allowed
-      if (!location.pathname.includes('/exit-impersonation')) {
-        console.warn('Super Admin impersonating customer tried to access Super Admin routes');
-        return <Navigate to="/dashboard" replace />;
+      } catch (e) {
+        console.error('Error checking localStorage:', e);
       }
     }
-  } else {
-    // When not impersonating, only Super Admin can access Super Admin routes
-    if (location.pathname.startsWith('/super-admin') && !isSuperAdmin) {
-      // Special case: check if we're in temp superadmin access mode
-      if (localStorage.getItem('temp_superadmin_access') === 'true') {
-        console.log('Using temporary superadmin access');
-        // Remove the temp access flag after using it once
-        localStorage.removeItem('temp_superadmin_access');
-        return children;
-      }
+
+    // Check if loading
+    if (loading) {
+      console.log('Auth context still loading');
+      return;
+    }
+
+    // Try localStorage first if context auth state is not set
+    if (!isAuthenticated) {
+      console.log('Not authenticated via context, checking localStorage');
+      const token = localStorage.getItem('authToken');
+      const userData = localStorage.getItem('user');
       
-      console.warn('Non-Super Admin tried to access Super Admin routes');
-      return <Navigate to="/unauthorized" replace />;
+      if (token && userData) {
+        console.log('Found token and user data in localStorage');
+        try {
+          const user = JSON.parse(userData);
+          const userRole = user.role ? user.role.toLowerCase() : null;
+          
+          // If no role restrictions or role is allowed
+          if (allowedRoles.length === 0 || 
+              allowedRoles.includes(userRole) || 
+              userRole === 'superadmin' || 
+              userRole === 'super_admin') {
+            console.log('User authorized via localStorage, role:', userRole);
+            setIsAuthorized(true);
+            setIsCheckComplete(true);
+            return;
+          } else {
+            console.log('User has token but role not allowed:', userRole);
+            setIsAuthorized(false);
+            setIsCheckComplete(true);
+            return;
+          }
+        } catch (e) {
+          console.error('Error parsing user data:', e);
+        }
+      } else {
+        console.log('No token or user data in localStorage');
+        setIsAuthorized(false);
+        setIsCheckComplete(true);
+        return;
+      }
     }
-  }
-  
-  // Clear pending auth flag when everything is fully validated
-  localStorage.removeItem('pending_auth_validation');
-  
-  // Check if user has the required role (Super Admin bypasses role checks)
-  if (
-    !isDevelopmentMode && 
-    allowedRoles.length > 0 &&
-    currentUser &&
-    !isSuperAdmin && // Super Admin bypass role checks
-    !allowedRoles.includes(userRole)
-  ) {
-    console.warn(`User role "${currentUser.role}" not authorized`);
-    return <Navigate to="/unauthorized" replace />;
-  }
-  
-  // Check if user has the required permissions (Super Admin bypasses permission checks)
-  if (
-    !isDevelopmentMode && 
-    requiredPermissions.length > 0 &&
-    !isSuperAdmin && // Super Admin bypass permission checks
-    !requiredPermissions.every(permission => hasPermission(permission))
-  ) {
-    console.warn(`User lacks required permissions: ${requiredPermissions.join(', ')}`);
-    return <Navigate to="/unauthorized" replace />;
+
+    // If authenticated via context, check roles
+    if (currentUser) {
+      const userRole = currentUser.role ? currentUser.role.toLowerCase() : null;
+      
+      // Superadmin can access anything
+      if (userRole === 'superadmin' || userRole === 'super_admin') {
+        console.log('User is superadmin via context, allowing access');
+        setIsAuthorized(true);
+        setIsCheckComplete(true);
+        return;
+      }
+
+      // Check if role is allowed
+      if (allowedRoles.length === 0 || allowedRoles.includes(userRole)) {
+        console.log('User role is allowed via context:', userRole);
+        setIsAuthorized(true);
+        setIsCheckComplete(true);
+        return;
+      }
+
+      console.log('User authenticated but role not allowed:', userRole);
+      setIsAuthorized(false);
+      setIsCheckComplete(true);
+      return;
+    }
+
+    // No user in context
+    if (!currentUser && isAuthenticated) {
+      console.log('Authenticated but no current user, checking localStorage');
+      try {
+        const userData = localStorage.getItem('user');
+        if (userData) {
+          const user = JSON.parse(userData);
+          const userRole = user.role ? user.role.toLowerCase() : null;
+          
+          if (allowedRoles.length === 0 || 
+              allowedRoles.includes(userRole) || 
+              userRole === 'superadmin' || 
+              userRole === 'super_admin') {
+            console.log('User authorized via localStorage backup check');
+            setIsAuthorized(true);
+            setIsCheckComplete(true);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Error in localStorage backup check:', e);
+      }
+    }
+
+    console.log('No authorization found, denying access');
+    setIsAuthorized(false);
+    setIsCheckComplete(true);
+  }, [isAuthenticated, currentUser, loading, allowedRoles, location.pathname]);
+
+  // Show loading while checking
+  if (!isCheckComplete) {
+    return <div>Loading...</div>;
   }
 
+  // Handle unauthorized access
+  if (!isAuthorized) {
+    // Check if we have a token at all
+    const hasToken = localStorage.getItem('authToken');
+    
+    if (!hasToken) {
+      console.log('No token, redirecting to login');
+      return <Navigate to="/login" state={{ from: location }} replace />;
+    } else {
+      console.log('Has token but unauthorized, redirecting to unauthorized page');
+      return <Navigate to="/unauthorized" state={{ from: location }} replace />;
+    }
+  }
+
+  // Render children if authorized
   return children;
-}
+};
 
 export default PrivateRoute;

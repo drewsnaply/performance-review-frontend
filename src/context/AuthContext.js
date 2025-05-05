@@ -13,6 +13,16 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
+  // Set this to false to disable console logging
+  const isDebugMode = false;
+  
+  // Debug log function - only logs when debug mode is on
+  const debugLog = (message) => {
+    if (isDebugMode) {
+      console.log(message);
+    }
+  };
+
   const [currentUser, setCurrentUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -24,6 +34,8 @@ export const AuthProvider = ({ children }) => {
   const isInitialMount = useRef(true);
   // Track if redirect is in progress to prevent loops
   const redirectInProgress = useRef(false);
+  // Track if we've already checked auth status
+  const authStatusChecked = useRef(false);
 
   const isTokenExpired = (token) => {
     try {
@@ -37,15 +49,16 @@ export const AuthProvider = ({ children }) => {
 
   // CRITICAL: Check if we should skip login redirect for current path
   const shouldSkipLoginRedirect = () => {
-    // CRITICAL: Always skip for admin dashboard
-    if (window.location.pathname === '/dashboard') {
-      console.log('On admin dashboard, skipping login redirect from AuthContext');
+    // CRITICAL: Always skip for admin dashboard and super admin paths
+    if (window.location.pathname === '/dashboard' || 
+        window.location.pathname.startsWith('/super-admin')) {
+      debugLog('On admin or super-admin path, skipping login redirect from AuthContext');
       return true;
     }
     
     // Skip for impersonation
     if (localStorage.getItem('impersonatedCustomer')) {
-      console.log('Impersonation active, skipping login redirect');
+      debugLog('Impersonation active, skipping login redirect');
       return true;
     }
     
@@ -54,7 +67,7 @@ export const AuthProvider = ({ children }) => {
       try {
         const userData = JSON.parse(localStorage.getItem('user'));
         if (userData && userData.role) {
-          console.log('Valid user data in localStorage, skipping login redirect');
+          debugLog('Valid user data in localStorage, skipping login redirect');
           return true;
         }
       } catch (e) {
@@ -66,65 +79,135 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    // Skip if we already checked auth status
+    if (authStatusChecked.current) {
+      return;
+    }
+    
     const checkAuthStatus = () => {
-      // CRITICAL: Skip all checks for admin dashboard
-      if (window.location.pathname === '/dashboard') {
-        console.log('Admin dashboard detected, bypassing auth checks');
-        setLoading(false);
-        return;
-      }
-      
       // Skip if redirect already in progress
       if (redirectInProgress.current) {
-        console.log('Redirect already in progress, skipping auth check');
+        debugLog('Redirect already in progress, skipping auth check');
         setLoading(false);
         return;
       }
       
-      console.log('Checking auth status...');
-      
-      // Check if manual redirect is in progress
+      // CRITICAL FIX: Always check and clear manual_redirect flag on startup
       if (localStorage.getItem('manual_redirect_in_progress') === 'true') {
-        console.log('Manual redirect is in progress, skipping auth check');
-        setLoading(false);
-        return;
+        debugLog('Found stale manual_redirect_in_progress flag, clearing it');
+        localStorage.removeItem('manual_redirect_in_progress');
       }
+      
+      // CRITICAL: Check for impersonation first - if impersonating, always set state
+      const impersonationData = localStorage.getItem('impersonatedCustomer');
+      if (impersonationData) {
+        debugLog('AuthContext: Impersonation detected, setting impersonation state');
+        try {
+          const parsedData = JSON.parse(impersonationData);
+          setImpersonating(true);
+          setImpersonatedCustomer(parsedData);
+          
+          // Check for original user data
+          const originalUserData = localStorage.getItem('originalUser');
+          if (originalUserData) {
+            try {
+              setOriginalUser(JSON.parse(originalUserData));
+            } catch (e) {
+              console.error('Error parsing original user:', e);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing impersonation data:', e);
+        }
+      }
+      
+      // DEBUG: Log auth state only in debug mode
+      if (isDebugMode) {
+        console.log('=== DEBUG AUTH STATE ===');
+        console.log('token:', localStorage.getItem('authToken') ? 'exists' : 'missing');
+        console.log('user:', localStorage.getItem('user'));
+        console.log('currentUser from context:', currentUser);
+        console.log('isAuthenticated:', isAuthenticated);
+        console.log('current path:', window.location.pathname);
+        console.log('========================');
+      }
+      
+      // CRITICAL: Special handling for superadmin paths
+      if (window.location.pathname.startsWith('/super-admin')) {
+        debugLog('Super admin path detected, using special handling');
+        
+        // Check for token and user data
+        const token = localStorage.getItem('authToken');
+        const userData = localStorage.getItem('user');
+        
+        if (token && userData) {
+          try {
+            const user = JSON.parse(userData);
+            const role = user.role ? user.role.toLowerCase() : null;
+            
+            debugLog('User role from localStorage: ' + role);
+            
+            if (role === 'superadmin' || role === 'super_admin') {
+              debugLog('User is valid superadmin, setting auth state');
+              
+              // Set auth state if not already set
+              if (!isAuthenticated || !currentUser) {
+                setCurrentUser(user);
+                setIsAuthenticated(true);
+              }
+              
+              setLoading(false);
+              // Mark as checked
+              authStatusChecked.current = true;
+              return;
+            } else {
+              debugLog('User is not a superadmin, redirecting to unauthorized');
+              window.location.href = '/unauthorized';
+              return;
+            }
+          } catch (e) {
+            console.error('Error checking localStorage:', e);
+          }
+        } else {
+          debugLog('Missing token or user data for superadmin path, redirecting to login');
+          window.location.href = '/login';
+          return;
+        }
+      }
+      
+      debugLog('Checking auth status...');
       
       // Try to get user from localStorage first (fastest)
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
         try {
           const userData = JSON.parse(storedUser);
-          console.log('User restored from localStorage:', userData);
+          debugLog('User restored from localStorage');
           
           // Set user state directly from localStorage
           setCurrentUser(userData);
           setIsAuthenticated(true);
           
-          // Check for impersonation data
-          const impersonationData = localStorage.getItem('impersonatedCustomer');
-          if (impersonationData) {
-            try {
-              const parsedData = JSON.parse(impersonationData);
-              setImpersonating(true);
-              setImpersonatedCustomer(parsedData);
-              
-              // Check for original user data
-              const originalUserData = localStorage.getItem('originalUser');
-              if (originalUserData) {
-                try {
-                  setOriginalUser(JSON.parse(originalUserData));
-                } catch (e) {
-                  console.error('Error parsing original user:', e);
-                }
-              }
-            } catch (e) {
-              console.error('Error parsing impersonation data:', e);
+          // Only redirect if on login page
+          const isLoginPage = window.location.pathname === '/login';
+          if (isLoginPage) {
+            const role = userData.role ? userData.role.toLowerCase() : null;
+            
+            if (role === 'superadmin' || role === 'super_admin') {
+              debugLog('Redirecting superadmin from login to super admin dashboard');
+              // CRITICAL: Direct navigation without flags
+              window.location.href = '/super-admin/customers';
+              return;
+            } else {
+              // Regular user
+              window.location.href = '/dashboard';
+              return;
             }
           }
           
           setLoading(false);
-          isInitialMount.current = false;
+          // Mark as checked
+          authStatusChecked.current = true;
           return;
         } catch (e) {
           console.error('Error parsing stored user:', e);
@@ -135,10 +218,9 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('authToken');
       if (token) {
         try {
-          // Don't check token expiration - let API calls handle that
           // Just decode it to get user info
           const decodedToken = jwtDecode(token);
-          console.log('User restored from token:', decodedToken);
+          debugLog('User restored from token');
           
           // Store for future quick restore
           localStorage.setItem('user', JSON.stringify(decodedToken));
@@ -149,52 +231,54 @@ export const AuthProvider = ({ children }) => {
           
           // Only redirect if on login page
           const isLoginPage = window.location.pathname === '/login';
-          if (isLoginPage && isInitialMount.current) {
-            if (decodedToken.role === 'superadmin' || decodedToken.role === 'super_admin') {
-              console.log('Redirecting superadmin from login to dashboard');
-              redirectInProgress.current = true;
-              window.location.replace('/super-admin/customers');
+          if (isLoginPage) {
+            const role = decodedToken.role ? decodedToken.role.toLowerCase() : null;
+            
+            if (role === 'superadmin' || role === 'super_admin') {
+              debugLog('Redirecting superadmin from login to super admin dashboard');
+              window.location.href = '/super-admin/customers';
               return;
             } else {
               // Regular user
-              redirectInProgress.current = true;
-              window.location.replace('/dashboard');
+              window.location.href = '/dashboard';
               return;
             }
           }
         } catch (error) {
           console.error('Error decoding token:', error);
           
-          // CRITICAL: Check if we should skip login redirect
+          // Check if we should skip login redirect
           if (shouldSkipLoginRedirect()) {
-            console.log('Skipping login redirect despite token error');
+            debugLog('Skipping login redirect despite token error');
             setLoading(false);
+            authStatusChecked.current = true;
             return;
           }
         }
       } else {
         // No token - check if we should skip login redirect anyway
         if (shouldSkipLoginRedirect()) {
-          console.log('No token but skipping login redirect');
+          debugLog('No token but skipping login redirect');
           setLoading(false);
+          authStatusChecked.current = true;
           return;
         }
         
         // Only redirect if not on public page
-        const publicPages = ['/login', '/register'];
+        const publicPages = ['/login', '/register', '/unauthorized', '/exit-impersonation'];
         const isPublicPage = publicPages.includes(window.location.pathname) || 
                           window.location.pathname.startsWith('/setup-password');
         
-        if (!isPublicPage && isInitialMount.current) {
-          console.log('No authentication, redirecting to login');
-          redirectInProgress.current = true;
-          window.location.replace('/login');
+        if (!isPublicPage) {
+          debugLog('No authentication, redirecting to login');
+          window.location.href = '/login';
           return;
         }
       }
       
       setLoading(false);
       isInitialMount.current = false;
+      authStatusChecked.current = true;
     };
     
     // Use a small timeout to avoid race conditions
@@ -203,8 +287,10 @@ export const AuthProvider = ({ children }) => {
     // Cleanup function to reset redirect flag
     return () => {
       redirectInProgress.current = false;
+      // CRITICAL FIX: Always clear redirect flags on unmount
+      localStorage.removeItem('manual_redirect_in_progress');
     };
-  }, []);
+  }, [currentUser, isAuthenticated]);
 
   const login = async (username, password) => {
     try {
@@ -215,13 +301,14 @@ export const AuthProvider = ({ children }) => {
         throw new Error('No token received from backend');
       }
 
-      localStorage.setItem('authToken', token);
-      const decodedToken = jwtDecode(token);
-      
-      // Clear any impersonation data on fresh login
+      // Clean up any stale data
+      localStorage.removeItem('manual_redirect_in_progress');
       localStorage.removeItem('impersonatedCustomer');
       localStorage.removeItem('originalUser');
       localStorage.removeItem('impersonationToken');
+      
+      localStorage.setItem('authToken', token);
+      const decodedToken = jwtDecode(token);
       
       // Store user in localStorage
       localStorage.setItem('user', JSON.stringify(decodedToken));
@@ -234,7 +321,7 @@ export const AuthProvider = ({ children }) => {
       setImpersonatedCustomer(null);
       
       // Return both token and user data for the login component
-      console.log('Login successful, returning user and token');
+      debugLog('Login successful, returning user and token');
       return { token, user: decodedToken };
     } catch (err) {
       console.error('Login context error:', err);
@@ -259,19 +346,25 @@ export const AuthProvider = ({ children }) => {
     setOriginalUser(null);
     setImpersonatedCustomer(null);
     
+    // Reset auth check flag for next login
+    authStatusChecked.current = false;
+    
     // Redirect to login if not already there
     if (window.location.pathname !== '/login') {
       redirectInProgress.current = true;
-      window.location.replace('/login');
+      window.location.href = '/login';
     }
   };
 
   // Impersonate customer function (for super admins)
   const impersonateCustomer = async (customerId) => {
     try {
+      // Log the start of impersonation process
+      debugLog('Starting impersonation process for customer ID: ' + customerId);
+      
       // Store original user if not already impersonating
       if (!impersonating) {
-        console.log('Storing original user for impersonation:', currentUser);
+        debugLog('Storing original user for impersonation');
         // Store original user in state
         setOriginalUser(currentUser);
         
@@ -292,13 +385,16 @@ export const AuthProvider = ({ children }) => {
           localStorage.setItem('impersonationToken', localStorage.getItem('authToken'));
         }
         
-        // Store customer data
+        // Ensure customer data is stored
+        // This might already be set in SuperAdminDashboard
         const customerData = {
           id: customerId,
           name: user.organizationName || 'Customer Organization'
         };
         
-        localStorage.setItem('impersonatedCustomer', JSON.stringify(customerData));
+        if (!localStorage.getItem('impersonatedCustomer')) {
+          localStorage.setItem('impersonatedCustomer', JSON.stringify(customerData));
+        }
         setImpersonatedCustomer(customerData);
         
         // Update current user to the impersonated admin
@@ -313,6 +409,8 @@ export const AuthProvider = ({ children }) => {
         
         setCurrentUser(impersonatedUser);
         setImpersonating(true);
+        
+        debugLog('Impersonation successful via API');
         return impersonatedUser;
       } catch (apiError) {
         console.error('API impersonation error:', apiError);
@@ -335,8 +433,12 @@ export const AuthProvider = ({ children }) => {
         };
         
         localStorage.setItem('impersonationToken', localStorage.getItem('authToken'));
-        localStorage.setItem('impersonatedCustomer', JSON.stringify(customerData));
         localStorage.setItem('impersonation_active', 'true');
+        
+        // Make sure customer data is set
+        if (!localStorage.getItem('impersonatedCustomer')) {
+          localStorage.setItem('impersonatedCustomer', JSON.stringify(customerData));
+        }
         setImpersonatedCustomer(customerData);
         
         // Store in localStorage
@@ -345,6 +447,7 @@ export const AuthProvider = ({ children }) => {
         setCurrentUser(mockAdminUser);
         setImpersonating(true);
         
+        debugLog('Fallback impersonation applied');
         return mockAdminUser;
       }
     } catch (error) {
@@ -355,7 +458,7 @@ export const AuthProvider = ({ children }) => {
 
   // Exit impersonation
   const exitImpersonation = () => {
-    console.log('Exiting impersonation');
+    debugLog('Exiting impersonation');
     
     // Try to get the original user from state first
     if (originalUser) {
@@ -423,7 +526,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('impersonation_active');
     setImpersonating(false);
     
-    console.log('Successfully exited impersonation');
+    debugLog('Successfully exited impersonation');
   };
 
   // Enhanced role-based permission checking

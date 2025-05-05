@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   FaBuilding, 
   FaUsers, 
@@ -22,7 +22,7 @@ function SuperAdminSidebar({ activeView, setActiveView }) {
   };
   
   // Navigate and update active view
-  const navigateTo = (route) => {
+  const handleNavigation = (route) => {
     navigate(route);
     if (typeof setActiveView === 'function') {
       setActiveView('super-admin');
@@ -30,71 +30,88 @@ function SuperAdminSidebar({ activeView, setActiveView }) {
   };
   
   return (
-    <nav className="sidebar-menu">
-      <div className="sidebar-heading">SUPER ADMIN</div>
-      
-      <button 
-        className={isActive('/super-admin/customers') ? 'active' : ''}
-        onClick={() => navigateTo('/super-admin/customers')}
-      >
-        <span className="sidebar-icon"><FaBuilding /></span>
-        Organizations
-      </button>
-      
-      <button 
-        className={isActive('/super-admin/users') ? 'active' : ''}
-        onClick={() => navigateTo('/super-admin/users')}
-      >
-        <span className="sidebar-icon"><FaUsers /></span>
-        User Management
-      </button>
-      
-      <button 
-        className={isActive('/super-admin/sessions') ? 'active' : ''}
-        onClick={() => navigateTo('/super-admin/sessions')}
-      >
-        <span className="sidebar-icon"><FaUserShield /></span>
-        Active Sessions
-      </button>
-      
-      <button 
-        className={isActive('/super-admin/analytics') ? 'active' : ''}
-        onClick={() => navigateTo('/super-admin/analytics')}
-      >
-        <span className="sidebar-icon"><FaChartLine /></span>
-        System Analytics
-      </button>
-      
-      <button 
-        className={isActive('/super-admin/logs') ? 'active' : ''}
-        onClick={() => navigateTo('/super-admin/logs')}
-      >
-        <span className="sidebar-icon"><FaClipboardList /></span>
-        System Logs
-      </button>
-      
-      <button 
-        className={isActive('/super-admin/settings') ? 'active' : ''}
-        onClick={() => navigateTo('/super-admin/settings')}
-      >
-        <span className="sidebar-icon"><FaCog /></span>
-        System Settings
-      </button>
+    <>
+      <div className="sidebar-section">
+        <div className="sidebar-heading">SUPER ADMIN</div>
+        
+        <a 
+          href="#" 
+          onClick={(e) => { e.preventDefault(); handleNavigation('/super-admin/customers'); }}
+          className={`sidebar-item ${isActive('/super-admin/customers') ? 'active' : ''}`}
+          data-title="Organizations"
+        >
+          <div className="sidebar-icon"><FaBuilding /></div>
+          <div className="sidebar-text">Organizations</div>
+        </a>
+        
+        <a 
+          href="#" 
+          onClick={(e) => { e.preventDefault(); handleNavigation('/super-admin/users'); }}
+          className={`sidebar-item ${isActive('/super-admin/users') ? 'active' : ''}`}
+          data-title="User Management"
+        >
+          <div className="sidebar-icon"><FaUsers /></div>
+          <div className="sidebar-text">User Management</div>
+        </a>
+        
+        <a 
+          href="#" 
+          onClick={(e) => { e.preventDefault(); handleNavigation('/super-admin/sessions'); }}
+          className={`sidebar-item ${isActive('/super-admin/sessions') ? 'active' : ''}`}
+          data-title="Active Sessions"
+        >
+          <div className="sidebar-icon"><FaUserShield /></div>
+          <div className="sidebar-text">Active Sessions</div>
+        </a>
+        
+        <a 
+          href="#" 
+          onClick={(e) => { e.preventDefault(); handleNavigation('/super-admin/analytics'); }}
+          className={`sidebar-item ${isActive('/super-admin/analytics') ? 'active' : ''}`}
+          data-title="System Analytics"
+        >
+          <div className="sidebar-icon"><FaChartLine /></div>
+          <div className="sidebar-text">System Analytics</div>
+        </a>
+        
+        <a 
+          href="#" 
+          onClick={(e) => { e.preventDefault(); handleNavigation('/super-admin/logs'); }}
+          className={`sidebar-item ${isActive('/super-admin/logs') ? 'active' : ''}`}
+          data-title="System Logs"
+        >
+          <div className="sidebar-icon"><FaClipboardList /></div>
+          <div className="sidebar-text">System Logs</div>
+        </a>
+        
+        <a 
+          href="#" 
+          onClick={(e) => { e.preventDefault(); handleNavigation('/super-admin/settings'); }}
+          className={`sidebar-item ${isActive('/super-admin/settings') ? 'active' : ''}`}
+          data-title="System Settings"
+        >
+          <div className="sidebar-icon"><FaCog /></div>
+          <div className="sidebar-text">System Settings</div>
+        </a>
+      </div>
       
       {/* Only show the Return to Dashboard option when impersonating */}
       {impersonating && (
-        <>
+        <div className="sidebar-section">
           <div className="sidebar-heading">NAVIGATION</div>
           
-          <button 
-            onClick={() => navigateTo('/dashboard')}
+          <a 
+            href="#" 
+            onClick={(e) => { e.preventDefault(); handleNavigation('/dashboard'); }}
+            className={`sidebar-item ${isActive('/dashboard') ? 'active' : ''}`}
+            data-title="Return to Dashboard"
           >
-            <span className="sidebar-icon"><FaHome /></span>
-            Return to Dashboard
-          </button>
-        </>
+            <div className="sidebar-icon"><FaHome /></div>
+            <div className="sidebar-text">Return to Dashboard</div>
+          </a>
+        </div>
       )}
-    </nav>
+    </>
   );
 }
 

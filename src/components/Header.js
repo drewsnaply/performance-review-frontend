@@ -8,7 +8,9 @@ import {
   MdHelp,
   MdSettings,
   MdPerson,
-  MdClose
+  MdClose,
+  MdAssignment,
+  MdTimer
 } from 'react-icons/md';
 import { 
   FaUserCircle, 
@@ -19,6 +21,7 @@ import {
   FaCrown
 } from 'react-icons/fa';
 import '../styles/ModernHeader.css';
+import { useAuth } from '../context/AuthContext'; // Ensure this import exists
 
 const Header = ({
   userRole,
@@ -26,13 +29,14 @@ const Header = ({
   toggleSidebar,
   currentUser,
   companyInfo,
-  handleLogout,
+  handleLogout: externalHandleLogout,
   isImpersonating,
   impersonatedCustomer,
   isSuperAdmin,
   isInSuperAdminSection,
   handleExitImpersonation,
-  handleReturnToSuperAdmin
+  handleReturnToSuperAdmin: externalHandleReturnToSuperAdmin,
+  user
 }) => {
   // Local state
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -40,6 +44,12 @@ const Header = ({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [localIsImpersonating, setLocalIsImpersonating] = useState(false);
   const [localImpersonatedCustomer, setLocalImpersonatedCustomer] = useState(null);
+  
+  // Get auth context to ensure logout works
+  const { logout: authLogout, exitImpersonation } = useAuth();
+  
+  // Use the correct user object
+  const activeUser = user || currentUser;
   
   // Determine if we're actually impersonating (but never on superadmin pages)
   const isSuperAdminDashboard = window.location.pathname.includes('/super-admin');
@@ -60,6 +70,79 @@ const Header = ({
 
   const toggleSearch = () => {
     setSearchOpen(!searchOpen);
+  };
+
+  // Ensure logout works properly
+  const handleLogout = () => {
+    // Try external handler first
+    if (typeof externalHandleLogout === 'function') {
+      externalHandleLogout();
+    } else {
+      // Fallback to auth context logout
+      authLogout();
+      // Redirect to login page
+      window.location.href = '/login';
+    }
+  };
+
+  // Handle Return to Enterprise functionality - ENHANCED VERSION
+  const handleReturnToSuperAdmin = () => {
+    // Try external handler first
+    if (typeof externalHandleReturnToSuperAdmin === 'function') {
+      externalHandleReturnToSuperAdmin();
+      return;
+    }
+
+    // If no external handler, implement our own solution
+    console.log("Returning to Super Admin...");
+    
+    try {
+      // Get user data to verify superadmin role
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        console.error('No user data found');
+        window.location.href = '/login';
+        return;
+      }
+
+      // Parse user data
+      const user = JSON.parse(userData);
+      
+      // Store original user data if not already stored
+      if (!localStorage.getItem('originalUser')) {
+        localStorage.setItem('originalUser', userData);
+      }
+      
+      // First: Call the context exitImpersonation function to handle state changes
+      if (typeof exitImpersonation === 'function') {
+        exitImpersonation();
+      }
+      
+      // Set three special flags to ensure auth check bypassing
+      localStorage.setItem('exiting_impersonation', 'true');
+      localStorage.setItem('superadmin_return', 'true');
+      localStorage.setItem('manual_redirect_in_progress', 'true');
+      
+      // Clear all impersonation data
+      localStorage.removeItem('impersonatedCustomer');
+      localStorage.removeItem('impersonation_active');
+      localStorage.removeItem('impersonationToken');
+      
+      // Update local state
+      setLocalIsImpersonating(false);
+      setLocalImpersonatedCustomer(null);
+      
+      // Short delay to allow state updates to process
+      setTimeout(() => {
+        // Force a direct navigation to ensure page reload
+        // This is necessary to reset the application state
+        window.location.replace('/super-admin/customers');
+      }, 100);
+    } catch (error) {
+      console.error('Error during return to enterprise:', error);
+      // Fallback to dashboard on error
+      window.location.href = '/dashboard';
+    }
   };
 
   // Close dropdowns when clicking outside
@@ -178,15 +261,6 @@ const Header = ({
     }
   };
 
-  // Format current date
-  const currentDate = new Date();
-  const formattedDate = new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric'
-  }).format(currentDate);
-
   return (
     <>
       {/* Impersonation Banner */}
@@ -227,12 +301,8 @@ const Header = ({
             </div>
           </div>
           
-          {/* Center Section - Date/Search */}
+          {/* Center Section - Only Search */}
           <div className="header-center">
-            <div className="current-date">
-              {formattedDate}
-            </div>
-            
             {searchOpen && (
               <div className="search-container">
                 <div className="search-input-container">
@@ -252,13 +322,13 @@ const Header = ({
           
           {/* Right Section - Actions & Profile */}
           <div className="header-right">
-            {/* Direct logout button for better visibility */}
+            {/* Logout button with improved styling */}
             <button 
-              className="logout-direct-button"
+              className="premium-logout-button"
               onClick={handleLogout}
               title="Logout"
             >
-              <MdExitToApp />
+              <MdExitToApp className="logout-icon" />
               <span className="logout-text">Logout</span>
             </button>
             
@@ -365,15 +435,15 @@ const Header = ({
                 aria-expanded={userMenuOpen}
               >
                 <div className="user-avatar">
-                  {currentUser?.image ? (
-                    <img src={currentUser.image} alt={currentUser?.username || 'User'} />
+                  {activeUser?.image ? (
+                    <img src={activeUser.image} alt={activeUser?.username || 'User'} />
                   ) : (
                     <FaUserCircle />
                   )}
                 </div>
                 
                 <div className="user-info">
-                  <span className="username">{currentUser?.username || 'User'}</span>
+                  <span className="username">{activeUser?.username || 'User'}</span>
                   <div className={`role-badge ${roleBadge.color}`}>
                     {roleBadge.icon}
                     <span>{roleBadge.label}</span>
@@ -387,16 +457,16 @@ const Header = ({
                 <div className="user-dropdown">
                   <div className="user-dropdown-header">
                     <div className="user-avatar large">
-                      {currentUser?.image ? (
-                        <img src={currentUser.image} alt={currentUser?.username || 'User'} />
+                      {activeUser?.image ? (
+                        <img src={activeUser.image} alt={activeUser?.username || 'User'} />
                       ) : (
                         <FaUserCircle />
                       )}
                     </div>
                     
                     <div className="user-details">
-                      <div className="user-fullname">{currentUser?.firstName} {currentUser?.lastName || currentUser?.username || 'User'}</div>
-                      <div className="user-email">{currentUser?.email || 'user@example.com'}</div>
+                      <div className="user-fullname">{activeUser?.firstName} {activeUser?.lastName || activeUser?.username || 'User'}</div>
+                      <div className="user-email">{activeUser?.email || 'user@example.com'}</div>
                       <div className={`role-badge ${roleBadge.color}`}>
                         {roleBadge.icon}
                         <span>{roleBadge.label}</span>
@@ -435,10 +505,15 @@ const Header = ({
   );
 };
 
-// Missing icon components that might not be imported
-const MdAssignment = (props) => <span {...props}>📋</span>;
-const MdTimer = (props) => <span {...props}>⏱️</span>;
-const MdStar = (props) => <span {...props}>⭐</span>;
-const MdCheck = (props) => <span {...props}>✓</span>;
+// Define missing icon component
+const MdCheck = (props) => {
+  const { size = 16, ...restProps } = props;
+  return <span style={{ fontSize: `${size}px` }} {...restProps}>✓</span>;
+};
+
+// Define missing icon component
+const MdStar = (props) => {
+  return <span {...props}>⭐</span>;
+};
 
 export default Header;

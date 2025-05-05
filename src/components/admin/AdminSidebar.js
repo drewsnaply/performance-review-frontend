@@ -1,5 +1,6 @@
+// src/components/AdminSidebar.js
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   MdDashboard, 
   MdPeople, 
@@ -13,7 +14,6 @@ import {
   MdImportExport,
   MdAnalytics,
   MdTrendingUp,
-  MdPerson,
   MdList,
   MdFormatListBulleted,
   MdAccessTime,
@@ -32,13 +32,29 @@ import {
 } from 'react-icons/fa';
 
 const AdminSidebar = ({ activeView, setActiveView, collapsed }) => {
+  const navigate = useNavigate();
+  
   // Helper function to check if a view is active
   const isActive = (view) => activeView === view;
   
-  // Set active view and update URL
-  const handleNavigation = (view) => {
+  // FIXED: Navigation function with direct page reload for problematic routes
+  const handleNavigation = (path) => {
+    if (path === '/employees') {
+      // Direct reload for Employees
+      window.location.href = '/employees';
+      return;
+    }
+    
+    if (path === '/templates') {
+      // Direct reload for Templates
+      window.location.href = '/templates';
+      return;
+    }
+    
+    // Regular navigation for other routes
+    navigate(path);
     if (setActiveView) {
-      setActiveView(view);
+      setActiveView(path.replace('/', ''));
     }
   };
 
@@ -81,98 +97,140 @@ const AdminSidebar = ({ activeView, setActiveView, collapsed }) => {
       <div className="sidebar-section">
         <h3 className="sidebar-heading">MAIN</h3>
         
-        <Link 
-          to="/dashboard" 
-          className={`sidebar-item ${isActive('/dashboard') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/dashboard')}
+        {/* MAIN NAVIGATION ITEMS */}
+        <a 
+          href="/dashboard" 
+          className={`sidebar-item ${isActive('dashboard') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/dashboard');
+          }}
           data-title="Dashboard"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#dashboardGradient)' }}>
             <MdDashboard />
           </span>
           <span className="sidebar-text">Dashboard</span>
-        </Link>
+        </a>
       
-        <Link 
-          to="/team-reviews" 
-          className={`sidebar-item ${isActive('/team-reviews') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/team-reviews')}
+        <a 
+          href="/team-reviews" 
+          className={`sidebar-item ${isActive('team-reviews') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/team-reviews');
+          }}
           data-title="Team Reviews"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#teamGradient)' }}>
             <FaUsers />
           </span>
           <span className="sidebar-text">Team Reviews</span>
-        </Link>
+        </a>
         
-        <Link 
-          to="/employees" 
-          className={`sidebar-item ${isActive('/employees') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/employees')}
+        {/* FIXED: Use direct page reload for Employees */}
+        <a 
+          href="/employees" 
+          className={`sidebar-item ${isActive('employees') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            window.location.href = '/employees';
+          }}
           data-title="Employees"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#employeesGradient)' }}>
             <MdPeople />
           </span>
           <span className="sidebar-text">Employees</span>
-        </Link>
+        </a>
         
-        <Link 
-          to="/my-reviews" 
-          className={`sidebar-item ${isActive('/my-reviews') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/my-reviews')}
+        <a 
+          href="/my-reviews" 
+          className={`sidebar-item ${isActive('my-reviews') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/my-reviews');
+          }}
           data-title="My Reviews"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#myReviewsGradient)' }}>
             <FaClipboardCheck />
           </span>
           <span className="sidebar-text">My Reviews</span>
-        </Link>
+        </a>
       </div>
       
       <div className="sidebar-section">
         <h3 className="sidebar-heading">MANAGEMENT</h3>
         
-        <Link 
-          to="/schedule" 
-          className={`sidebar-item ${isActive('/schedule') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/schedule')}
+        <a 
+          href="/schedule" 
+          className={`sidebar-item ${isActive('schedule') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/schedule');
+          }}
           data-title="Schedule"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#scheduleGradient)' }}>
             <FaRegCalendarAlt />
           </span>
           <span className="sidebar-text">Schedule</span>
-        </Link>
+        </a>
         
-        <Link 
-          to="/review-cycles" 
-          className={`sidebar-item ${isActive('/review-cycles') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/review-cycles')}
+        <a 
+          href="/review-cycles" 
+          className={`sidebar-item ${isActive('review-cycles') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/review-cycles');
+          }}
           data-title="Review Cycles"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#cyclesGradient)' }}>
             <MdTimer />
           </span>
           <span className="sidebar-text">Review Cycles</span>
-        </Link>
+        </a>
         
-        <Link 
-          to="/template-assignments" 
-          className={`sidebar-item ${isActive('/template-assignments') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/template-assignments')}
+        {/* FIXED: Use direct page reload for Templates */}
+        <a 
+          href="/templates" 
+          className={`sidebar-item ${isActive('templates') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            window.location.href = '/templates';
+          }}
+          data-title="Templates"
+        >
+          <span className="sidebar-icon" style={{ fill: 'url(#templatesGradient)' }}>
+            <FaFileAlt />
+          </span>
+          <span className="sidebar-text">Templates</span>
+        </a>
+        
+        <a 
+          href="/template-assignments" 
+          className={`sidebar-item ${isActive('template-assignments') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/template-assignments');
+          }}
           data-title="Template Assignments"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#assignmentsGradient)' }}>
             <MdAssignment />
           </span>
           <span className="sidebar-text">Template Assignments</span>
-        </Link>
+        </a>
         
-        <Link 
-          to="/pending-reviews" 
-          className={`sidebar-item ${isActive('/pending-reviews') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/pending-reviews')}
+        <a 
+          href="/pending-reviews" 
+          className={`sidebar-item ${isActive('pending-reviews') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/pending-reviews');
+          }}
           data-title="Pending Reviews"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#pendingGradient)' }}>
@@ -180,111 +238,105 @@ const AdminSidebar = ({ activeView, setActiveView, collapsed }) => {
           </span>
           <span className="sidebar-text">Pending Reviews</span>
           <span className="badge">4</span>
-        </Link>
+        </a>
       </div>
       
       <div className="sidebar-section">
         <h3 className="sidebar-heading">REPORTING</h3>
         
-        <Link 
-          to="/metrics" 
-          className={`sidebar-item ${isActive('/metrics') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/metrics')}
+        <a 
+          href="/metrics" 
+          className={`sidebar-item ${isActive('metrics') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/metrics');
+          }}
           data-title="Metrics"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#kpiGradient)' }}>
             <FaCalculator />
           </span>
           <span className="sidebar-text">Metrics</span>
-        </Link>
+        </a>
         
-        <Link 
-          to="/reports" 
-          className={`sidebar-item ${isActive('/reports') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/reports')}
+        <a 
+          href="/reports" 
+          className={`sidebar-item ${isActive('reports') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/reports');
+          }}
           data-title="Reports"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#reportsGradient)' }}>
             <MdBarChart />
           </span>
           <span className="sidebar-text">Reports</span>
-        </Link>
+        </a>
         
-        <Link 
-          to="/analytics" 
-          className={`sidebar-item ${isActive('/analytics') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/analytics')}
+        <a 
+          href="/analytics" 
+          className={`sidebar-item ${isActive('analytics') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/analytics');
+          }}
           data-title="Analytics"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#analyticsGradient)' }}>
             <MdAnalytics />
           </span>
           <span className="sidebar-text">Analytics</span>
-        </Link>
+        </a>
         
-        <Link 
-          to="/kpi-management" 
-          className={`sidebar-item ${isActive('/kpi-management') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/kpi-management')}
+        <a 
+          href="/kpi-management" 
+          className={`sidebar-item ${isActive('kpi-management') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/kpi-management');
+          }}
           data-title="KPI Management"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#kpiGradient)' }}>
             <MdTrendingUp />
           </span>
           <span className="sidebar-text">KPI Management</span>
-        </Link>
+        </a>
       </div>
       
       <div className="sidebar-section">
         <h3 className="sidebar-heading">CONFIGURATION</h3>
         
-        <Link 
-          to="/templates" 
-          className={`sidebar-item ${isActive('/templates') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/templates')}
-          data-title="Templates"
-        >
-          <span className="sidebar-icon" style={{ fill: 'url(#templatesGradient)' }}>
-            <FaFileAlt />
-          </span>
-          <span className="sidebar-text">Templates</span>
-        </Link>
-        
-        <Link 
-          to="/review-templates" 
-          className={`sidebar-item ${isActive('/review-templates') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/review-templates')}
-          data-title="Review Templates"
-        >
-          <span className="sidebar-icon" style={{ fill: 'url(#templatesGradient)' }}>
-            <MdDescription />
-          </span>
-          <span className="sidebar-text">Review Templates</span>
-        </Link>
-        
-        <Link 
-          to="/data-import" 
-          className={`sidebar-item ${isActive('/data-import') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/data-import')}
+        <a 
+          href="/data-import" 
+          className={`sidebar-item ${isActive('data-import') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/data-import');
+          }}
           data-title="Import/Export"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#toolsGradient)' }}>
             <MdImportExport />
           </span>
           <span className="sidebar-text">Import/Export</span>
-        </Link>
+        </a>
         
-        <Link 
-          to="/settings" 
-          className={`sidebar-item ${isActive('/settings') ? 'active' : ''}`}
-          onClick={() => handleNavigation('/settings')}
+        <a 
+          href="/settings" 
+          className={`sidebar-item ${isActive('settings') ? 'active' : ''}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            handleNavigation('/settings');
+          }}
           data-title="Settings"
         >
           <span className="sidebar-icon" style={{ fill: 'url(#settingsGradient)' }}>
             <MdSettings />
           </span>
           <span className="sidebar-text">Settings</span>
-        </Link>
+        </a>
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+// src/App.js with Reports Route Added
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -11,12 +12,11 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
+import EmployeeFormPage from './pages/EmployeeFormPage';
 import Settings from './pages/Settings';
 import Unauthorized from './pages/Unauthorized';
 import Test from './pages/Test';
 import SetupPassword from './pages/SetupPassword';
-import MyReviews from './components/MyReviews';
-import TeamReviews from './components/TeamReviews';
 import ReviewCycles from './components/ReviewCycles';
 import ReviewTemplates from './components/ReviewTemplates';
 import ImportTool from './components/ImportTool';
@@ -54,9 +54,8 @@ const TitleUpdater = () => {
     const getPageTitle = () => {
       const pathToTitleMap = {
         '/dashboard': 'Dashboard',
-        '/my-reviews': 'My Reviews',
-        '/team-reviews': 'Team Reviews',
         '/employees': 'Employees',
+        '/employees/add': 'Add New Employee',
         '/settings': 'Settings',
         '/review-cycles': 'Review Cycles',
         '/templates': 'Templates',
@@ -67,6 +66,8 @@ const TitleUpdater = () => {
         '/pending-reviews': 'Pending Reviews',
         '/goals': 'Monthly Goal Tracking',
         '/kpis': 'KPI Management',
+        '/metrics': 'Metrics',
+        '/reports': 'Reports', // Added Reports title
         '/setup-password': 'Setup Your Password',
         
         // Super Admin routes
@@ -85,7 +86,10 @@ const TitleUpdater = () => {
       };
 
       // Check specific paths
-      if (location.pathname.startsWith('/employees/')) {
+      if (location.pathname.startsWith('/employees/edit/')) {
+        return 'Edit Employee';
+      }
+      if (location.pathname.startsWith('/employees/') && !location.pathname.includes('/edit/') && !location.pathname.includes('/add')) {
         return 'Employee Profile';
       }
       if (location.pathname.startsWith('/reviews/edit/')) {
@@ -146,6 +150,23 @@ const getUserFromStorage = () => {
   return { role: 'admin' }; // Default fallback
 };
 
+// FIXED: Dedicated wrapper components for problematic routes
+const EmployeesPageWrapper = () => {
+  return (
+    <SidebarLayout user={getUserFromStorage()} activeView="employees">
+      {window.location.pathname === '/employees' && <Employees key={Date.now()} />}
+    </SidebarLayout>
+  );
+};
+
+const TemplatesPageWrapper = () => {
+  return (
+    <SidebarLayout user={getUserFromStorage()} activeView="templates">
+      {window.location.pathname === '/templates' && <ReviewTemplates key={Date.now()} />}
+    </SidebarLayout>
+  );
+};
+
 function App() {
   return (
     <AuthProvider>
@@ -161,6 +182,26 @@ function App() {
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/setup-password/:token" element={<SetupPassword />} />
             
+            {/* FIXED: Dedicated route for Employees with private route wrapper */}
+            <Route 
+              path="/employees" 
+              element={
+                <PrivateRoute allowedRoles={['admin', 'manager']}>
+                  <EmployeesPageWrapper />
+                </PrivateRoute>
+              } 
+            />
+            
+            {/* FIXED: Dedicated route for Templates with private route wrapper */}
+            <Route 
+              path="/templates" 
+              element={
+                <PrivateRoute allowedRoles={['admin', 'manager']}>
+                  <TemplatesPageWrapper />
+                </PrivateRoute>
+              } 
+            />
+            
             {/* Admin Routes */}
             <Route
               path="/dashboard"
@@ -174,28 +215,6 @@ function App() {
             />
             
             {/* Shared Routes - accessible by both admin and manager */}
-            <Route
-              path="/my-reviews"
-              element={
-                <PrivateRoute>
-                  <SidebarLayout user={getUserFromStorage()}>
-                    <MyReviews />
-                  </SidebarLayout>
-                </PrivateRoute>
-              }
-            />
-            
-            <Route
-              path="/team-reviews"
-              element={
-                <PrivateRoute allowedRoles={['admin', 'manager']}>
-                  <SidebarLayout user={getUserFromStorage()}>
-                    <TeamReviews />
-                  </SidebarLayout>
-                </PrivateRoute>
-              }
-            />
-            
             <Route
               path="/team-members"
               element={
@@ -224,17 +243,6 @@ function App() {
                 <PrivateRoute allowedRoles={['admin', 'manager']}>
                   <SidebarLayout user={getUserFromStorage()}>
                     <ReviewCycles />
-                  </SidebarLayout>
-                </PrivateRoute>
-              }
-            />
-            
-            <Route
-              path="/templates"
-              element={
-                <PrivateRoute allowedRoles={['admin', 'manager']}>
-                  <SidebarLayout user={getUserFromStorage()}>
-                    <ReviewTemplates />
                   </SidebarLayout>
                 </PrivateRoute>
               }
@@ -307,11 +315,22 @@ function App() {
             />
             
             <Route
-              path="/employees"
+              path="/employees/add"
               element={
                 <PrivateRoute allowedRoles={['admin', 'manager']}>
                   <SidebarLayout user={getUserFromStorage()}>
-                    <Employees />
+                    <EmployeeFormPage />
+                  </SidebarLayout>
+                </PrivateRoute>
+              }
+            />
+            
+            <Route
+              path="/employees/edit/:id"
+              element={
+                <PrivateRoute allowedRoles={['admin', 'manager']}>
+                  <SidebarLayout user={getUserFromStorage()}>
+                    <EmployeeFormPage />
                   </SidebarLayout>
                 </PrivateRoute>
               }
@@ -335,6 +354,30 @@ function App() {
                 <PrivateRoute allowedRoles={['admin']}>
                   <SidebarLayout user={getUserFromStorage()}>
                     <Settings />
+                  </SidebarLayout>
+                </PrivateRoute>
+              }
+            />
+            
+            {/* Route for Metrics */}
+            <Route
+              path="/metrics"
+              element={
+                <PrivateRoute allowedRoles={['admin']}>
+                  <SidebarLayout user={getUserFromStorage()} activeView="metrics">
+                    <Dashboard initialView="metrics" />
+                  </SidebarLayout>
+                </PrivateRoute>
+              }
+            />
+            
+            {/* NEW: Route for Reports */}
+            <Route
+              path="/reports"
+              element={
+                <PrivateRoute allowedRoles={['admin']}>
+                  <SidebarLayout user={getUserFromStorage()} activeView="reports">
+                    <Dashboard initialView="reports" />
                   </SidebarLayout>
                 </PrivateRoute>
               }
@@ -396,15 +439,10 @@ function App() {
             />
             
             {/* Super Admin Routes */}
+            {/* Changed to direct redirect */}
             <Route 
               path="/super-admin" 
-              element={
-                <PrivateRoute allowedRoles={['superadmin', 'super_admin']}>
-                  <SidebarLayout user={{ role: 'superadmin' }}>
-                    <SuperAdminDashboard />
-                  </SidebarLayout>
-                </PrivateRoute>
-              } 
+              element={<Navigate to="/super-admin/customers" replace />} 
             />
             
             <Route 
