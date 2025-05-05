@@ -12,6 +12,9 @@ import {
 } from 'react-icons/md';
 import { CSVLink } from 'react-csv';
 
+// Define the backend URL for API calls
+const BACKEND_URL = 'https://performance-review-backend-ab8z.onrender.com';
+
 const Reports = () => {
   // State management
   const [activeReport, setActiveReport] = useState('performance');
@@ -67,7 +70,8 @@ const Reports = () => {
           params.append(filter.key, filter.value);
         });
         
-        const response = await fetch(`/api/reports/${activeReport}?${params}`);
+        // Update: Use absolute backend URL instead of relative URL
+        const response = await fetch(`${BACKEND_URL}/api/reports/${activeReport}?${params}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch report data');
@@ -82,7 +86,8 @@ const Reports = () => {
         
         // Get departments for filtering if not already loaded
         if (departments.length === 0) {
-          const departmentsResponse = await fetch('/api/departments');
+          // Update: Use absolute backend URL instead of relative URL
+          const departmentsResponse = await fetch(`${BACKEND_URL}/api/departments`);
           if (departmentsResponse.ok) {
             const departmentsData = await departmentsResponse.json();
             setDepartments(departmentsData);
